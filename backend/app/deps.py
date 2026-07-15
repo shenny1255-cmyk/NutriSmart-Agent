@@ -28,10 +28,19 @@ def get_current_user(
     if user_id is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token không hợp lệ")
 
-    user = db.query(User).filter(
-        User.id == user_id, User.deleted_at.is_(None)
-    ).first()
+    import uuid
+    user = db.query(User).filter(User.id == uuid.UUID(user_id), User.deleted_at.is_(None)).first()  # type: ignore
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
 
     return user
+def require_role(*allowed_roles: str):
+    """Trả về dependency chặn nếu role người dùng không nằm trong allowed_roles."""
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                f"Yêu cầu quyền: {', '.join(allowed_roles)}",
+            )
+        return user
+    return checker

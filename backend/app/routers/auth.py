@@ -12,7 +12,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenOut, status_code=201)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == payload.email).first():
+    if db.query(User).filter(User.email == payload.email).first():  # type: ignore
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được sử dụng")
 
     p = payload.profile
@@ -65,20 +65,18 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         db.rollback()   # thất bại giữa chừng → không để lại user mồ côi
         raise
 
-    return TokenOut(access_token=create_access_token(user.id))
+    return TokenOut(access_token=create_access_token(str(user.id)))
 
 
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, db: Session = Depends(get_db)):
-    user = db.query(User).filter(
-        User.email == payload.email, User.deleted_at.is_(None)
-    ).first()
+    user = db.query(User).filter(User.email == payload.email, User.deleted_at.is_(None)).first()  # type: ignore
 
     # Thông báo chung cho cả 2 trường hợp — tránh lộ email nào đã đăng ký
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email hoặc mật khẩu không đúng")
 
-    return TokenOut(access_token=create_access_token(user.id))
+    return TokenOut(access_token=create_access_token(str(user.id)))
 
 
 @router.get("/me", response_model=UserOut)
