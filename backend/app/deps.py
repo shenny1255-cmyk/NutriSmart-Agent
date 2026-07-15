@@ -34,3 +34,13 @@ def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
 
     return user
+def require_role(*allowed_roles: str):
+    """Trả về dependency chặn nếu role người dùng không nằm trong allowed_roles."""
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                f"Yêu cầu quyền: {', '.join(allowed_roles)}",
+            )
+        return user
+    return checker

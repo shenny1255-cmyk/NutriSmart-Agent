@@ -17,16 +17,29 @@ router = APIRouter(prefix="/demo", tags=["demo"])
 DEMO_EMAIL = "demo@nutrismart.vn"
 DEMO_PASSWORD = "demo1234"
 
+# Tài khoản phụ để Admin quản lý
+EXTRA_DEMO_USERS = [
+    {"email": "user1@nutrismart.vn",   "full_name": "Nguyễn Văn An",    "role": "USER"},
+    {"email": "user2@nutrismart.vn",   "full_name": "Trần Thị Bích",    "role": "USER"},
+    {"email": "expert1@nutrismart.vn", "full_name": "BS. Lê Minh Quang", "role": "EXPERT"},
+]
+
 
 @router.post("/seed")
 def seed_demo(db: Session = Depends(get_db)):
     """Tạo (hoặc reset) tài khoản demo kèm dữ liệu mẫu. Trả về access_token."""
 
     # 1. Xóa tài khoản demo cũ nếu có (CASCADE dọn sạch profile, logs, plan...)
-    old = db.query(User).filter(User.email == DEMO_EMAIL).first()
-    if old:
+    all_demo_emails = [DEMO_EMAIL] + [u["email"] for u in EXTRA_DEMO_USERS]
+    old_users = db.query(User).filter(User.email.in_(all_demo_emails)).all()
+    for old in old_users:
+        # Các bảng FK → users.id không có ON DELETE CASCADE → xóa thủ công
+        uid = str(old.id)
+        db.execute(text("DELETE FROM audit_logs WHERE actor_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM documents WHERE uploaded_by = :uid OR approved_by = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM drug_country_rules WHERE updated_by = :uid"), {"uid": uid})
         db.delete(old)
-        db.flush()
+    db.flush()
 
     # 2. Tạo user demo
     user = User(
@@ -34,9 +47,20 @@ def seed_demo(db: Session = Depends(get_db)):
         password_hash=hash_password(DEMO_PASSWORD),
         full_name="Người dùng Demo",
         country_code="VN",
-        role="USER",
+        role="ADMIN",
     )
     db.add(user)
+    db.flush()
+
+    # 2b. Tạo thêm user demo phụ (USER + EXPERT) để Admin quản lý
+    for u in EXTRA_DEMO_USERS:
+        db.add(User(
+            email=u["email"],
+            password_hash=hash_password(DEMO_PASSWORD),
+            full_name=u["full_name"],
+            country_code="VN",
+            role=u["role"],
+        ))
     db.flush()
 
     # 3. Hồ sơ sức khỏe
@@ -127,10 +151,21 @@ def seed_demo(db: Session = Depends(get_db)):
     )
     db.add(plan)
 
+    # Vài tài liệu chờ duyệt để demo màn Expert
+    for i, (title, src) in enumerate([
+        ("Hướng dẫn dinh dưỡng cho người tiểu đường típ 2", "https://moh.gov.vn"),
+        ("Khuyến nghị lượng đạm theo cân nặng - WHO", "https://who.int"),
+        ("Thành phần dinh dưỡng thực phẩm Việt Nam", "https://fdc.nal.usda.gov"),
+    ]):
+        db.execute(text("""
+            INSERT INTO documents (id, title, source_url, source_name, status, uploaded_by)
+            VALUES (gen_random_uuid(), :t, :u, :s, 'PENDING', :uid)
+        """), {"t": title, "u": src, "s": src, "uid": str(user.id)})
+
     db.commit()
 
     return {
-        "access_token": create_access_token(user.id),
+        "access_token": create_access_token(str(user.id)),
         "email": DEMO_EMAIL,
         "message": "Đã tạo tài khoản demo kèm dữ liệu mẫu 7 ngày.",
     }

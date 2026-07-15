@@ -18,7 +18,8 @@ CREATE TABLE documents (
     uploaded_by UUID REFERENCES users(id),
     approved_by UUID REFERENCES users(id),
     approved_at TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ                          -- soft-delete
 );
 
 CREATE TABLE doc_chunks (

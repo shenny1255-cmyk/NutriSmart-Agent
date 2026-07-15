@@ -17,6 +17,8 @@ export default function Login() {
       // seed sẽ tạo/reset tài khoản demo và trả token luôn
       const res = await api.seedDemo();
       localStorage.setItem('access_token', res.access_token);
+      const me = await api.me();
+      localStorage.setItem('role', me.role);
       window.location.href = '/';
     } catch {
       setErr('Không tạo được tài khoản demo — backend đã chạy chưa?');
@@ -30,6 +32,8 @@ export default function Login() {
     try {
       const res = await api.login(email, password);
       localStorage.setItem('access_token', res.access_token);
+      const me = await api.me();
+      localStorage.setItem('role', me.role);
       navigate('/');
     } catch {
       setErr('Email hoặc mật khẩu không đúng.');

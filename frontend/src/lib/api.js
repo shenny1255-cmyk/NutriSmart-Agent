@@ -33,4 +33,18 @@ export const api = {
   conditions: () => request('/catalog/conditions'),
   allergens: () => request('/catalog/allergens'),
   seedDemo: () => request('/demo/seed', { method: 'POST' }),
+  // Admin
+  adminUsers: (q = '') => request(`/admin/users${q ? `?q=${q}` : ''}`),
+  updateUserRole: (id, role) => request(`/admin/users/${id}/role`, { method: 'PATCH', body: { role } }),
+  deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
+  adminDrugs: () => request('/admin/drugs'),
+  createDrug: (payload) => request('/admin/drugs', { method: 'POST', body: payload }),
+  setDrugRule: (id, payload) => request(`/admin/drugs/${id}/rules`, { method: 'PUT', body: payload }),
+  auditLogs: () => request('/admin/audit'),
+  // Expert
+  pendingDocs: () => request('/expert/documents/pending'),
+  reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),
+
+  // lấy role người dùng hiện tại (đã có /auth/me)
+  me: () => request('/auth/me'),
 };
