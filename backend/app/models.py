@@ -189,3 +189,12 @@ class AuditLog(Base):
     before_data = Column(JSONB)
     after_data  = Column(JSONB)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+    id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+                        nullable=False)
+    title      = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
