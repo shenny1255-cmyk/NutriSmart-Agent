@@ -8,7 +8,21 @@ export default function Login() {
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [demoLoading, setDemoLoading] = useState(false);
 
+  async function tryDemo() {
+    setErr(null);
+    setDemoLoading(true);
+    try {
+      // seed sẽ tạo/reset tài khoản demo và trả token luôn
+      const res = await api.seedDemo();
+      localStorage.setItem('access_token', res.access_token);
+      window.location.href = '/';
+    } catch {
+      setErr('Không tạo được tài khoản demo — backend đã chạy chưa?');
+      setDemoLoading(false);
+    }
+  }
   async function submit(e) {
     e.preventDefault();
     setErr(null);
@@ -51,6 +65,15 @@ export default function Login() {
           className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
+        </button>
+
+        <button
+          type="button"
+          onClick={tryDemo}
+          disabled={demoLoading}
+          className="mt-3 w-full rounded-lg border border-emerald-600 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        >
+          {demoLoading ? 'Đang chuẩn bị dữ liệu…' : 'Dùng thử ngay (Demo)'}
         </button>
 
         <p className="mt-4 text-center text-sm text-slate-500">

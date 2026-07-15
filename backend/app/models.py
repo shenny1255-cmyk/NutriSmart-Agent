@@ -3,7 +3,7 @@ from datetime import datetime, date
 
 from sqlalchemy import (
     Column, String, Boolean, Integer, SmallInteger, Numeric, Date,
-    DateTime, ForeignKey, Text, CHAR, Enum as SAEnum, func
+    DateTime, ForeignKey, Text, CHAR, Enum as SAEnum, func, FetchedValue
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -27,17 +27,17 @@ class Country(Base):
 
 class User(Base):
     __tablename__ = "users"
-    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email         = Column(String(255), unique=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    email: str    = Column(String(255), unique=True, nullable=False)  # type: ignore
+    password_hash: str = Column(String(255), nullable=False)  # type: ignore
     full_name     = Column(String(150))
     role          = Column(user_role, nullable=False, default="USER")
     country_code  = Column(CHAR(2), ForeignKey("countries.code"))
-    is_active     = Column(Boolean, nullable=False, default=True)
+    is_active: bool = Column(Boolean, nullable=False, default=True)  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at    = Column(DateTime(timezone=True))
 
-    profile = relationship("HealthProfile", back_populates="user", uselist=False)
+    profile = relationship("HealthProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class HealthProfile(Base):
@@ -50,7 +50,7 @@ class HealthProfile(Base):
     height_cm      = Column(Numeric(5, 2))
     weight_kg      = Column(Numeric(5, 2))
     # generated column → chỉ đọc, KHÔNG bao giờ insert
-    bmi            = Column(Numeric(5, 2))
+    bmi            = Column(Numeric(5, 2), server_default=FetchedValue())
     activity_level = Column(SmallInteger)
     goal           = Column(goal_enum, nullable=False, default="MAINTAIN")
     daily_calorie_target = Column(Integer)
@@ -90,7 +90,7 @@ class ProfileAllergen(Base):
 
 class NutritionPlan(Base):
     __tablename__ = "nutrition_plans"
-    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: uuid.UUID     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     version           = Column(Integer, nullable=False, default=1)
     parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id"))
@@ -100,5 +100,5 @@ class NutritionPlan(Base):
     goal              = Column(goal_enum, nullable=False)
     content           = Column(JSONB, nullable=False)
     generated_by      = Column(String(100))
-    status            = Column(plan_status, nullable=False, default="ACTIVE")
+    status: str       = Column(plan_status, nullable=False, default="ACTIVE")  # type: ignore
     created_at        = Column(DateTime(timezone=True), server_default=func.now())

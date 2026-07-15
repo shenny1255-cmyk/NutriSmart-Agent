@@ -16,7 +16,7 @@ def active_plan(
 ):
     plan = (
         db.query(NutritionPlan)
-        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")
+        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
         .order_by(NutritionPlan.version.desc())
         .first()
     )
@@ -55,7 +55,7 @@ def generate_plan(
     # Hạ plan cũ xuống REVISED
     old = (
         db.query(NutritionPlan)
-        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")
+        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
         .order_by(NutritionPlan.version.desc())
         .first()
     )

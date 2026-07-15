@@ -55,11 +55,17 @@ SECRET_KEY=doi-chuoi-nay-thanh-cai-gi-do-ngau-nhien-that-dai
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 ```
 
-### Bước 5: Chạy ứng dụng Backend
-Khởi chạy server phát triển Uvicorn bằng lệnh:
-```bash
-python -m uvicorn app.main:app --reload
-```
+### Bước 5: Khởi chạy ứng dụng Backend
+Chọn 1 trong 2 cách sau:
+
+* **Cách 1 (Đã kích hoạt môi trường ảo `.venv`):**
+  ```bash
+  python -m uvicorn app.main:app --reload
+  ```
+* **Cách 2 (Chạy trực tiếp, không cần kích hoạt `.venv` trước):**
+  ```bash
+  .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+  ```
 
 ---
 
