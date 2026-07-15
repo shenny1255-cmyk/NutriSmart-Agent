@@ -127,3 +127,20 @@ class AuditOut(BaseModel):
     entity: str
     entity_id: str | None
     created_at: datetime
+
+
+# ---------- Chat (Trợ lý AI) ----------
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class ChatMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+
+class ChatReplyOut(BaseModel):
+    reply: str
