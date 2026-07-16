@@ -37,9 +37,9 @@ def review_document(
         raise HTTPException(404, "Không tìm thấy tài liệu")
 
     before = {"status": doc.status}
-    doc.status = payload.status
-    doc.approved_by = actor.id
-    doc.approved_at = datetime.now(timezone.utc)
+    doc.status = payload.status  # type: ignore
+    doc.approved_by = actor.id  # type: ignore
+    doc.approved_at = datetime.now(timezone.utc)  # type: ignore
 
     write_audit(db, actor.id, "APPROVE", "documents", doc_id,
                 before=before, after={"status": payload.status})
@@ -61,7 +61,7 @@ def flag_message(
     if not msg:
         raise HTTPException(404, "Không tìm thấy tin nhắn")
 
-    msg.flagged = True
+    msg.flagged = True  # type: ignore
     write_audit(db, actor.id, "UPDATE", "chat_messages", str(msg_id),
                 after={"flagged": True})
     db.commit()

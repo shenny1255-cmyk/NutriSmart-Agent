@@ -4,7 +4,7 @@ from app.models import AuditLog
 
 def write_audit(
     db: Session, actor_id, action: str, entity: str,
-    entity_id: str = None, before: dict = None, after: dict = None,
+    entity_id: str | None = None, before: dict | None = None, after: dict | None = None,
 ):
     db.add(AuditLog(
         actor_id=actor_id,

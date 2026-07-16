@@ -21,7 +21,7 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = admin_only,
 ):
-    query = db.query(User).filter(User.deleted_at.is_(None))
+    query = db.query(User).filter(User.deleted_at.is_(None))  # type: ignore
     if q:
         query = query.filter(User.email.ilike(f"%{q}%"))
     return query.order_by(User.created_at.desc()).all()
@@ -33,14 +33,14 @@ def update_role(
     db: Session = Depends(get_db),
     actor: User = admin_only,
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()  # type: ignore
     if not user:
         raise HTTPException(404, "Không tìm thấy người dùng")
 
     before = {"role": user.role}
-    user.role = payload.role
+    user.role = payload.role  # type: ignore
     write_audit(db, actor.id, "UPDATE", "users", user_id,
-                before=before, after={"role": payload.role})
+                before=before, after={"role": payload.role})  # type: ignore
     db.commit()
     db.refresh(user)
     return user
@@ -53,13 +53,13 @@ def soft_delete_user(
     actor: User = admin_only,
 ):
     from datetime import datetime, timezone
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first()  # type: ignore
     if not user:
         raise HTTPException(404, "Không tìm thấy người dùng")
     if user.id == actor.id:
         raise HTTPException(400, "Không thể tự xóa tài khoản của mình")
 
-    user.deleted_at = datetime.now(timezone.utc)   # soft delete
+    user.deleted_at = datetime.now(timezone.utc)   # type: ignore
     write_audit(db, actor.id, "DELETE", "users", user_id)
     db.commit()
 
@@ -79,7 +79,7 @@ def create_drug(
     drug = Drug(**payload.model_dump())
     db.add(drug)
     db.flush()
-    write_audit(db, actor.id, "CREATE", "drugs", drug.id, after=payload.model_dump())
+    write_audit(db, actor.id, "CREATE", "drugs", str(drug.id), after=payload.model_dump())
     db.commit()
     db.refresh(drug)
     return drug
@@ -99,9 +99,9 @@ def set_country_rule(
 
     if rule:
         before = {"status": rule.status}
-        rule.status = payload.status
-        rule.note = payload.note
-        rule.updated_by = actor.id
+        rule.status = payload.status  # type: ignore
+        rule.note = payload.note  # type: ignore
+        rule.updated_by = actor.id  # type: ignore
     else:
         before = None
         rule = DrugCountryRule(
@@ -112,7 +112,7 @@ def set_country_rule(
 
     write_audit(db, actor.id, "UPDATE", "drug_country_rules",
                 f"{drug_id}:{payload.country_code}",
-                before=before, after=payload.model_dump())
+                before=before, after=payload.model_dump())  # type: ignore
     db.commit()
     return {"message": "Đã cập nhật quy định thuốc theo quốc gia"}
 
