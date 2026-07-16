@@ -1,10 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from app.routers import auth, catalog, tracking, plans, demo, admin, expert
 
-
-from app.routers import auth, catalog, tracking, plans
+from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert
 
 app = FastAPI(title="NutriSmart Agent API", version="0.1.0")
 
@@ -21,9 +19,10 @@ app.include_router(auth.router,     prefix=API)
 app.include_router(catalog.router,  prefix=API)
 app.include_router(tracking.router, prefix=API)
 app.include_router(plans.router,    prefix=API)
-app.include_router(demo.router, prefix=API)
-app.include_router(admin.router,  prefix=API)
-app.include_router(expert.router, prefix=API)
+app.include_router(chat.router,     prefix=API)
+app.include_router(demo.router,     prefix=API)
+app.include_router(admin.router,    prefix=API)
+app.include_router(expert.router,   prefix=API)
 
 
 @app.get("/", include_in_schema=False)
