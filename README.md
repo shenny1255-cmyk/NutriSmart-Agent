@@ -78,95 +78,244 @@ Hệ thống cần lưu trữ các thực thể thông tin sau để vận hành
 
 ```mermaid
 erDiagram
-    USERS ||--|| PROFILES : "has"
-    USERS ||--o| CHAT_HISTORY : "chats"
-    USERS ||--o| DAILY_LOGS : "records"
-    USERS ||--o| MEAL_PLANS : "follows"
-    PROFILES ||--o| PROFILE_CONDITIONS : "has"
-    PROFILES ||--o| PROFILE_ALLERGENS : "has"
-    MEDICAL_CONDITIONS ||--o| PROFILE_CONDITIONS : "references"
-    ALLERGENS ||--o| PROFILE_ALLERGENS : "references"
-    MEAL_PLANS ||--o| MEAL_PLAN_DAYS : "contains"
-    MEAL_PLAN_DAYS ||--o| MEAL_PLAN_MEALS : "has"
-
-    USERS {
+    DRUG_CATEGORIES {
         int id PK
+        string name
+    }
+    DRUGS {
+        uuid id PK
+        int category_id FK
+        string name
+        string active_ingredient
+        text side_effects
+        text contraindications
+    }
+    DRUG_COUNTRY_RULES {
+        uuid drug_id PK
+        char country_code PK
+        enum status
+        text note
+    }
+    COUNTRIES {
+        char code PK
+        string name
+    }
+    FOODS {
+        uuid id PK
+        string name
+        numeric calories_kcal
+        numeric protein_g
+        numeric carb_g
+        numeric fat_g
+        string source
+    }
+    EXERCISES {
+        int id PK
+        string name
+        numeric met_value
+        string category
+    }
+    USERS {
+        uuid id PK
         string email
         string password_hash
         string full_name
-        string country_code
-        datetime created_at
+        enum role
+        char country_code FK
+        boolean is_active
+        timestamptz created_at
+        timestamptz deleted_at
     }
-
-    PROFILES {
-        int user_id PK, FK
-        string gender
-        date birth_date
-        float height_cm
-        float weight_kg
-        int activity_level
-        string goal
+    MEAL_IMAGES {
+        uuid id PK
+        uuid user_id FK
+        text image_path
+        enum status
+        uuid predicted_food_id FK
+        numeric confidence
+        jsonb raw_prediction
+        numeric estimated_kcal
+        text suitability_note
     }
-
+    BODY_METRICS_HISTORY {
+        bigint id PK
+        uuid user_id FK
+        date recorded_at
+        numeric weight_kg
+        numeric bmi
+    }
+    MEAL_LOGS {
+        bigint id PK
+        uuid user_id FK
+        uuid food_id FK
+        uuid meal_image_id FK
+        enum meal_type
+        numeric quantity
+        numeric calories_kcal
+        timestamptz logged_at
+        date log_date
+    }
+    ACTIVITY_LOGS {
+        bigint id PK
+        uuid user_id FK
+        int exercise_id FK
+        int steps
+        int duration_min
+        numeric calories_burned
+        date log_date
+    }
     MEDICAL_CONDITIONS {
         int id PK
+        string code
         string name
-        string description
     }
-
+    NOTIFICATIONS {
+        bigint id PK
+        uuid user_id FK
+        string type
+        string title
+        boolean is_read
+        timestamptz created_at
+    }
+    AUDIT_LOGS {
+        bigint id PK
+        uuid actor_id FK
+        string action
+        string entity
+        text entity_id
+        jsonb before_data
+        jsonb after_data
+        timestamptz created_at
+    }
     ALLERGENS {
         int id PK
         string name
     }
-
+    HEALTH_PROFILES {
+        uuid id PK
+        uuid user_id FK
+        enum gender
+        date birth_date
+        numeric height_cm
+        numeric weight_kg
+        numeric bmi
+        smallint activity_level
+        enum goal
+        int daily_calorie_target
+    }
     PROFILE_CONDITIONS {
-        int profile_id FK
-        int condition_id FK
+        uuid profile_id PK
+        int condition_id PK
     }
-
     PROFILE_ALLERGENS {
-        int profile_id FK
-        int allergen_id FK
+        uuid profile_id PK
+        int allergen_id PK
+        smallint severity
     }
-
-    MEAL_PLANS {
+    DOC_CATEGORIES {
         int id PK
-        int user_id FK
+        int parent_id FK
+        string name
+        string slug
+    }
+    DOCUMENTS {
+        uuid id PK
+        int category_id FK
+        text title
+        text source_url
+        string language
+        enum status
+        uuid uploaded_by FK
+        uuid approved_by FK
+        timestamptz created_at
+    }
+    DOC_CHUNKS {
+        bigint id PK
+        uuid document_id FK
+        int chunk_index
+        text content
+        vector embedding
+        jsonb metadata
+    }
+    NUTRITION_PLANS {
+        uuid id PK
+        uuid user_id FK
         int version
+        uuid parent_plan_id FK
         date start_date
         date end_date
         int daily_kcal_target
-        string goal
+        enum goal
+        jsonb content
+        string generated_by
+        enum status
+        timestamptz created_at
     }
-
-    MEAL_PLAN_DAYS {
-        int id PK
-        int plan_id FK
-        int day_number
-        string exercise
+    PLAN_EVALUATIONS {
+        bigint id PK
+        uuid plan_id FK
+        date period_start
+        date period_end
+        numeric avg_kcal_intake
+        numeric weight_change_kg
+        enum result
+        text ai_feedback
     }
-
-    MEAL_PLAN_MEALS {
-        int id PK
-        int day_id FK
-        string meal_type
-        string name
-        int kcal
+    CHAT_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        string title
+        timestamptz created_at
     }
-
-    DAILY_LOGS {
-        int id PK
-        int user_id FK
-        date date
-        int kcal_intake
-        int kcal_burned
-    }
-
-    CHAT_HISTORY {
-        int id PK
-        int user_id FK
+    CHAT_MESSAGES {
+        bigint id PK
+        uuid session_id FK
         string role
         text content
-        datetime created_at
+        boolean flagged
+        timestamptz created_at
     }
+    MESSAGE_CITATIONS {
+        bigint message_id PK
+        bigint chunk_id PK
+        numeric score
+        smallint rank
+    }
+
+    DRUG_CATEGORIES ||--o{ DRUGS : "groups"
+    DRUGS ||--o{ DRUG_COUNTRY_RULES : "restricted_by"
+    COUNTRIES ||--o{ DRUG_COUNTRY_RULES : "applies_to"
+    COUNTRIES ||--o{ USERS : "located_in"
+
+    USERS ||--o{ MEAL_IMAGES : "uploads"
+    USERS ||--o{ BODY_METRICS_HISTORY : "records"
+    USERS ||--o{ MEAL_LOGS : "logs"
+    USERS ||--o{ ACTIVITY_LOGS : "performs"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AUDIT_LOGS : "acts"
+    USERS ||--|| HEALTH_PROFILES : "has"
+    USERS ||--o{ DOCUMENTS : "uploads_doc"
+    USERS ||--o{ NUTRITION_PLANS : "follows"
+    USERS ||--o{ CHAT_SESSIONS : "starts"
+
+    FOODS ||--o{ MEAL_IMAGES : "predicted_as"
+    FOODS ||--o{ MEAL_LOGS : "consumed_as"
+    MEAL_IMAGES |o--o{ MEAL_LOGS : "source_of"
+    EXERCISES ||--o{ ACTIVITY_LOGS : "used_in"
+
+    MEDICAL_CONDITIONS ||--o{ PROFILE_CONDITIONS : "listed_in"
+    HEALTH_PROFILES ||--o{ PROFILE_CONDITIONS : "has"
+    ALLERGENS ||--o{ PROFILE_ALLERGENS : "listed_in"
+    HEALTH_PROFILES ||--o{ PROFILE_ALLERGENS : "has"
+
+    DOC_CATEGORIES ||--o{ DOC_CATEGORIES : "parent_of"
+    DOC_CATEGORIES ||--o{ DOCUMENTS : "groups"
+    DOCUMENTS ||--o{ DOC_CHUNKS : "split_into"
+
+    NUTRITION_PLANS |o--o{ NUTRITION_PLANS : "revised_from"
+    NUTRITION_PLANS ||--o{ PLAN_EVALUATIONS : "evaluated_by"
+
+    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "contains"
+    CHAT_MESSAGES ||--o{ MESSAGE_CITATIONS : "cites"
+    DOC_CHUNKS ||--o{ MESSAGE_CITATIONS : "cited_in"
 ```
