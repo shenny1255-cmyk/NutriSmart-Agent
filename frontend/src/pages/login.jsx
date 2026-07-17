@@ -71,6 +71,7 @@ export default function Login() {
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </button>
 
+        {/*
         <button
           type="button"
           onClick={tryDemo}
@@ -79,6 +80,7 @@ export default function Login() {
         >
           {demoLoading ? 'Đang chuẩn bị dữ liệu…' : 'Dùng thử ngay (Demo)'}
         </button>
+        */}
 
         <p className="mt-4 text-center text-sm text-slate-500">
           Chưa có tài khoản?{' '}

@@ -19,6 +19,7 @@ async function request(path, { method = 'GET', body, isForm } = {}) {
 export const api = {
   dailySummary: (days = 7) => request(`/tracking/summary?days=${days}`),
   activePlan: () => request('/plans/active'),
+  generatePlan: () => request('/plans/generate', { method: 'POST' }),
   chat: (message) => request('/chat/messages', { method: 'POST', body: { message } }),
   chatHistory: () => request('/chat/messages'),
   analyzeMeal: (file) => {

@@ -4,17 +4,60 @@ import { api } from '../lib/api.js';
 export default function Plan() {
   const [plan, setPlan] = useState(null);
   const [err, setErr] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    api.activePlan().then(setPlan).catch((e) => setErr(e.message));
+    fetchPlan();
   }, []);
 
-if (err)   return <p className="text-sm text-amber-600">Chưa kết nối backend — chưa có lộ trình.</p>;
-if (!plan) return <p className="text-sm text-slate-500">Đang tải…</p>;
+  const fetchPlan = () => {
+    api.activePlan().then(setPlan).catch((e) => setErr(e.message));
+  };
+
+  const handleGeneratePlan = async () => {
+    setIsGenerating(true);
+    setErr(null);
+    try {
+      const newPlan = await api.generatePlan();
+      setPlan(newPlan);
+    } catch (e) {
+      setErr('Có lỗi khi tạo lộ trình: ' + e.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (err && !plan) {
+    return (
+      <div className="flex flex-col items-center justify-center space-y-4 rounded-xl border border-slate-200 bg-white p-8 text-center max-w-4xl">
+        <h2 className="text-xl font-bold text-slate-700">Chưa có lộ trình nào</h2>
+        <p className="text-sm text-slate-500">Hệ thống chưa tạo lộ trình dinh dưỡng cho bạn.</p>
+        <button
+          onClick={handleGeneratePlan}
+          disabled={isGenerating}
+          className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+        >
+          {isGenerating ? '✨ AI đang suy nghĩ (có thể mất 15-30s)…' : 'Tạo lộ trình cá nhân hóa mới'}
+        </button>
+        {err && !err.includes('HTTP 404') && <p className="text-sm text-red-600">{err}</p>}
+      </div>
+    );
+  }
+
+  if (!plan) return <p className="text-sm text-slate-500">Đang tải…</p>;
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-2xl font-bold">Lộ trình cá nhân hóa</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Lộ trình cá nhân hóa</h1>
+        <button
+          onClick={handleGeneratePlan}
+          disabled={isGenerating}
+          className="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        >
+          {isGenerating ? 'Đang tạo lại...' : '🔄 Tạo lộ trình mới'}
+        </button>
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold">
@@ -22,6 +65,7 @@ if (!plan) return <p className="text-sm text-slate-500">Đang tải…</p>;
         </h2>
         <p className="mt-2 text-sm text-slate-600">
           Mục tiêu: <b>{plan.goal}</b> · {plan.daily_kcal_target} kcal/ngày
+          {plan.bmi && <span> · BMI: <b>{plan.bmi}</b></span>}
         </p>
       </div>
 
