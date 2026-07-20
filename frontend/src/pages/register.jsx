@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import PasswordInput from '../components/PasswordInput.jsx';
+
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
 // Fallback khi backend chưa chạy — sau này lấy từ API
 const FALLBACK_COUNTRIES  = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
@@ -88,10 +91,19 @@ export default function Register() {
 
     try {
       const res = await api.register(payload);
-      if (res?.access_token) localStorage.setItem('access_token', res.access_token);
+      if (res?.access_token) {
+        localStorage.setItem('access_token', res.access_token);
+        try {
+          const me = await api.me();
+          localStorage.setItem('role', me.role);   // đồng bộ role như luồng đăng nhập
+        } catch { /* role không bắt buộc để vào app */ }
+      }
       navigate('/');
-    } catch {
-      setErr('Đăng ký thất bại (backend chưa sẵn sàng?).');
+    } catch (e) {
+      if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
+      else if (e.status === 422) setErr('Thông tin chưa hợp lệ — kiểm tra lại email và mật khẩu.');
+      else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
+      else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng ký thất bại, thử lại sau.');
     } finally {
       setLoading(false);
     }
@@ -130,14 +142,25 @@ export default function Register() {
 
             <Field label="Email">
               <input type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} className={inputCls} />
+              {form.email && !isEmail(form.email) && (
+                <p className="mt-1 text-xs text-amber-600">Email chưa đúng định dạng</p>
+              )}
             </Field>
 
-            <Field label="Mật khẩu" hint="Tối thiểu 8 ký tự">
-              <input type="password" required value={form.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />
+            <Field label="Mật khẩu">
+              <PasswordInput required value={form.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />
+              <p className={`mt-1 text-xs ${form.password.length >= 8 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {form.password.length >= 8 ? '✓ Đủ độ dài' : 'Tối thiểu 8 ký tự'}
+              </p>
             </Field>
 
             <Field label="Xác nhận mật khẩu">
-              <input type="password" required value={form.confirm} onChange={(e) => set('confirm', e.target.value)} className={inputCls} />
+              <PasswordInput required value={form.confirm} onChange={(e) => set('confirm', e.target.value)} className={inputCls} />
+              {form.confirm && (
+                <p className={`mt-1 text-xs ${form.confirm === form.password ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {form.confirm === form.password ? '✓ Mật khẩu khớp' : 'Mật khẩu chưa khớp'}
+                </p>
+              )}
             </Field>
 
             <Field label="Quốc gia" hint="Dùng để lọc thuốc/hoạt chất bị cấm theo quy định sở tại">
