@@ -31,6 +31,13 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+// Đã đăng nhập rồi thì không xem lại trang đăng nhập/đăng ký nữa
+function RedirectIfAuthed() {
+  const token = localStorage.getItem('access_token');
+  if (token) return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
 function Shell() {
   const role = localStorage.getItem('role') || 'USER';
   const nav = baseNav.filter((item) => item.roles.includes(role));
@@ -86,8 +93,10 @@ function Shell() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route element={<RedirectIfAuthed />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
 
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
