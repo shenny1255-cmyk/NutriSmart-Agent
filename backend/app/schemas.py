@@ -95,6 +95,23 @@ class DocumentReviewIn(BaseModel):
     status: Literal["APPROVED", "REJECTED"]
 
 
+class CrawlIn(BaseModel):
+    urls: list[str] = Field(min_length=1)
+
+
+class CrawlOut(BaseModel):
+    inserted: int
+    skipped: int
+    documents: list[DocumentOut]
+
+
+class CrawlPresetIn(BaseModel):
+    source: Literal["moh", "who", "all"] = "moh"
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+
+
 # ---------- Drugs ----------
 class DrugIn(BaseModel):
     category_id: int | None = None

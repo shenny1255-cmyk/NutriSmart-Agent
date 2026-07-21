@@ -45,3 +45,32 @@ def chat(
     if not content:
         raise OllamaError("Ollama trả về câu trả lời rỗng")
     return content
+
+
+def get_embedding(
+    prompt: str,
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 60.0,
+) -> list[float]:
+    """Gửi đoạn văn bản tới Ollama endpoint /api/embeddings, trả về danh sách vector float."""
+    model = model or getattr(settings, "OLLAMA_EMBEDDING_MODEL", "bge-m3")
+    base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+    }
+
+    try:
+        resp = httpx.post(f"{base_url}/api/embeddings", json=payload, timeout=timeout)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        raise OllamaError(f"Không gọi được Ollama Embeddings: {e}") from e
+
+    embedding = resp.json().get("embedding")
+    if not embedding or not isinstance(embedding, list):
+        raise OllamaError("Ollama Embeddings trả về kết quả rỗng hoặc không đúng định dạng")
+    return embedding
+
