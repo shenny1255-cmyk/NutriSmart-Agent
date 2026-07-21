@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import PasswordInput from '../components/PasswordInput.jsx';
+
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -20,8 +23,12 @@ export default function Login() {
       const me = await api.me();
       localStorage.setItem('role', me.role);
       window.location.href = '/';
-    } catch {
-      setErr('Không tạo được tài khoản demo — backend đã chạy chưa?');
+    } catch (e) {
+      setErr(
+        e.status === undefined
+          ? 'Không kết nối được máy chủ — backend đã chạy chưa?'
+          : 'Không tạo được tài khoản demo, thử lại sau.'
+      );
       setDemoLoading(false);
     }
   }
@@ -35,8 +42,11 @@ export default function Login() {
       const me = await api.me();
       localStorage.setItem('role', me.role);
       navigate('/');
-    } catch {
-      setErr('Email hoặc mật khẩu không đúng.');
+    } catch (e) {
+      if (e.status === 401) setErr('Email hoặc mật khẩu không đúng.');
+      else if (e.status === 422) setErr('Email chưa đúng định dạng.');
+      else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
+      else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng nhập thất bại, thử lại sau.');
     } finally {
       setLoading(false);
     }
@@ -52,12 +62,15 @@ export default function Login() {
         <input
           type="email" required value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
         />
+        <p className="mb-4 mt-1 h-4 text-xs text-amber-600">
+          {email && !isEmail(email) ? 'Email chưa đúng định dạng' : ''}
+        </p>
 
         <label className="mb-1 block text-sm font-medium">Mật khẩu</label>
-        <input
-          type="password" required value={password}
+        <PasswordInput
+          required value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
         />

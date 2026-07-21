@@ -1,9 +1,18 @@
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator
+
+
+def _normalize_email(v: str) -> str:
+    """Trim + thường hoá email trước khi EmailStr kiểm tra → không phân biệt hoa/thường."""
+    return v.strip().lower() if isinstance(v, str) else v
+
+
+# Chấp nhận MỌI nhà cung cấp (EmailStr không chặn theo domain), luôn lưu ở dạng chuẩn hoá.
+NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
 
 
 # ---------- Register ----------
@@ -19,7 +28,7 @@ class ProfileIn(BaseModel):
 
 
 class RegisterIn(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str = Field(min_length=8)
     full_name: str
     country_code: str = Field(min_length=2, max_length=2)
@@ -27,7 +36,7 @@ class RegisterIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str
 
 

@@ -1,5 +1,16 @@
 const BASE = '/api/v1';
 
+// Lỗi API mang theo status + detail để UI hiển thị đúng nguyên nhân.
+// Lỗi mạng (backend không chạy) → status === undefined.
+export class ApiError extends Error {
+  constructor(status, detail) {
+    super(typeof detail === 'string' ? detail : `HTTP ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function request(path, { method = 'GET', body, isForm } = {}) {
   const token = localStorage.getItem('access_token');
   const headers = {};
@@ -12,7 +23,15 @@ async function request(path, { method = 'GET', body, isForm } = {}) {
     body: isForm ? body : body ? JSON.stringify(body) : undefined,
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    let detail;
+    try {
+      detail = (await res.json()).detail;   // FastAPI: string, hoặc mảng lỗi 422
+    } catch {
+      /* body không phải JSON */
+    }
+    throw new ApiError(res.status, detail);
+  }
   return res.status === 204 ? null : res.json();
 }
 
