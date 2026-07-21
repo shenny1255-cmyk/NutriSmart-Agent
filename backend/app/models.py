@@ -3,11 +3,12 @@ from datetime import datetime, date
 from sqlalchemy import Enum as SAEnum
 
 from sqlalchemy import (
-    Column, String, Boolean, Integer, SmallInteger, Numeric, Date,
+    Column, String, Boolean, Integer, BigInteger, SmallInteger, Numeric, Date,
     DateTime, ForeignKey, Text, CHAR, Enum as SAEnum, func, FetchedValue
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -136,6 +137,19 @@ class Document(Base):
     approved_at = Column(DateTime(timezone=True))
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at  = Column(DateTime(timezone=True))
+
+
+class DocChunk(Base):
+    __tablename__ = "doc_chunks"
+    id          = Column(BigInteger, primary_key=True, autoincrement=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    content     = Column(Text, nullable=False)
+    token_count = Column(Integer)
+    embedding   = Column(Vector(1024))
+    metadata_   = Column("metadata", JSONB, server_default=FetchedValue())
+
+    document    = relationship("Document")
 
 
 class DrugCategory(Base):

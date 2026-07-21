@@ -65,6 +65,11 @@ export const api = {
   // Expert
   pendingDocs: () => request('/expert/documents/pending'),
   reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),
+  crawlDocs: (urls) => request('/expert/documents/crawl', { method: 'POST', body: { urls } }),
+  crawlPresetDocs: (source = 'moh', limit = 10) => request('/expert/documents/crawl-preset', { method: 'POST', body: { source, limit } }),
+  resetDocs: () => request('/expert/documents/reset', { method: 'POST' }),
+
+
 
   // lấy role người dùng hiện tại (đã có /auth/me)
   me: () => request('/auth/me'),
