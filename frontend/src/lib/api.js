@@ -48,6 +48,8 @@ export const api = {
   },
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
+  verifyEmail: (token) => request(`/auth/verify?token=${encodeURIComponent(token)}`),
+  resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
 
   // dữ liệu cho dropdown/checkbox — lấy từ bảng countries, medical_conditions, allergens
   countries: () => request('/catalog/countries'),

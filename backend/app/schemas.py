@@ -66,6 +66,7 @@ class UserOut(BaseModel):
     full_name: str | None
     role: str
     country_code: str | None
+    email_verified: bool = False
 
 
 # ---------- Tracking ----------

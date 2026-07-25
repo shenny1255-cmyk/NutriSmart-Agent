@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
 import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X } from 'lucide-react';
 import Dashboard from './pages/dashboard.jsx';
@@ -12,7 +12,10 @@ import AdminUsers from './pages/AdminUsers.jsx';
 import AdminDrugs from './pages/AdminDrugs.jsx';
 import AdminAudit from './pages/AdminAudit.jsx';
 import ExpertReview from './pages/ExpertReview.jsx';
+import Verify from './pages/Verify.jsx';
 import { Logo, LogoMark } from './components/Logo.jsx';
+import VerifyBanner from './components/VerifyBanner.jsx';
+import { api } from './lib/api.js';
 
 const baseNav = [
 
@@ -80,6 +83,11 @@ function Shell() {
   const role = localStorage.getItem('role') || 'USER';
   const nav = baseNav.filter((item) => item.roles.includes(role));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(true);   // mặc định true → tránh nháy banner
+
+  useEffect(() => {
+    api.me().then((me) => setEmailVerified(me.email_verified)).catch(() => {});
+  }, []);
 
   function logout() {
     localStorage.removeItem('access_token');
@@ -154,6 +162,11 @@ function Shell() {
         </aside>
 
         <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-8">
+          {!emailVerified && (
+            <div className="mb-4">
+              <VerifyBanner />
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
@@ -168,6 +181,9 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
       </Route>
+
+      {/* Công khai: bấm link trong email để xác minh (kể cả khi chưa/đã đăng nhập) */}
+      <Route path="/verify" element={<Verify />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
