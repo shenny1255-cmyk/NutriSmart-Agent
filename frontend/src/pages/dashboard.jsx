@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
-import { Target, Flame, Scale } from 'lucide-react';
+import { Target, Flame, Scale, Footprints } from 'lucide-react';
 import { api } from '../lib/api.js';
 
 const MOCK = Array.from({ length: 7 }, (_, i) => ({
@@ -22,12 +22,21 @@ function useTokens(names) {
 export default function Dashboard() {
   const [data, setData] = useState(MOCK);
   const [offline, setOffline] = useState(false);
+  const [activity, setActivity] = useState({ steps: 0, calories_burned: 0 });
+  const [syncStatus, setSyncStatus] = useState(null); // null | 'ok' | 'error'
 
   useEffect(() => {
     api.dailySummary(7)
       .then(setData)
       .catch(() => setOffline(true));   // backend chưa chạy → giữ MOCK
   }, []);
+
+  // Lấy dữ liệu vận động hôm nay từ Mobile (đã sync lên backend)
+  useEffect(() => {
+    api.todayActivity()
+      .then((res) => setActivity(res))
+      .catch(() => {}); // Không ảnh hưởng nếu chưa có data Mobile
+  }, [syncStatus]); // re-fetch mỗi khi sync thành công
 
   const t = useTokens([
     '--color-accent', '--color-warning', '--color-warning-strong', '--color-rule-2',
@@ -36,7 +45,9 @@ export default function Dashboard() {
 
   const today = data.at(-1) ?? {};
   const target = today.daily_calorie_target ?? 2000;
-  const remaining = target - (today.kcal_intake ?? 0) + (today.kcal_burned ?? 0);
+  // Sử dụng kcal_burned từ activity (Mobile sync) hoặc từ backend summary
+  const burnedKcal = activity.calories_burned || today.kcal_burned || 0;
+  const remaining = target - (today.kcal_intake ?? 0) + burnedKcal;
   const over = remaining < 0;
 
   return (
@@ -48,16 +59,29 @@ export default function Dashboard() {
             Chưa kết nối backend — đang hiển thị dữ liệu mẫu
           </p>
         )}
+        {syncStatus === 'ok' && (
+          <p className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent-strong">
+            ✅ Đã đồng bộ từ Mobile
+          </p>
+        )}
       </header>
 
-      {/* Stats — 1 cột mobile, 3 cột từ md. minmax(0,1fr) chống tràn ngang */}
-      <div className="grid grid-cols-1 gap-4 md:[grid-template-columns:repeat(3,minmax(0,1fr))]">
+      {/* Stats — 1 cột mobile, 4 cột từ md */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:[grid-template-columns:repeat(4,minmax(0,1fr))]">
         <Stat icon={Target} label="Mục tiêu hôm nay" value={target} unit="kcal" />
         <Stat icon={Flame} label="Đã nạp" value={today.kcal_intake ?? 0} unit="kcal" />
         <Stat
+          icon={Footprints}
+          label="Đã tiêu hao"
+          value={Math.round(burnedKcal)}
+          unit="kcal"
+          tone="burn"
+          hint={activity.steps > 0 ? `${activity.steps.toLocaleString()} bước chân` : undefined}
+        />
+        <Stat
           icon={Scale}
           label={over ? 'Dư thừa' : 'Còn lại'}
-          value={Math.abs(remaining)}
+          value={Math.abs(Math.round(remaining))}
           unit="kcal"
           tone={over ? 'warn' : 'ok'}
           hint={over ? 'Vượt mục tiêu hôm nay' : undefined}
@@ -143,6 +167,7 @@ export default function Dashboard() {
 
 function Stat({ icon: Icon, label, value, unit, tone = 'neutral', hint }) {
   const warn = tone === 'warn';
+  const burn = tone === 'burn';
   return (
     <div
       className={[
@@ -152,26 +177,28 @@ function Stat({ icon: Icon, label, value, unit, tone = 'neutral', hint }) {
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className={`text-xs font-medium uppercase tracking-wide ${warn ? 'text-warning-strong' : 'text-muted'}`}>
+        <p className={`text-xs font-medium uppercase tracking-wide ${warn ? 'text-warning-strong' : burn ? 'text-orange-400' : 'text-muted'}`}>
           {label}
         </p>
         <span
           className={[
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
             'transition-transform duration-short ease-out group-hover:scale-110',
-            warn ? 'bg-warning/20 text-warning-strong' : 'bg-accent-soft text-accent-strong',
+            warn ? 'bg-warning/20 text-warning-strong' : burn ? 'bg-orange-500/20 text-orange-400' : 'bg-accent-soft text-accent-strong',
           ].join(' ')}
         >
           <Icon size={18} strokeWidth={2.2} />
         </span>
       </div>
       <p
-        className={`mt-2 font-display text-3xl font-bold [font-variant-numeric:tabular-nums] ${warn ? 'text-warning-strong' : 'text-ink'}`}
+        className={`mt-2 font-display text-3xl font-bold [font-variant-numeric:tabular-nums] ${
+          warn ? 'text-warning-strong' : burn ? 'text-orange-400' : 'text-ink'
+        }`}
       >
         {value}
         <span className="ml-1 font-body text-base font-medium text-muted">{unit}</span>
       </p>
-      {hint && <p className="mt-1 text-xs text-warning-strong">{hint}</p>}
+      {hint && <p className={`mt-1 text-xs ${warn ? 'text-warning-strong' : burn ? 'text-orange-400' : 'text-muted'}`}>{hint}</p>}
     </div>
   );
 }

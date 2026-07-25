@@ -73,4 +73,8 @@ export const api = {
 
   // lấy role người dùng hiện tại (đã có /auth/me)
   me: () => request('/auth/me'),
+
+  // Activity từ Mobile (bước chân, calo tiêu hao)
+  todayActivity: () => request('/tracking/today-activity'),
+  syncActivity: (payload) => request('/tracking/daily-activity', { method: 'POST', body: payload }),
 };

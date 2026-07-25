@@ -212,3 +212,22 @@ class ChatSession(Base):
                         nullable=False)
     title      = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Exercise(Base):
+    __tablename__ = "exercises"
+    id        = Column(Integer, primary_key=True)
+    name      = Column(String(150), nullable=False)
+    met_value = Column(Numeric(4, 2))
+    category  = Column(String(80))
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    id              = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id         = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exercise_id     = Column(Integer, ForeignKey("exercises.id"), nullable=True)
+    steps           = Column(Integer, default=0)
+    duration_min    = Column(Integer, default=0)
+    calories_burned = Column(Numeric(7, 2), default=0)
+    log_date        = Column(Date, nullable=False, server_default=func.current_date())
