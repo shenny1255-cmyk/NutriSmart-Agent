@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, AlertTriangle } from 'lucide-react';
+import { RotateCcw, AlertTriangle, Building2, Globe, Zap, Link2, Check, X } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { Btn, Field, Alert, Card, Modal } from '../components/ui.jsx';
 
 export default function ExpertReview() {
     const [docs, setDocs] = useState([]);
@@ -77,147 +78,131 @@ export default function ExpertReview() {
     }
 
     return (
-        <div className="space-y-6 relative">
-            <div className="flex items-center justify-between">
+        <div className="relative space-y-6">
+            <header className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold">Duyệt tài liệu y–dược</h1>
-                    <p className="text-sm text-slate-500">
+                    <h1 className="font-display text-2xl font-bold tracking-tight">Duyệt tài liệu y–dược</h1>
+                    <p className="text-sm text-muted">
                         Tài liệu được duyệt sẽ đưa vào kho tri thức (RAG). Từ chối nếu nội dung sai lệch.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setShowResetModal(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-100 transition shadow-sm"
-                >
-                    <RotateCcw size={14} />
+                <Btn variant="danger-subtle" size="sm" onClick={() => setShowResetModal(true)}>
+                    <RotateCcw size={13} />
                     Reset danh sách để Demo
-                </button>
-            </div>
+                </Btn>
+            </header>
 
-            {/* Nút cào tự động từ nguồn uy tín chọn sẵn */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-                <label className="block text-sm font-medium text-slate-700">⚡ Cào tự động theo nguồn y tế uy tín:</label>
+            {/* Cào tự động từ nguồn chọn sẵn */}
+            <Card className="space-y-3 p-4">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-ink-2">
+                    <Zap size={15} className="text-accent-strong" />
+                    Cào tự động theo nguồn y tế uy tín
+                </p>
                 <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        disabled={crawling}
-                        onClick={() => handlePresetCrawl('moh')}
-                        className="rounded-lg bg-emerald-50 border border-emerald-300 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                    >
-                        🏥 Cào 5 bài từ Bộ Y tế (moh.gov.vn)
-                    </button>
-                    <button
-                        type="button"
-                        disabled={crawling}
-                        onClick={() => handlePresetCrawl('who')}
-                        className="rounded-lg bg-blue-50 border border-blue-300 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                    >
-                        🌐 Cào 5 bài từ WHO (who.int)
-                    </button>
-                    <button
-                        type="button"
-                        disabled={crawling}
-                        onClick={() => handlePresetCrawl('all')}
-                        className="rounded-lg bg-purple-50 border border-purple-300 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
-                    >
-                        🚀 Cào tất cả nguồn uy tín (10 bài)
-                    </button>
+                    <Btn variant="subtle" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('moh')}>
+                        <Building2 size={13} />
+                        5 bài từ Bộ Y tế (moh.gov.vn)
+                    </Btn>
+                    <Btn variant="subtle" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('who')}>
+                        <Globe size={13} />
+                        5 bài từ WHO (who.int)
+                    </Btn>
+                    <Btn variant="primary" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('all')}>
+                        <Zap size={13} />
+                        Cào tất cả nguồn uy tín (10 bài)
+                    </Btn>
                 </div>
-            </div>
+            </Card>
 
-            {/* Form cào bài viết mới từ URL thủ công */}
-            <form onSubmit={handleCrawl} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-                <label className="block text-sm font-medium text-slate-700">Cào thủ công từ URL bất kỳ:</label>
-                <div className="flex gap-2">
-                    <input
+            {/* Cào thủ công từ URL */}
+            <Card className="space-y-2 p-4">
+                <label htmlFor="crawl-url" className="flex items-center gap-1.5 text-sm font-medium text-ink-2">
+                    <Link2 size={15} className="text-accent-strong" />
+                    Cào thủ công từ URL bất kỳ
+                </label>
+                <form onSubmit={handleCrawl} className="flex flex-wrap gap-2">
+                    <Field
+                        id="crawl-url"
                         type="url"
                         required
                         placeholder="Nhập đường link bài viết (vd: https://moh.gov.vn/...)"
                         value={crawlUrl}
                         onChange={(e) => setCrawlUrl(e.target.value)}
-                        className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                        className="w-full flex-1 sm:w-auto"
                     />
-                    <button
-                        type="submit"
-                        disabled={crawling}
-                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                    >
+                    <Btn type="submit" variant="primary" disabled={crawling}>
                         {crawling ? 'Đang cào…' : 'Cào bài viết'}
-                    </button>
-                </div>
-                {msg && <p className="text-xs text-emerald-600 font-medium">{msg}</p>}
-            </form>
+                    </Btn>
+                </form>
+                {msg && <Alert tone="success">{msg}</Alert>}
+            </Card>
 
-            {err && <p className="text-sm text-amber-600">{err}</p>}
+            {err && <Alert tone="warning">{err}</Alert>}
             {docs.length === 0 && !err && (
-                <p className="text-sm text-slate-400">Không có tài liệu nào đang chờ duyệt.</p>
+                <Card className="p-8 text-center text-sm text-muted">
+                    Không có tài liệu nào đang chờ duyệt.
+                </Card>
             )}
 
+            {/* Danh sách chờ duyệt */}
             <div className="space-y-3">
                 {docs.map((d) => (
-                    <div key={d.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
-                        <div>
-                            <p className="font-medium">{d.title}</p>
-                            <p className="text-xs text-slate-500">
+                    <Card
+                        key={d.id}
+                        className="flex flex-wrap items-center justify-between gap-3 p-4 transition-[transform,box-shadow] duration-short ease-out hover:-translate-y-0.5 hover:shadow-card"
+                    >
+                        <div className="min-w-0">
+                            <p className="font-medium text-ink [overflow-wrap:anywhere]">{d.title}</p>
+                            <p className="mt-0.5 text-xs text-muted">
                                 {d.source_name || 'Không rõ nguồn'}
                                 {d.source_url && (
-                                    <> · <a href={d.source_url} target="_blank" rel="noreferrer" className="underline">nguồn</a></>
+                                    <>
+                                        {' · '}
+                                        <a
+                                            href={d.source_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-sm text-accent-strong underline decoration-accent/40 underline-offset-2 transition-colors duration-micro ease-out hover:decoration-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                                        >
+                                            nguồn
+                                        </a>
+                                    </>
                                 )}
                             </p>
                         </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => review(d.id, 'APPROVED')}
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white"
-                            >
+                        <div className="flex shrink-0 gap-2">
+                            <Btn variant="primary" size="sm" onClick={() => review(d.id, 'APPROVED')}>
+                                <Check size={13} />
                                 Duyệt
-                            </button>
-                            <button
-                                onClick={() => review(d.id, 'REJECTED')}
-                                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-600"
-                            >
+                            </Btn>
+                            <Btn variant="danger-subtle" size="sm" onClick={() => review(d.id, 'REJECTED')}>
+                                <X size={13} />
                                 Từ chối
-                            </button>
+                            </Btn>
                         </div>
-                    </div>
+                    </Card>
                 ))}
             </div>
 
-            {/* Custom Modal Confirmation */}
-            {showResetModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
-                        <div className="flex items-center gap-3 text-rose-600">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
-                                <AlertTriangle size={20} />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-900">Xác nhận Reset Dữ liệu Demo</h3>
-                        </div>
-
-                        <p className="text-sm leading-relaxed text-slate-600">
-                            Hành động này sẽ xóa toàn bộ bài viết và các đoạn vector đã lưu trong cơ sở dữ liệu để bạn sẵn sàng demo cào & duyệt lại từ đầu.
-                        </p>
-
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowResetModal(false)}
-                                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                            >
-                                Hủy bỏ
-                            </button>
-                            <button
-                                type="button"
-                                onClick={confirmResetDocs}
-                                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 shadow-sm"
-                            >
-                                Xác nhận Reset
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <Modal
+                open={showResetModal}
+                onClose={() => setShowResetModal(false)}
+                icon={<AlertTriangle size={20} />}
+                tone="danger"
+                title="Xác nhận Reset Dữ liệu Demo"
+                footer={
+                    <>
+                        <Btn variant="ghost" onClick={() => setShowResetModal(false)}>
+                            Hủy bỏ
+                        </Btn>
+                        <Btn variant="danger" onClick={confirmResetDocs}>
+                            Xác nhận Reset
+                        </Btn>
+                    </>
+                }
+            >
+                Hành động này sẽ xóa toàn bộ bài viết và các đoạn vector đã lưu trong cơ sở dữ liệu để bạn sẵn sàng demo cào & duyệt lại từ đầu.
+            </Modal>
         </div>
     );
-}
+}

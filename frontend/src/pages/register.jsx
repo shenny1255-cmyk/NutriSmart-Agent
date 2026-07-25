@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { api } from '../lib/api.js';
 import PasswordInput from '../components/PasswordInput.jsx';
+import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
+import AuthLayout from '../components/AuthLayout.jsx';
+import { LogoMark } from '../components/Logo.jsx';
+import { inputCls } from './login.jsx';
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
 // Fallback khi backend chưa chạy — sau này lấy từ API
-const FALLBACK_COUNTRIES  = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
+const FALLBACK_COUNTRIES = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
 const FALLBACK_CONDITIONS = [{ id: 1, name: 'Đái tháo đường típ 2' }, { id: 2, name: 'Tăng huyết áp' }, { id: 3, name: 'Rối loạn lipid máu' }];
-const FALLBACK_ALLERGENS  = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'Hải sản có vỏ' }, { id: 3, name: 'Sữa bò' }, { id: 4, name: 'Gluten' }];
+const FALLBACK_ALLERGENS = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'Hải sản có vỏ' }, { id: 3, name: 'Sữa bò' }, { id: 4, name: 'Gluten' }];
 
 const ACTIVITY_LEVELS = [
   { value: 1, label: 'Ít vận động (ngồi nhiều)' },
@@ -20,9 +25,9 @@ const ACTIVITY_LEVELS = [
 
 const GOALS = [
   { value: 'LOSE_WEIGHT', label: 'Giảm cân' },
-  { value: 'MAINTAIN',    label: 'Duy trì cân nặng' },
+  { value: 'MAINTAIN', label: 'Duy trì cân nặng' },
   { value: 'GAIN_MUSCLE', label: 'Tăng cơ' },
-  { value: 'MEDICAL',     label: 'Theo chỉ định y tế' },
+  { value: 'MEDICAL', label: 'Theo chỉ định y tế' },
 ];
 
 export default function Register() {
@@ -31,9 +36,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const [countries, setCountries]   = useState(FALLBACK_COUNTRIES);
+  const [countries, setCountries] = useState(FALLBACK_COUNTRIES);
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
-  const [allergens, setAllergens]   = useState(FALLBACK_ALLERGENS);
+  const [allergens, setAllergens] = useState(FALLBACK_ALLERGENS);
 
   const [form, setForm] = useState({
     // Bước 1 — tài khoản
@@ -53,9 +58,9 @@ export default function Register() {
     }));
 
   useEffect(() => {
-    api.countries().then(setCountries).catch(() => {});
-    api.conditions().then(setConditions).catch(() => {});
-    api.allergens().then(setAllergens).catch(() => {});
+    api.countries().then(setCountries).catch(() => { });
+    api.conditions().then(setConditions).catch(() => { });
+    api.allergens().then(setAllergens).catch(() => { });
   }, []);
 
   function nextStep(e) {
@@ -116,153 +121,163 @@ export default function Register() {
       : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 py-10">
+    <AuthLayout>
       <form
         onSubmit={step === 1 ? nextStep : submit}
-        className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8"
+        className="mx-auto w-full max-w-lg rounded-md bg-paper-2 p-6 shadow-card sm:p-8"
       >
-        <h1 className="text-xl font-bold text-emerald-700">NutriSmart</h1>
-        <p className="mb-6 text-sm text-slate-500">
-          Bước {step}/2 — {step === 1 ? 'Thông tin tài khoản' : 'Hồ sơ sức khỏe'}
-        </p>
+        <div className="mb-5 flex items-center gap-3">
+          <LogoMark size={44} />
+          <div>
+            <h1 className="font-display text-xl font-bold tracking-tight text-ink">
+              Nutri<span className="text-accent-strong">Smart</span>
+            </h1>
+            <p className="text-sm text-muted">
+              Bước {step}/2 — {step === 1 ? 'Thông tin tài khoản' : 'Hồ sơ sức khỏe'}
+            </p>
+          </div>
+        </div>
 
-        {/* thanh tiến trình */}
-        <div className="mb-6 h-1 w-full rounded bg-slate-200">
+        {/* Thanh tiến trình — scaleX (transform), không animate width */}
+        <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-paper-3">
           <div
-            className="h-1 rounded bg-emerald-600 transition-all"
-            style={{ width: step === 1 ? '50%' : '100%' }}
+            className="h-full origin-left rounded-full bg-accent transition-transform duration-long ease-out"
+            style={{ transform: step === 1 ? 'scaleX(0.5)' : 'scaleX(1)' }}
           />
         </div>
 
         {step === 1 && (
           <div className="space-y-4">
-            <Field label="Họ và tên">
-              <input required value={form.full_name} onChange={(e) => set('full_name', e.target.value)} className={inputCls} />
-            </Field>
+            <FieldGroup label="Họ và tên">
+              <TextInput required value={form.full_name} onChange={(e) => set('full_name', e.target.value)} className="w-full" />
+            </FieldGroup>
 
-            <Field label="Email">
-              <input type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} className={inputCls} />
+            <FieldGroup label="Email">
+              <TextInput type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} className="w-full" />
               {form.email && !isEmail(form.email) && (
-                <p className="mt-1 text-xs text-amber-600">Email chưa đúng định dạng</p>
+                <p className="mt-1 text-xs text-warning-strong">Email chưa đúng định dạng</p>
               )}
-            </Field>
+            </FieldGroup>
 
-            <Field label="Mật khẩu">
+            <FieldGroup label="Mật khẩu">
               <PasswordInput required value={form.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />
-              <p className={`mt-1 text-xs ${form.password.length >= 8 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {form.password.length >= 8 ? '✓ Đủ độ dài' : 'Tối thiểu 8 ký tự'}
+              <p className={`mt-1 flex items-center gap-1 text-xs ${form.password.length >= 8 ? 'text-accent-strong' : 'text-muted'}`}>
+                {form.password.length >= 8 && <Check size={12} strokeWidth={3} />}
+                {form.password.length >= 8 ? 'Đủ độ dài' : 'Tối thiểu 8 ký tự'}
               </p>
-            </Field>
+            </FieldGroup>
 
-            <Field label="Xác nhận mật khẩu">
+            <FieldGroup label="Xác nhận mật khẩu">
               <PasswordInput required value={form.confirm} onChange={(e) => set('confirm', e.target.value)} className={inputCls} />
               {form.confirm && (
-                <p className={`mt-1 text-xs ${form.confirm === form.password ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {form.confirm === form.password ? '✓ Mật khẩu khớp' : 'Mật khẩu chưa khớp'}
+                <p className={`mt-1 flex items-center gap-1 text-xs ${form.confirm === form.password ? 'text-accent-strong' : 'text-warning-strong'}`}>
+                  {form.confirm === form.password && <Check size={12} strokeWidth={3} />}
+                  {form.confirm === form.password ? 'Mật khẩu khớp' : 'Mật khẩu chưa khớp'}
                 </p>
               )}
-            </Field>
+            </FieldGroup>
 
-            <Field label="Quốc gia" hint="Dùng để lọc thuốc/hoạt chất bị cấm theo quy định sở tại">
-              <select value={form.country_code} onChange={(e) => set('country_code', e.target.value)} className={inputCls}>
+            <FieldGroup label="Quốc gia" hint="Dùng để lọc thuốc/hoạt chất bị cấm theo quy định sở tại">
+              <Select value={form.country_code} onChange={(e) => set('country_code', e.target.value)} className="w-full">
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>{c.name}</option>
                 ))}
-              </select>
-            </Field>
+              </Select>
+            </FieldGroup>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Giới tính">
-                <select value={form.gender} onChange={(e) => set('gender', e.target.value)} className={inputCls}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FieldGroup label="Giới tính">
+                <Select value={form.gender} onChange={(e) => set('gender', e.target.value)} className="w-full">
                   <option value="MALE">Nam</option>
                   <option value="FEMALE">Nữ</option>
                   <option value="OTHER">Khác</option>
-                </select>
-              </Field>
+                </Select>
+              </FieldGroup>
 
-              <Field label="Ngày sinh">
-                <input type="date" required value={form.birth_date} onChange={(e) => set('birth_date', e.target.value)} className={inputCls} />
-              </Field>
+              <FieldGroup label="Ngày sinh">
+                <TextInput type="date" required value={form.birth_date} onChange={(e) => set('birth_date', e.target.value)} className="w-full" />
+              </FieldGroup>
 
-              <Field label="Chiều cao (cm)">
-                <input type="number" min="50" max="250" step="0.1" required
-                  value={form.height_cm} onChange={(e) => set('height_cm', e.target.value)} className={inputCls} />
-              </Field>
+              <FieldGroup label="Chiều cao (cm)">
+                <TextInput type="number" min="50" max="250" step="0.1" required
+                  value={form.height_cm} onChange={(e) => set('height_cm', e.target.value)} className="w-full" />
+              </FieldGroup>
 
-              <Field label="Cân nặng (kg)">
-                <input type="number" min="20" max="300" step="0.1" required
-                  value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)} className={inputCls} />
-              </Field>
+              <FieldGroup label="Cân nặng (kg)">
+                <TextInput type="number" min="20" max="300" step="0.1" required
+                  value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)} className="w-full" />
+              </FieldGroup>
             </div>
 
             {bmi && (
-              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                BMI dự kiến: <b>{bmi}</b>
+              <p className="rounded-sm bg-accent-soft px-3 py-2 text-sm text-accent-strong">
+                BMI dự kiến: <b className="[font-variant-numeric:tabular-nums]">{bmi}</b>
               </p>
             )}
 
-            <Field label="Mức độ vận động">
-              <select value={form.activity_level} onChange={(e) => set('activity_level', e.target.value)} className={inputCls}>
+            <FieldGroup label="Mức độ vận động">
+              <Select value={form.activity_level} onChange={(e) => set('activity_level', e.target.value)} className="w-full">
                 {ACTIVITY_LEVELS.map((a) => (
                   <option key={a.value} value={a.value}>{a.label}</option>
                 ))}
-              </select>
-            </Field>
+              </Select>
+            </FieldGroup>
 
-            <Field label="Mục tiêu">
-              <select value={form.goal} onChange={(e) => set('goal', e.target.value)} className={inputCls}>
+            <FieldGroup label="Mục tiêu">
+              <Select value={form.goal} onChange={(e) => set('goal', e.target.value)} className="w-full">
                 {GOALS.map((g) => (
                   <option key={g.value} value={g.value}>{g.label}</option>
                 ))}
-              </select>
-            </Field>
+              </Select>
+            </FieldGroup>
 
-            <Field label="Bệnh nền" hint="Chọn nhiều nếu có">
+            <FieldGroup label="Bệnh nền" hint="Chọn nhiều nếu có">
               <CheckGroup items={conditions} selected={form.condition_ids} onToggle={(id) => toggle('condition_ids', id)} />
-            </Field>
+            </FieldGroup>
 
-            <Field label="Dị ứng thực phẩm" hint="Chọn nhiều nếu có">
+            <FieldGroup label="Dị ứng thực phẩm" hint="Chọn nhiều nếu có">
               <CheckGroup items={allergens} selected={form.allergen_ids} onToggle={(id) => toggle('allergen_ids', id)} />
-            </Field>
+            </FieldGroup>
           </div>
         )}
 
-        {err && <p className="mt-4 text-sm text-red-600">{err}</p>}
+        {err && <div className="mt-4"><Alert tone="danger">{err}</Alert></div>}
 
         <div className="mt-6 flex gap-3">
           {step === 2 && (
-            <button type="button" onClick={() => setStep(1)}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+            <Btn type="button" variant="ghost" onClick={() => setStep(1)}>
               Quay lại
-            </button>
+            </Btn>
           )}
-          <button type="submit" disabled={loading}
-            className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <Btn type="submit" variant="primary" disabled={loading} className="flex-1">
             {step === 1 ? 'Tiếp tục' : loading ? 'Đang tạo tài khoản…' : 'Hoàn tất đăng ký'}
-          </button>
+          </Btn>
         </div>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
-          Đã có tài khoản? <Link to="/login" className="text-emerald-700 underline">Đăng nhập</Link>
+        <p className="mt-5 text-center text-sm text-muted">
+          Đã có tài khoản?{' '}
+          <Link
+            to="/login"
+            className="rounded-sm font-medium text-accent-strong underline decoration-accent/40 underline-offset-2 transition-colors duration-micro ease-out hover:decoration-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            Đăng nhập
+          </Link>
         </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 
-const inputCls =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500';
-
-function Field({ label, hint, children }) {
+function FieldGroup({ label, hint, children }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-ink-2">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
 }
@@ -276,13 +291,19 @@ function CheckGroup({ items, selected, onToggle }) {
           <button
             key={it.id}
             type="button"
+            aria-pressed={on}
             onClick={() => onToggle(it.id)}
-            className={`rounded-full border px-3 py-1 text-xs transition ${
+            className={[
+              'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium',
+              'transition-[background-color,color,box-shadow,transform] duration-short ease-out',
+              'active:scale-95',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
               on
-                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                : 'border-slate-300 text-slate-600 hover:border-slate-400'
-            }`}
+                ? 'bg-accent-strong text-accent-ink shadow-whisper'
+                : 'bg-paper-2 text-ink-2 shadow-hairline hover:bg-accent-soft hover:text-accent-strong',
+            ].join(' ')}
           >
+            {on && <Check size={12} strokeWidth={3} />}
             {it.name}
           </button>
         );

@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+
 import { api } from '../lib/api.js';
 import PasswordInput from '../components/PasswordInput.jsx';
+import { Btn, Field as TextInput, Alert } from '../components/ui.jsx';
+import AuthLayout from '../components/AuthLayout.jsx';
+import { LogoMark } from '../components/Logo.jsx';
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
+
+// PasswordInput nhận className từ ngoài — dùng chung bộ style token với TextInput
+export const inputCls =
+  'min-h-11 w-full rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline placeholder:text-muted transition-[background-color,box-shadow] duration-short ease-out hover:bg-paper-3 focus:bg-paper-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-60';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -53,53 +61,59 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8">
-        <h1 className="text-xl font-bold text-emerald-700">NutriSmart</h1>
-        <p className="mb-6 text-sm text-slate-500">Đăng nhập để tiếp tục</p>
+    <AuthLayout>
+      <form onSubmit={submit} className="mx-auto w-full max-w-lg rounded-md bg-paper-2 p-6 shadow-card sm:p-8">
+        <div className="mb-6 flex items-center gap-3">
+          <LogoMark size={44} />
+          <div>
+            <h1 className="font-display text-xl font-bold tracking-tight text-ink">
+              Nutri<span className="text-accent-strong">Smart</span>
+            </h1>
+            <p className="text-sm text-muted">Đăng nhập để tiếp tục</p>
+          </div>
+        </div>
 
-        <label className="mb-1 block text-sm font-medium">Email</label>
-        <input
+        <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-ink-2">Email</label>
+        <TextInput
+          id="login-email"
           type="email" required value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          className="w-full"
         />
-        <p className="mb-4 mt-1 h-4 text-xs text-amber-600">
+        <p className="mb-3 mt-1 h-4 text-xs text-warning-strong" aria-live="polite">
           {email && !isEmail(email) ? 'Email chưa đúng định dạng' : ''}
         </p>
 
-        <label className="mb-1 block text-sm font-medium">Mật khẩu</label>
+        <label htmlFor="login-password" className="mb-1 block text-sm font-medium text-ink-2">Mật khẩu</label>
         <PasswordInput
+          id="login-password"
           required value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          className={`mb-4 ${inputCls}`}
         />
 
-        {err && <p className="mb-4 text-sm text-red-600">{err}</p>}
+        {err && <div className="mb-4"><Alert tone="danger">{err}</Alert></div>}
 
-        <button
-          type="submit" disabled={loading}
-          className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Btn type="submit" variant="primary" disabled={loading} className="w-full">
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
-        </button>
+        </Btn>
 
         {/*
-        <button
-          type="button"
-          onClick={tryDemo}
-          disabled={demoLoading}
-          className="mt-3 w-full rounded-lg border border-emerald-600 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-        >
+        <Btn type="button" variant="subtle" onClick={tryDemo} disabled={demoLoading} className="mt-3 w-full">
           {demoLoading ? 'Đang chuẩn bị dữ liệu…' : 'Dùng thử ngay (Demo)'}
-        </button>
+        </Btn>
         */}
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-5 text-center text-sm text-muted">
           Chưa có tài khoản?{' '}
-          <Link to="/register" className="text-emerald-700 underline">Đăng ký</Link>
+          <Link
+            to="/register"
+            className="rounded-sm font-medium text-accent-strong underline decoration-accent/40 underline-offset-2 transition-colors duration-micro ease-out hover:decoration-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            Đăng ký
+          </Link>
         </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

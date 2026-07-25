@@ -1,3 +1,99 @@
+@import './tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+
+    html,
+    body {
+        overflow-x: clip;
+        /* never `hidden` — gate 34 */
+    }
+
+    body {
+        background-color: var(--color-paper);
+        color: var(--color-ink);
+        font-family: var(--font-body);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: var(--font-display);
+        font-style: normal;
+        /* headings are always roman — gate 38a */
+        color: var(--color-ink);
+    }
+
+    /* Visible instantly on focus — never animate the ring's appearance */
+    :focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+
+    ::selection {
+        background-color: var(--color-accent-soft);
+        color: var(--color-ink);
+    }
+}
+
+@layer utilities {
+
+    /* Modal: scale-in 0.96 → 1 + fade, dur-long + ease-out (motion.md § Modal). 
+     Reduced-motion tự xử lý vì --dur-* đã sập về 1ms trong tokens.css */
+    @keyframes modal-in {
+        from {
+            opacity: 0;
+            transform: scale(0.96);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    @keyframes fade-in {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .animate-modal-in {
+        animation: modal-in var(--dur-long) var(--ease-out);
+    }
+
+    .animate-fade-in {
+        animation: fade-in var(--dur-long) var(--ease-out);
+    }
+}
+
+@layer utilities {
+
+    /* Toast: trượt lên nhẹ + fade. Reduced-motion tự sập theo --dur-* */
+    @keyframes toast-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .animate-toast-in {
+        animation: toast-in var(--dur-short) var(--ease-out);
+    }
+}
