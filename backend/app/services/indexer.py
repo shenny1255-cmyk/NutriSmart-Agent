@@ -11,36 +11,43 @@ from app.services.ollama_client import get_embedding, OllamaError
 logger = logging.getLogger(__name__)
 
 
-def split_text(text: str, chunk_size: int = 500, chunk_overlap: int = 100) -> list[str]:
-    """Cắt văn bản thô thành danh sách các đoạn (chunks) nhỏ hơn.
+def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 100) -> list[str]:
+    """Cắt văn bản thô thành danh sách các đoạn (chunks) dựa trên số lượng token (từ).
     
-    Cố gắng tìm khoảng trắng gần nhất để không cắt ngang từ.
+    Đảm bảo kích thước mỗi chunk nằm trong khoảng [500, 800] token nếu văn bản đủ dài,
+    và độ chồng lặp là 100 token.
     """
     if not text:
         return []
     
+    # Tách từ bằng khoảng trắng (coi mỗi từ là 1 token)
+    tokens = text.split()
+    if not tokens:
+        return []
+        
+    num_tokens = len(tokens)
+    
+    # Nếu tài liệu ngắn hơn hoặc bằng chunk_size, trả về nguyên văn bản
+    if num_tokens <= chunk_size:
+        return [text.strip()]
+        
     chunks = []
     start = 0
-    text_len = len(text)
-    
-    while start < text_len:
-        end = min(start + chunk_size, text_len)
-        
-        # Nếu chưa tới cuối văn bản, lùi lại tìm khoảng trắng thích hợp
-        if end < text_len:
-            last_space = text.rfind(" ", start, end)
-            if last_space != -1 and last_space > start + (chunk_size // 2):
-                end = last_space
-                
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
+    while start < num_tokens:
+        # Nếu là chunk cuối và số lượng token còn lại ít hơn 500,
+        # và tổng số token của tài liệu lớn hơn hoặc bằng 500,
+        # ta lùi start về để chunk cuối có độ dài ít nhất 500 tokens.
+        if start > 0 and (num_tokens - start) < 500:
+            start = max(0, num_tokens - chunk_size)
             
-        if end >= text_len:
+        end = min(start + chunk_size, num_tokens)
+        chunk_tokens = tokens[start:end]
+        chunks.append(" ".join(chunk_tokens))
+        
+        if end >= num_tokens:
             break
             
-        # Dịch chuyển vị trí bắt đầu cho chunk tiếp theo có tính đến overlap
-        start = max(start + 1, end - chunk_overlap)
+        start += (chunk_size - chunk_overlap)
         
     return chunks
 
