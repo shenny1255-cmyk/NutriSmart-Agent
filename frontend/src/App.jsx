@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
 import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X } from 'lucide-react';
-import Dashboard from './pages/Dashboard.jsx';
+import Dashboard from './pages/dashboard.jsx';
 import Plan from './pages/Plan.jsx';
-import MealScan from './pages/MealScan.jsx';
+import MealScan from './pages/mealscan.jsx';
 import Chat from './pages/Chat.jsx';
 import Login from './pages/login.jsx';
-import Register from './pages/Register.jsx';
+import Register from './pages/register.jsx';
 import { Shield, FileCheck } from 'lucide-react';
 import AdminUsers from './pages/AdminUsers.jsx';
 import AdminDrugs from './pages/AdminDrugs.jsx';

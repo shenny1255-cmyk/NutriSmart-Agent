@@ -75,6 +75,22 @@ class DailySummaryOut(BaseModel):
     kcal_burned: float
     daily_calorie_target: int | None
     kcal_remaining: float | None
+
+
+class ActivityIn(BaseModel):
+    steps: int = Field(ge=0, default=0)
+    calories_burned: float = Field(ge=0, default=0.0)
+    distance_km: float = Field(ge=0, default=0.0)
+    log_date: date | None = None  # None = hôm nay
+
+
+class TodayActivityOut(BaseModel):
+    steps: int
+    calories_burned: float
+    distance_km: float
+    log_date: date
+
+
 class AdminUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
