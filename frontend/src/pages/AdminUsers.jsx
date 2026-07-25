@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Search, Trash2 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { TableShell, THead, Tr, Td, Btn, Field, Select, Alert, EmptyRow, Modal, Toast, useToast } from '../components/ui.jsx';
 
 const ROLES = ['USER', 'EXPERT', 'ADMIN'];
 
@@ -7,73 +9,100 @@ export default function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [q, setQ] = useState('');
     const [err, setErr] = useState(null);
+    // Modal xóa: null = đóng, ngược lại là user đang chọn
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const { toast, show } = useToast();
 
     const load = () => api.adminUsers(q).then(setUsers).catch((e) => setErr(e.message));
     useEffect(() => { load(); }, []);
 
     async function changeRole(id, role) {
         await api.updateUserRole(id, role);
+        show(`Đã đổi vai trò thành ${role}.`);
         load();
     }
 
-    async function remove(id) {
-        if (!confirm('Xóa người dùng này?')) return;
-        await api.deleteUser(id);
-        load();
+    async function confirmDelete() {
+        setDeleting(true);
+        try {
+            await api.deleteUser(deleteTarget.id);
+            show(`Đã xóa tài khoản ${deleteTarget.email}.`);
+            setDeleteTarget(null);
+            load();
+        } catch (e) {
+            show(`Không xóa được: ${e.message}`, 'danger');
+        } finally {
+            setDeleting(false);
+        }
     }
 
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight">Quản lý người dùng</h1>
 
-            <div className="flex gap-2">
-                <input
+            <div className="flex flex-wrap gap-2">
+                <Field
                     value={q} onChange={(e) => setQ(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && load()}
                     placeholder="Tìm theo email…"
-                    className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="w-full sm:w-64"
                 />
-                <button onClick={load} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
+                <Btn variant="primary" onClick={load}>
+                    <Search size={15} />
                     Tìm
-                </button>
+                </Btn>
             </div>
 
-            {err && <p className="text-sm text-amber-600">{err}</p>}
+            {err && <Alert tone="warning">{err}</Alert>}
 
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                        <tr>
-                            <th className="px-4 py-3">Email</th>
-                            <th className="px-4 py-3">Họ tên</th>
-                            <th className="px-4 py-3">Vai trò</th>
-                            <th className="px-4 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map((u) => (
-                            <tr key={u.id} className="border-t border-slate-100">
-                                <td className="px-4 py-3">{u.email}</td>
-                                <td className="px-4 py-3">{u.full_name || '—'}</td>
-                                <td className="px-4 py-3">
-                                    <select
-                                        value={u.role}
-                                        onChange={(e) => changeRole(u.id, e.target.value)}
-                                        className="rounded border border-slate-300 px-2 py-1"
-                                    >
-                                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                                    </select>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <button onClick={() => remove(u.id)} className="text-sm text-red-600 hover:underline">
-                                        Xóa
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <TableShell>
+                <THead cols={['Email', 'Họ tên', 'Vai trò', '']} />
+                <tbody>
+                    {users.length === 0 && <EmptyRow colSpan={4}>Không tìm thấy người dùng nào.</EmptyRow>}
+                    {users.map((u) => (
+                        <Tr key={u.id}>
+                            <Td className="font-medium text-ink [overflow-wrap:anywhere]">{u.email}</Td>
+                            <Td className="text-ink-2">{u.full_name || '—'}</Td>
+                            <Td>
+                                <Select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}>
+                                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                                </Select>
+                            </Td>
+                            <Td className="text-right">
+                                <Btn variant="danger-subtle" size="sm" onClick={() => setDeleteTarget(u)}>
+                                    <Trash2 size={13} />
+                                    Xóa
+                                </Btn>
+                            </Td>
+                        </Tr>
+                    ))}
+                </tbody>
+            </TableShell>
+
+            {/* Modal xác nhận xóa — hiện rõ email để không xóa nhầm hàng */}
+            <Modal
+                open={!!deleteTarget}
+                onClose={() => !deleting && setDeleteTarget(null)}
+                icon={<Trash2 size={18} />}
+                tone="danger"
+                title="Xóa người dùng?"
+                footer={
+                    <>
+                        <Btn variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                            Hủy bỏ
+                        </Btn>
+                        <Btn variant="danger" onClick={confirmDelete} disabled={deleting}>
+                            {deleting ? 'Đang xóa…' : 'Xóa vĩnh viễn'}
+                        </Btn>
+                    </>
+                }
+            >
+                Tài khoản <b className="text-ink [overflow-wrap:anywhere]">{deleteTarget?.email}</b>
+                {deleteTarget?.full_name && <> ({deleteTarget.full_name})</>} sẽ bị xóa vĩnh viễn cùng toàn bộ hồ sơ sức khỏe. Hành động này không hoàn tác được.
+            </Modal>
+
+            <Toast toast={toast} />
         </div>
     );
 }

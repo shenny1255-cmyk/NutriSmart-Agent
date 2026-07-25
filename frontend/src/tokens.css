@@ -1,0 +1,138 @@
+/* Hallmark · route: custom (tuned) · genre: playful · theme: custom "modern emerald / health-friendly"
+ * paper: oklch(96% 0.014 155) · accent: oklch(56% 0.15 155) · display: Bricolage Grotesque · body: Satoshi
+ * axes: light / rounded-sans / chromatic-other(green) · nav: app-shell sidebar (no catalog N# fits) · footer: none (app, not marketing)
+ * gates: pending — re-verified per page as pages are built
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap');
+
+:root {
+  color-scheme: light;
+  /* opt out of browser/OS auto-dark (Android Chrome "Force Dark" đảo màu trang) */
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --text-xs: 0.75rem;
+  /* 12px */
+  --text-sm: 0.875rem;
+  /* 14px */
+  --text-base: 1rem;
+  /* 16px */
+  --text-md: 1.125rem;
+  /* 18px */
+  --text-lg: 1.25rem;
+  /* 20px */
+  --text-xl: 1.5rem;
+  /* 24px */
+  --text-2xl: 1.875rem;
+  /* 30px */
+  --text-3xl: 2.25rem;
+  /* 36px */
+  --text-display-s: 2.75rem;
+  --text-display: 3.5rem;
+
+  /* ── Spacing — 4pt scale, named by role ─────────────────── */
+  --space-3xs: 0.125rem;
+  /* 2px  */
+  --space-2xs: 0.25rem;
+  /* 4px  */
+  --space-xs: 0.5rem;
+  /* 8px  */
+  --space-sm: 0.75rem;
+  /* 12px */
+  --space-md: 1rem;
+  /* 16px */
+  --space-lg: 1.5rem;
+  /* 24px */
+  --space-xl: 2.5rem;
+  /* 40px */
+  --space-2xl: 4rem;
+  /* 64px */
+  --space-3xl: 6rem;
+  /* 96px */
+
+  /* ── Colour — anchor: emerald, hue 155 ──────────────────── */
+  /* Paper (page background + elevation steps) */
+  --color-paper: oklch(96% 0.014 155);
+  --color-paper-2: oklch(99% 0.006 155);
+  /* card / elevated surface — near-white */
+  --color-paper-3: oklch(93% 0.018 155);
+  /* deeper tint band — sidebar, section divider */
+
+  /* Ink (text) */
+  --color-ink: oklch(20% 0.02 155);
+  --color-ink-2: oklch(27% 0.018 155);
+  /* secondary text */
+  --color-muted: oklch(46% 0.02 155);
+  /* de-emphasised text */
+  --color-neutral: oklch(40% 0.018 155);
+  /* mid-grey equivalent */
+
+  /* Dividers */
+  --color-rule: oklch(78% 0.02 155);
+  --color-rule-2: oklch(85% 0.015 155);
+
+  /* Accent — emerald. Three roles, not one flat value. */
+  --color-accent: oklch(56% 0.15 155);
+  /* icons, links, active indicators — dark text sits on top */
+  --color-accent-strong: oklch(46% 0.16 155);
+  /* solid CTA / button fill — light text sits on top */
+  --color-accent-soft: oklch(94% 0.05 155);
+  /* tinted bg — active nav item, badge, pill */
+  --color-accent-ink: var(--color-paper-2);
+  /* text colour ON --color-accent-strong */
+
+  --color-focus: oklch(62% 0.20 155);
+  /* :focus-visible ring only */
+
+  /* Semantic — functional colours deviate from the anchor hue on purpose (meaning > cohesion) */
+  --color-success: var(--color-accent);
+  --color-warning: oklch(72% 0.15 70);
+  --color-warning-strong: oklch(52% 0.16 55);
+  --color-warning-soft: oklch(95% 0.04 70);
+  --color-danger: oklch(55% 0.19 25);
+  --color-danger-soft: oklch(95% 0.045 25);
+  --color-info: oklch(60% 0.12 235);
+  --color-info-soft: oklch(94% 0.03 235);
+
+  /* ── Radius — playful genre caps at 12px for cards ──────── */
+  --radius-sm: 0.5rem;
+  /* 8px  — inputs, chips */
+  --radius-md: 0.75rem;
+  /* 12px — cards, upper bound for this genre */
+  --radius-full: 999px;
+  /* pills, avatars */
+
+  /* ── Shadow — one at a time, never stacked ──────────────── */
+  --shadow-whisper: 0 1px 2px oklch(20% 0.02 155 / 0.05);
+  --shadow-card: 0 8px 24px -10px oklch(56% 0.15 155 / 0.18);
+  --shadow-hairline: 0 0 0 1px oklch(30% 0.02 155 / 0.06);
+
+  /* ── Motion — three named easings, never browser default ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  /* ── Z-index — named levels, never freestyle numbers ────── */
+  --z-base: 0;
+  --z-nav: 10;
+  --z-dropdown: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-micro: 1ms;
+    --dur-short: 1ms;
+    --dur-long: 1ms;
+  }
+}
