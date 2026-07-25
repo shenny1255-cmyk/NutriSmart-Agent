@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 
 import { api } from '../lib/api.js';
 import PasswordInput from '../components/PasswordInput.jsx';
@@ -20,6 +20,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [demoLoading, setDemoLoading] = useState(false);
+  const [params] = useSearchParams();
+  // api.js đá về đây kèm ?expired=1 khi token hết hạn giữa chừng
+  const expired = params.get('expired') === '1';
 
   async function tryDemo() {
     setErr(null);
@@ -72,6 +75,10 @@ export default function Login() {
             <p className="text-sm text-muted">Đăng nhập để tiếp tục</p>
           </div>
         </div>
+
+        {expired && !err && (
+          <div className="mb-4"><Alert tone="warning">Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.</Alert></div>
+        )}
 
         <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-ink-2">Email</label>
         <TextInput
