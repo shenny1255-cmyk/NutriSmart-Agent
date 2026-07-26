@@ -1,94 +1,94 @@
 # NutriSmart Agent - Mobile Application (React Native Expo)
 
-Ung dung di dong ho tro theo doi van dong thoi gian thuc, dem buoc chan ngam, phan tich dinh duong dia thuc an bang AI Gemini Flash 2.0 va dong bo truc tiep voi CSDL PostgreSQL & Web Dashboard.
+Ứng dụng di động hỗ trợ theo dõi vận động thời gian thực, đếm bước chân ngầm, phân tích dinh dưỡng đĩa thức ăn bằng AI Gemini Flash 2.0 và đồng bộ trực tiếp với CSDL PostgreSQL & Web Dashboard.
 
 ---
 
-## Cac Tinh Nang Noi Bat Tren Mobile
+## Các Tính Năng Nổi Bật Trên Mobile
 
-### 1. Dem buoc chan ngam & Calo tieu hao (Step Tracker)
-- Cam bien kep (Pedometer + Accelerometer): Tu dong dem buoc chan tren cac thiet bi Android/iOS ke ca khi di chuyen ngam.
-- Tinh toan chi so sinh hoc: Tu dong tinh toan Calo tieu thu (kcal) va Quang duong di chuyen (km) dua tren can nang va chieu cao.
-- Luu tru Offline: Luu tru du lieu ngam bang AsyncStorage va tu dong reset so buoc khi sang ngay moi (00:00).
-- Dong bo 1 cham: Nut Dong bo ngay truyen du lieu dem buoc len Backend va cap nhat thang vao Card "Da tieu hao" tren Web Dashboard.
+### 1. Đếm bước chân ngầm & Calo tiêu hao (Step Tracker)
+- Cảm biến kép (Pedometer + Accelerometer): Tự động đếm bước chân trên các thiết bị Android/iOS kể cả khi di chuyển ngầm.
+- Tính toán chỉ số sinh học: Tự động tính toán Calo tiêu thụ (kcal) và Quãng đường di chuyển (km) dựa trên cân nặng và chiều cao.
+- Lưu trữ Offline: Lưu trữ dữ liệu ngầm bằng AsyncStorage và tự động reset số bước khi sang ngày mới (00:00).
+- Đồng bộ 1 chạm: Nút Đồng bộ ngay truyền dữ liệu đếm bước lên Backend và cập nhật thẳng vào Card "Đã tiêu hao" trên Web Dashboard.
 
-### 2. Phan tich Mon an AI Gemini Flash (AI Food Scanner)
-- Chup anh / Chon tu Thu vien: Tich hop expo-image-picker chup anh truc tiep bang Camera hoac chon anh san co trong Album.
-- Phan tich Multimodal Vision: Gui anh dia thuc an toi Gemini Flash 2.0 AI de tu dong nhan dien ten mon an, tinh tong Calo va phan tich 3 chi so Macros: Protein (Dam), Carbs (Duong), Fat (Beo).
-- Thanh dieu chinh Khau phan (Portion Multiplier): Chon cac muc 0.5x, 1.0x, 1.5x, 2.0x - chi so Calo & Macros tu dong tinh toan lai theo ty le.
-- Luu Nhat ky Bua an: Ghi nhan bua an vao CSDL PostgreSQL va cong don tu dong vao Card "Da nap" tren Web & Mobile.
+### 2. Phân tích Món ăn AI Gemini Flash (AI Food Scanner)
+- Chụp ảnh / Chọn từ Thư viện: Tích hợp expo-image-picker chụp ảnh trực tiếp bằng Camera hoặc chọn ảnh sẵn có trong Album.
+- Phân tích Multimodal Vision: Gửi ảnh đĩa thức ăn tới Gemini Flash 2.0 AI để tự động nhận diện tên món ăn, tính tổng Calo và phân tích 3 chỉ số Macros: Protein (Đạm), Carbs (Đường), Fat (Béo).
+- Thanh điều chỉnh Khẩu phần (Portion Multiplier): Chọn các mức 0.5x, 1.0x, 1.5x, 2.0x - chỉ số Calo & Macros tự động tính toán lại theo tỷ lệ.
+- Lưu Nhật ký Bữa ăn: Ghi nhận bữa ăn vào CSDL PostgreSQL và cộng dồn tự động vào Card "Đã nạp" trên Web & Mobile.
 
-### 3. Thanh Dieu Huong Bottom Navigation Bar (4 Tabs)
-Thanh Tab Bar hien dai o day ung dung voi giao dien sac net, icon hoat hoa muot tu lucide-react-native:
-- Tong quan (HomeScreen): Dem buoc chan, calo tieu hao, quang duong, dong bo du lieu.
-- Quet AI (FoodScanScreen): Chup anh mon an & phan tich dinh duong AI.
-- Lo trinh (PlanScreen): Theo doi Ke hoach Dinh duong ca nhan hoa, muc tieu Calo 2,000 kcal va phan bo 4 bua an.
-- Ca nhan (ProfileScreen): Quan ly Thong tin tai khoan, Kiem tra dia chi may chu API va Dang xuat an toan.
+### 3. Thanh Điều Hướng Bottom Navigation Bar (4 Tabs)
+Thanh Tab Bar hiện đại ở đáy ứng dụng với giao diện sắc nét, icon hoạt họa mượt từ lucide-react-native:
+- Tổng quan (HomeScreen): Đếm bước chân, calo tiêu hao, quãng đường, đồng bộ dữ liệu.
+- Quét AI (FoodScanScreen): Chụp ảnh món ăn & phân tích dinh dưỡng AI.
+- Lộ trình (PlanScreen): Theo dõi Kế hoạch Dinh dưỡng cá nhân hóa, mục tiêu Calo 2,000 kcal và phân bổ 4 bữa ăn.
+- Cá nhân (ProfileScreen): Quản lý Thông tin tài khoản, Kiểm tra địa chỉ máy chủ API và Đăng xuất an toàn.
 
-### 4. Bao Mat & Xac Thuc JWT Token
-- Luu tru JWT Token an toan trong AsyncStorage.
-- Tu dong kiem tra token va chuyen thang vao ung dung ma khong can dang nhap lai.
-
----
-
-## Huong Dan Cai Dat & Chay Ung Dung (Installation Guide)
-
-### 1. Yeu cau moi truong (Prerequisites)
-- Node.js: Phien ban >= 18.x
-- Ung dung Expo Go: Tai san tren dien thoai Android (Google Play Store) hoac iOS (App Store).
-- Backend & CSDL: Da khoi dong Backend Python (uvicorn app.main:app --host 0.0.0.0 --port 8000) va Docker PostgreSQL.
+### 4. Bảo Mật & Xác Thực JWT Token
+- Lưu trữ JWT Token an toàn trong AsyncStorage.
+- Tự động kiểm tra token và chuyển thẳng vào ứng dụng mà không cần đăng nhập lại.
 
 ---
 
-### 2. Cac buoc cai dat & Khoi dong
+## Hướng Dẫn Cài Đặt & Chạy Ứng Dụng (Installation Guide)
 
-#### Buoc 1: Chuyen vao thu muc mobile
+### 1. Yêu cầu môi trường (Prerequisites)
+- Node.js: Phiên bản >= 18.x
+- Ứng dụng Expo Go: Tải sẵn trên điện thoại Android (Google Play Store) hoặc iOS (App Store).
+- Backend & CSDL: Đã khởi động Backend Python (uvicorn app.main:app --host 0.0.0.0 --port 8000) và Docker PostgreSQL.
+
+---
+
+### 2. Các bước cài đặt & Khởi động
+
+#### Bước 1: Chuyển vào thư mục mobile
 ```powershell
 cd mobile
 ```
 
-#### Buoc 2: Cai dat cac goi phu thuoc (Dependencies)
+#### Bước 2: Cài đặt các gói phụ thuộc (Dependencies)
 ```powershell
 npm install
 ```
 
-#### Buoc 3: Khoi dong Expo Dev Server o che do LAN
+#### Bước 3: Khởi động Expo Dev Server ở chế độ LAN
 ```powershell
 npx expo start --clear --lan
 ```
-*(Hoac dung npx expo start --clear --tunnel neu ban muan chay qua duong truyen dam may Tunnel)*.
+*(Hoặc dùng npx expo start --clear --tunnel nếu bạn muốn chạy qua đường truyền đám mây Tunnel)*.
 
-#### Buoc 4: Trai nghiem tren dien thoai
-- Mo ung dung Expo Go tren dien thoai.
-- Dua camera quet ma QR hien thi trong cua so Terminal.
-- Ung dung se nap giao dien va san sang su dung!
+#### Bước 4: Trải nghiệm trên điện thoại
+- Mở ứng dụng Expo Go trên điện thoại.
+- Đưa camera quét mã QR hiển thị trong cửa sổ Terminal.
+- Ứng dụng sẽ nạp giao diện và sẵn sàng sử dụng!
 
 ---
 
-## Cau Truc Thu Muc (Directory Structure)
+## Cấu Trúc Thư Mục (Directory Structure)
 
 ```text
 mobile/
-├── assets/                  # Hinh anh icon, splash screen
-├── components/              # Cac UI Component chung (LogoMark...)
+├── assets/                  # Hình ảnh icon, splash screen
+├── components/              # Các UI Component chung (LogoMark...)
 ├── navigation/
-│   └── MainTabNavigator.jsx # Thanh dieu huong Bottom Navigation 4 Tab
+│   └── MainTabNavigator.jsx # Thanh điều hướng Bottom Navigation 4 Tab
 ├── screens/
-│   ├── LoginScreen.jsx      # Man hinh Dang nhap JWT Token
-│   ├── HomeScreen.jsx       # Tab 1: Dem buoc chan & Calo tieu hao
-│   ├── FoodScanScreen.jsx   # Tab 2: Chup anh & Phan tich Gemini AI
-│   ├── PlanScreen.jsx       # Tab 3: Ke hoach Dinh duong
-│   └── ProfileScreen.jsx    # Tab 4: Thong tin ca nhan & Dang xuat
-├── theme.js                 # Token mau sac & Style chuan giao dien
-├── App.js                   # Man hinh dieu huong goc (Root Navigator)
-├── app.json                 # Cau hinh Expo, Camera & Permissions
-├── babel.config.js          # Cau hinh Babel preset cho Expo SDK 54
-├── metro.config.js          # Dang ky extension .jsx cho Metro
-└── package.json             # Danh sach thu vien phu thuoc npm
+│   ├── LoginScreen.jsx      # Màn hình Đăng nhập JWT Token
+│   ├── HomeScreen.jsx       # Tab 1: Đếm bước chân & Calo tiêu hao
+│   ├── FoodScanScreen.jsx   # Tab 2: Chụp ảnh & Phân tích Gemini AI
+│   ├── PlanScreen.jsx       # Tab 3: Kế hoạch Dinh dưỡng
+│   └── ProfileScreen.jsx    # Tab 4: Thông tin cá nhân & Đăng xuất
+├── theme.js                 # Token màu sắc & Style chuẩn giao diện
+├── App.js                   # Màn hình điều hướng gốc (Root Navigator)
+├── app.json                 # Cấu hình Expo, Camera & Permissions
+├── babel.config.js          # Cấu hình Babel preset cho Expo SDK 54
+├── metro.config.js          # Đăng ký extension .jsx cho Metro
+└── package.json             # Danh sách thư viện phụ thuộc npm
 ```
 
 ---
 
-## Luu Y Khi Chay Ung Dung
-- Dam bao may tinh va dien thoai ket noi cung mot mang Wi-Fi khi chay che do --lan.
-- Neu dia chi IP Wi-Fi cua may tinh bi thay doi, ban chi can cap nhat hang so BACKEND_IP trong App.js hoac nhap IP tren man hinh Dang nhap.
+## Lưu Ý Khi Chạy Ứng Dụng
+- Đảm bảo máy tính và điện thoại kết nối cùng một mạng Wi-Fi khi chạy chế độ --lan.
+- Nếu địa chỉ IP Wi-Fi của máy tính bị thay đổi, bạn chỉ cần cập nhật hằng số BACKEND_IP trong App.js hoặc nhập IP trên màn hình Đăng nhập.
