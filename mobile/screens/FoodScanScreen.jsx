@@ -10,7 +10,9 @@ import { Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChevronLeft, Flame,
 import { Theme } from '../theme';
 
 export default function FoodScanScreen({ navigation, route }) {
-  const backendIp = route?.params?.backendIp ?? '10.120.56.85';
+  let rawIp = route?.params?.backendIp ?? '10.120.56.85';
+  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.120.56.85';
+  const backendIp = rawIp.trim();
 
   const [imageUri, setImageUri] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -28,7 +30,7 @@ export default function FoodScanScreen({ navigation, route }) {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
     });
@@ -43,7 +45,7 @@ export default function FoodScanScreen({ navigation, route }) {
   // 2. Chọn ảnh từ Thư viện (Gallery)
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
     });
@@ -70,26 +72,27 @@ export default function FoodScanScreen({ navigation, route }) {
         type: 'image/jpeg',
       });
 
-      const res = await axios.post(
-        `http://${backendIp}:8000/api/v1/vision/analyze-meal`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${token}`,
-          },
-          timeout: 25000,
-        }
-      );
+      const response = await fetch(`http://${backendIp}:8000/api/v1/vision/analyze-meal`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        body: formData,
+      });
 
-      if (res.data) {
-        setAnalysisResult(res.data);
+      const data = await response.json();
+
+      if (response.ok) {
+        setAnalysisResult(data);
         setPortion(1.0);
+      } else {
+        Alert.alert('Phân tích thất bại', data.detail || 'Không thể phân tích ảnh món ăn.');
       }
     } catch (err) {
       Alert.alert(
-        'Phân tích thất bại',
-        err.response?.data?.detail || 'Không thể kết nối đến AI Gemini. Vui lòng thử lại.'
+        'Lỗi kết nối',
+        `Không thể gửi ảnh tới Backend (IP: ${backendIp}:8000). Kiểm tra lại kết nối Wi-Fi.`
       );
     } finally {
       setAnalyzing(false);
