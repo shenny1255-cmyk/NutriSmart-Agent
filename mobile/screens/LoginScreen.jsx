@@ -44,7 +44,7 @@ export default function LoginScreen({ navigation, route }) {
       if (token) {
         await AsyncStorage.setItem('access_token', token);
         await AsyncStorage.setItem('backend_ip', backendIp.trim());
-        navigation.replace('Home', { backendIp: backendIp.trim() });
+        navigation.replace('Main', { backendIp: backendIp.trim() });
       } else {
         setError('Không nhận được token từ server');
       }
