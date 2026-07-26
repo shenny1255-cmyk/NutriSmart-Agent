@@ -176,16 +176,25 @@ class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
+class CitationOut(BaseModel):
+    """Nguồn trích dẫn — đúng hình dạng Chat.jsx đang đọc."""
+    title: str
+    url: str | None = None
+    snippet: str | None = None
+
+
 class ChatMessageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     role: str
     content: str
     created_at: datetime
+    citations: list[CitationOut] = []
 
 
 class ChatReplyOut(BaseModel):
     reply: str
+    citations: list[CitationOut] = []
 
 
 # ---------- Vision & Meal Logging ----------
