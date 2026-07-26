@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
-import { Upload, ImagePlus, ScanLine, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Upload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, CheckCircle2, Utensils } from 'lucide-react';
 import { api } from '../lib/api.js';
 
 export default function MealScan() {
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
@@ -14,6 +16,7 @@ export default function MealScan() {
 
     setPreview(URL.createObjectURL(file));
     setResult(null);
+    setSavedMsg('');
     setLoading(true);
 
     try {
@@ -36,6 +39,7 @@ export default function MealScan() {
   }
 
   const confidence = Math.round((result?.confidence ?? 0) * 100);
+  const kcalVal = result?.calories_kcal ?? result?.estimated_kcal ?? 0;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -99,7 +103,7 @@ export default function MealScan() {
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
             <ScanLine size={17} className="animate-pulse" />
           </span>
-          <p className="text-sm text-ink-2">Đang nhận diện món ăn…</p>
+          <p className="text-sm text-ink-2">Gemini AI đang phân tích dinh dưỡng đĩa thức ăn…</p>
         </div>
       )}
 
@@ -126,11 +130,44 @@ export default function MealScan() {
 
           {/* Dinh dưỡng đa lượng — kcal nổi bật, 3 macro phụ */}
           <dl className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(4,minmax(0,1fr))]">
-            <Macro label="Calo" value={result.estimated_kcal} unit="kcal" primary />
+            <Macro label="Calo" value={kcalVal} unit="kcal" primary />
             <Macro label="Protein" value={result.protein_g} unit="g" />
             <Macro label="Carb" value={result.carb_g ?? result.carbs_g} unit="g" />
             <Macro label="Fat" value={result.fat_g} unit="g" />
           </dl>
+
+          {/* Nút Lưu Bữa Ăn vào CSDL */}
+          <div className="pt-2">
+            <button
+              onClick={async () => {
+                try {
+                  setSaving(true);
+                  const res = await api.logMeal({
+                    food_name: result.food_name,
+                    calories_kcal: kcalVal,
+                    protein_g: result.protein_g ?? 0,
+                    carb_g: result.carb_g ?? result.carbs_g ?? 0,
+                    fat_g: result.fat_g ?? 0,
+                    quantity: 1.0,
+                    meal_type: 'LUNCH',
+                  });
+                  setSavedMsg(`✅ Đã lưu ${result.food_name} vào Nhật ký! (+${res.added_calories} kcal) — Mở trang "Tổng quan" để xem Card Đã Nạp được cập nhật.`);
+                } catch (e) {
+                  alert(e.detail || 'Vui lòng đăng nhập để lưu bữa ăn.');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className="flex w-full min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition-colors duration-short ease-out hover:bg-accent-strong disabled:opacity-50"
+            >
+              <Utensils size={16} />
+              {saving ? 'Đang lưu...' : `Lưu vào Nhật ký bữa ăn (+${kcalVal} kcal)`}
+            </button>
+            {savedMsg && (
+              <p className="mt-2 text-center text-xs font-semibold text-accent-strong">{savedMsg}</p>
+            )}
+          </div>
 
           {/* Cảnh báo y tế / dị ứng — khối nổi bật tương phản cao */}
           {result.suitability_note && (
