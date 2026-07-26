@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     OLLAMA_EMBEDDING_MODEL: str = "bge-m3"
     OLLAMA_KEEP_ALIVE: str = "30m"
 
+    # Xác minh email — SMTP (để trống SMTP_HOST → ghi link ra console thay vì gửi thật)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "NutriSmart <no-reply@nutrismart.local>"
+    APP_BASE_URL: str = "http://localhost:5173"   # gốc cho link xác minh
+
     class Config:
         env_file = ".env"
         # Bỏ qua biến lạ trong .env thay vì crash — .env thường mang thêm key của

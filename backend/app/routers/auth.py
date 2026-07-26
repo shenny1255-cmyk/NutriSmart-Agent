@@ -4,8 +4,12 @@ from sqlalchemy.orm import Session
 from app.deps import get_db, get_current_user
 from app.models import User, HealthProfile, ProfileCondition, ProfileAllergen
 from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut
-from app.security import hash_password, verify_password, create_access_token
+from app.security import (
+    hash_password, verify_password, create_access_token,
+    create_verification_token, decode_verification_token,
+)
 from app.services.calorie import daily_calorie_target
+from app.services.email import build_verify_link, send_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -65,7 +69,41 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         db.rollback()   # thất bại giữa chừng → không để lại user mồ côi
         raise
 
+    # Gửi email xác minh (lỗi gửi mail đã được nuốt bên trong, không làm hỏng đăng ký)
+    verify_token = create_verification_token(str(user.id))
+    send_verification_email(user.email, build_verify_link(verify_token))
+
     return TokenOut(access_token=create_access_token(str(user.id)))
+
+
+@router.get("/verify")
+def verify_email(token: str, db: Session = Depends(get_db)):
+    user_id = decode_verification_token(token)
+    if not user_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Liên kết xác minh không hợp lệ hoặc đã hết hạn",
+        )
+    user = db.query(User).filter(User.id == user_id).first()  # type: ignore
+    if not user:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Người dùng không tồn tại")
+
+    if not user.email_verified:
+        user.email_verified = True
+        db.commit()
+    return {"status": "verified"}
+
+
+@router.post("/resend-verification")
+def resend_verification(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if user.email_verified:
+        return {"status": "already_verified"}
+    verify_token = create_verification_token(str(user.id))
+    send_verification_email(user.email, build_verify_link(verify_token))
+    return {"status": "sent"}
 
 
 @router.post("/login", response_model=TokenOut)

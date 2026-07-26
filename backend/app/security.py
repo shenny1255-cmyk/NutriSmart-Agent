@@ -37,3 +37,21 @@ def decode_token(token: str) -> str | None:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+def create_verification_token(user_id: str) -> str:
+    """Token dùng MỘT lần để xác minh email (sống 24h), tách biệt access token bằng purpose."""
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    payload = {"sub": str(user_id), "purpose": "verify_email", "exp": expire}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_verification_token(token: str) -> str | None:
+    """Trả về user_id nếu token hợp lệ, chưa hết hạn và đúng purpose; ngược lại None."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("purpose") != "verify_email":
+        return None
+    return payload.get("sub")

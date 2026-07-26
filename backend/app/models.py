@@ -36,6 +36,7 @@ class User(Base):
     role          = Column(user_role, nullable=False, default="USER")
     country_code  = Column(CHAR(2), ForeignKey("countries.code"))
     is_active: bool = Column(Boolean, nullable=False, default=True)  # type: ignore
+    email_verified: bool = Column(Boolean, nullable=False, server_default="false")  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at    = Column(DateTime(timezone=True))
 

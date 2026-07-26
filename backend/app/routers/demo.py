@@ -48,6 +48,7 @@ def seed_demo(db: Session = Depends(get_db)):
         full_name="Người dùng Demo",
         country_code="VN",
         role="ADMIN",
+        email_verified=True,
     )
     db.add(user)
     db.flush()
@@ -60,6 +61,7 @@ def seed_demo(db: Session = Depends(get_db)):
             full_name=u["full_name"],
             country_code="VN",
             role=u["role"],
+            email_verified=True,
         ))
     db.flush()
 

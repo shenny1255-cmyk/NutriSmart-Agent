@@ -66,6 +66,7 @@ class UserOut(BaseModel):
     full_name: str | None
     role: str
     country_code: str | None
+    email_verified: bool = False
 
 
 # ---------- Tracking ----------
@@ -216,4 +217,4 @@ class MealLogIn(BaseModel):
     fat_g: float = Field(default=0.0)
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
     quantity: float = Field(default=1.0, gt=0)
-    log_date: date | None = None
+    log_date: date | None = None
