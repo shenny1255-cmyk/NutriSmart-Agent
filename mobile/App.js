@@ -5,10 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 
 import LoginScreen from './screens/LoginScreen';
-import HomeScreen from './screens/HomeScreen';
-import FoodScanScreen from './screens/FoodScanScreen';
+import MainTabNavigator from './navigation/MainTabNavigator';
 import { Theme } from './theme';
-
 import { LogoMark } from './components/Logo';
 
 const Stack = createNativeStackNavigator();
@@ -22,7 +20,7 @@ export default function App() {
   useEffect(() => {
     AsyncStorage.getItem('access_token')
       .then((token) => {
-        setInitialRoute(token ? 'Home' : 'Login');
+        setInitialRoute(token ? 'Main' : 'Login');
       })
       .catch(() => {
         setInitialRoute('Login');
@@ -59,13 +57,8 @@ export default function App() {
           initialParams={{ backendIp: BACKEND_IP }}
         />
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          initialParams={{ backendIp: BACKEND_IP }}
-        />
-        <Stack.Screen
-          name="FoodScan"
-          component={FoodScanScreen}
+          name="Main"
+          component={MainTabNavigator}
           initialParams={{ backendIp: BACKEND_IP }}
         />
       </Stack.Navigator>
@@ -80,9 +73,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  splashEmoji: {
-    fontSize: 56,
-  },
   splashText: {
     color: Theme.colors.textSecondary,
     fontSize: 18,
@@ -90,4 +80,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
