@@ -187,3 +187,25 @@ class ChatMessageOut(BaseModel):
 
 class ChatReplyOut(BaseModel):
     reply: str
+
+
+# ---------- Vision & Meal Logging ----------
+class MealAnalyzeOut(BaseModel):
+    food_name: str
+    calories_kcal: float
+    protein_g: float
+    carb_g: float
+    fat_g: float
+    description: str
+    confidence: float
+
+
+class MealLogIn(BaseModel):
+    food_name: str
+    calories_kcal: float = Field(ge=0)
+    protein_g: float = Field(default=0.0)
+    carb_g: float = Field(default=0.0)
+    fat_g: float = Field(default=0.0)
+    meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
+    quantity: float = Field(default=1.0, gt=0)
+    log_date: date | None = None

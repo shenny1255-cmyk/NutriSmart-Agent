@@ -231,4 +231,33 @@ class ActivityLog(Base):
     steps           = Column(Integer, default=0)
     duration_min    = Column(Integer, default=0)
     calories_burned = Column(Numeric(7, 2), default=0)
-    log_date        = Column(Date, nullable=False, server_default=func.current_date())
+    log_date        = Column(Date, nullable=False, server_default=func.current_date())
+
+
+meal_type_enum = SAEnum("BREAKFAST", "LUNCH", "DINNER", "SNACK", name="meal_type", create_type=False)
+
+
+class Food(Base):
+    __tablename__ = "foods"
+    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name          = Column(String(200), nullable=False)
+    serving_desc  = Column(String(100))
+    serving_gram  = Column(Numeric(7, 2))
+    calories_kcal = Column(Numeric(7, 2), nullable=False)
+    protein_g     = Column(Numeric(6, 2), default=0)
+    carb_g        = Column(Numeric(6, 2), default=0)
+    fat_g         = Column(Numeric(6, 2), default=0)
+    source        = Column(String(100), default="AI Gemini")
+
+
+class MealLog(Base):
+    __tablename__ = "meal_logs"
+    id            = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id       = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    food_id       = Column(UUID(as_uuid=True), ForeignKey("foods.id"), nullable=True)
+    meal_type     = Column(meal_type_enum, nullable=False, default="LUNCH")
+    quantity      = Column(Numeric(6, 2), nullable=False, default=1)
+    calories_kcal = Column(Numeric(7, 2), nullable=False)
+    logged_at     = Column(DateTime(timezone=True), server_default=func.now())
+    log_date      = Column(Date, nullable=False, server_default=func.current_date())
+

@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import {
   LogOut, Footprints, Flame, MapPin, CloudUpload,
-  Cpu, User, RefreshCw, Activity
+  Cpu, User, RefreshCw, Activity, Camera, Sparkles
 } from 'lucide-react-native';
 import { Theme } from '../theme';
 import { LogoMark } from '../components/Logo';
@@ -18,7 +18,7 @@ const STEP_KEY = 'nutrismart_steps_today';
 const DATE_KEY = 'nutrismart_step_date';
 
 export default function HomeScreen({ navigation, route }) {
-  const backendIp = route?.params?.backendIp ?? '192.168.1.8';
+  const backendIp = route?.params?.backendIp ?? '10.120.56.85';
 
   const [isPedometerAvailable, setIsPedometerAvailable] = useState('Đang khởi tạo...');
   const [stepCount, setStepCount] = useState(0);
@@ -193,7 +193,7 @@ export default function HomeScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={Theme.colors.background} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.header}>
@@ -243,6 +243,24 @@ export default function HomeScreen({ navigation, route }) {
             </View>
           </View>
         </View>
+
+        {/* Banner Phân tích Món ăn AI Gemini */}
+        <TouchableOpacity
+          style={styles.aiScanBanner}
+          onPress={() => navigation.navigate('FoodScan', { backendIp })}
+          activeOpacity={0.85}
+        >
+          <View style={styles.aiScanIconBox}>
+            <Camera size={24} color="#0F172A" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Sparkles size={14} color={Theme.colors.accentStrong} style={{ marginRight: 4 }} />
+              <Text style={styles.aiScanTitle}>Phân tích Món ăn AI</Text>
+            </View>
+            <Text style={styles.aiScanSub}>Chụp ảnh đĩa thức ăn để Gemini AI tính Calo & Macros</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Nút Đồng bộ */}
         <View style={styles.syncCard}>
@@ -506,5 +524,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  aiScanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B98112',
+    borderRadius: Theme.radius.md,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#10B98135',
+  },
+  aiScanIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: Theme.colors.accentStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiScanTitle: {
+    color: Theme.colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  aiScanSub: {
+    color: Theme.colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
 });
+
 

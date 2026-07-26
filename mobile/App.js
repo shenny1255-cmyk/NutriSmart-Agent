@@ -6,6 +6,7 @@ import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-nati
 
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
+import FoodScanScreen from './screens/FoodScanScreen';
 import { Theme } from './theme';
 
 import { LogoMark } from './components/Logo';
@@ -60,6 +61,11 @@ export default function App() {
         <Stack.Screen
           name="Home"
           component={HomeScreen}
+          initialParams={{ backendIp: BACKEND_IP }}
+        />
+        <Stack.Screen
+          name="FoodScan"
+          component={FoodScanScreen}
           initialParams={{ backendIp: BACKEND_IP }}
         />
       </Stack.Navigator>
