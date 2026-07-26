@@ -30,6 +30,18 @@ async function request(path, { method = 'GET', body, isForm } = {}) {
     } catch {
       /* body không phải JSON */
     }
+
+    // Phiên đăng nhập hết hạn/không hợp lệ → dọn token và đưa về trang đăng nhập.
+    // Chỉ áp dụng khi request CÓ gửi token; đăng nhập sai mật khẩu cũng trả 401
+    // nhưng lúc đó chưa có token nên không được đá người dùng đi.
+    if (res.status === 401 && token) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('role');
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.replace('/login?expired=1');
+      }
+    }
+
     throw new ApiError(res.status, detail);
   }
   return res.status === 204 ? null : res.json();

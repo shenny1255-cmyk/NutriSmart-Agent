@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # Bỏ qua biến lạ trong .env thay vì crash — .env thường mang thêm key của
+        # nhánh khác (ví dụ SMTP_*), không nên làm backend không khởi động được.
+        extra = "ignore"
 
 
 settings = Settings()  # type: ignore

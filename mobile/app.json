@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMotionUsageDescription": "NutriSmart cần quyền truy cập cảm biến để đếm bước chân và tính toán calo tiêu thụ."
+        "NSMotionUsageDescription": "NutriSmart cần quyền truy cập cảm biến để đếm bước chân và tính toán calo tiêu thụ.",
+        "NSCameraUsageDescription": "NutriSmart cần quyền Camera để chụp ảnh món ăn.",
+        "NSPhotoLibraryUsageDescription": "NutriSmart cần quyền truy cập thư viện ảnh để phân tích món ăn."
       }
     },
     "android": {
@@ -25,7 +27,9 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.ACTIVITY_RECOGNITION"
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ]
     },
     "plugins": [
@@ -33,6 +37,13 @@
         "expo-sensors",
         {
           "motionPermission": "NutriSmart cần quyền truy cập cảm biến để đếm bước chân và tính toán calo tiêu thụ."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NutriSmart cần quyền truy cập thư viện ảnh để phân tích món ăn.",
+          "cameraPermission": "NutriSmart cần quyền Camera để chụp ảnh món ăn."
         }
       ]
     ],

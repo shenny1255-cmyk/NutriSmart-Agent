@@ -18,7 +18,9 @@ const STEP_KEY = 'nutrismart_steps_today';
 const DATE_KEY = 'nutrismart_step_date';
 
 export default function HomeScreen({ navigation, route }) {
-  const backendIp = route?.params?.backendIp ?? '10.120.56.85';
+  let rawIp = route?.params?.backendIp ?? '10.120.56.85';
+  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.120.56.85';
+  const backendIp = rawIp.trim();
 
   const [isPedometerAvailable, setIsPedometerAvailable] = useState('Đang khởi tạo...');
   const [stepCount, setStepCount] = useState(0);

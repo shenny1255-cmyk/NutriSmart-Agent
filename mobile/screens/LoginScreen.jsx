@@ -11,7 +11,9 @@ import { Theme } from '../theme';
 import { LogoMark } from '../components/Logo';
 
 export default function LoginScreen({ navigation, route }) {
-  const backendIp = route?.params?.backendIp ?? '10.120.56.85';
+  let rawIp = route?.params?.backendIp ?? '10.120.56.85';
+  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.120.56.85';
+  const backendIp = rawIp.trim();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +44,7 @@ export default function LoginScreen({ navigation, route }) {
       if (token) {
         await AsyncStorage.setItem('access_token', token);
         await AsyncStorage.setItem('backend_ip', backendIp.trim());
-        navigation.replace('Home', { backendIp: backendIp.trim() });
+        navigation.replace('Main', { backendIp: backendIp.trim() });
       } else {
         setError('Không nhận được token từ server');
       }
