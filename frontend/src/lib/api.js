@@ -43,9 +43,10 @@ export const api = {
   chatHistory: () => request('/chat/messages'),
   analyzeMeal: (file) => {
     const fd = new FormData();
-    fd.append('image', file);
-    return request('/vision/meals/analyze', { method: 'POST', body: fd, isForm: true });
+    fd.append('file', file);
+    return request('/vision/analyze-meal', { method: 'POST', body: fd, isForm: true });
   },
+  logMeal: (payload) => request('/vision/log-meal', { method: 'POST', body: payload }),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
 
