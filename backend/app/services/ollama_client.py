@@ -20,10 +20,12 @@ def chat(
     model: str | None = None,
     base_url: str | None = None,
     timeout: float = 180.0,   # rộng rãi cho lần gọi đầu (model phải nạp vào RAM)
+    options: dict | None = None,
 ) -> str:
     """Gửi danh sách messages tới Ollama, trả về nội dung câu trả lời (text).
 
     messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
+    options:  ghi đè tham số sinh của Ollama (vd num_predict lớn hơn cho JSON dài).
     """
     model = model or settings.OLLAMA_MODEL
     base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
@@ -37,6 +39,7 @@ def chat(
             "num_ctx": 2048,
             "num_predict": 350,
             "temperature": 0.6,
+            **(options or {}),
         },
     }
 

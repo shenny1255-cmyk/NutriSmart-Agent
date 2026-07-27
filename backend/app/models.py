@@ -19,6 +19,8 @@ goal_enum   = SAEnum("LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL",
                      name="goal_enum", create_type=False)
 plan_status = SAEnum("ACTIVE", "COMPLETED", "REVISED", "CANCELLED",
                      name="plan_status", create_type=False)
+eval_result = SAEnum("ACHIEVED", "NOT_ACHIEVED", "PARTIAL",
+                     name="eval_result", create_type=False)
 
 
 class Country(Base):
@@ -59,6 +61,11 @@ class HealthProfile(Base):
     daily_calorie_target = Column(Integer)
 
     user = relationship("User", back_populates="profile")
+    # Bệnh nền + dị ứng — nạp sẵn để prompt LLM luôn có đủ ràng buộc sức khỏe
+    conditions = relationship("MedicalCondition", secondary="profile_conditions",
+                              lazy="selectin", viewonly=True)
+    allergens  = relationship("Allergen", secondary="profile_allergens",
+                              lazy="selectin", viewonly=True)
 
 
 class MedicalCondition(Base):
@@ -97,14 +104,39 @@ class NutritionPlan(Base):
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     version           = Column(Integer, nullable=False, default=1)
     parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id"))
-    start_date        = Column(Date, nullable=False)
-    end_date          = Column(Date, nullable=False)
-    daily_kcal_target = Column(Integer, nullable=False)
-    goal              = Column(goal_enum, nullable=False)
+    start_date: date  = Column(Date, nullable=False)  # type: ignore
+    end_date: date    = Column(Date, nullable=False)  # type: ignore
+    daily_kcal_target: int = Column(Integer, nullable=False)  # type: ignore
+    goal: str         = Column(goal_enum, nullable=False)  # type: ignore
     content           = Column(JSONB, nullable=False)
     generated_by      = Column(String(100))
     status: str       = Column(plan_status, nullable=False, default="ACTIVE")  # type: ignore
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PlanEvaluation(Base):
+    """Kết quả chấm một chu kỳ 7 ngày của lộ trình (job đánh giá sinh ra)."""
+    __tablename__ = "plan_evaluations"
+    id               = Column(BigInteger, primary_key=True, autoincrement=True)
+    plan_id          = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id", ondelete="CASCADE"),
+                              nullable=False)
+    period_start: date = Column(Date, nullable=False)  # type: ignore
+    period_end: date   = Column(Date, nullable=False)  # type: ignore
+    avg_kcal_intake: float  = Column(Numeric(8, 2))  # type: ignore
+    weight_change_kg: float = Column(Numeric(5, 2))  # type: ignore
+    result: str      = Column(eval_result, nullable=False)  # type: ignore
+    ai_feedback      = Column(Text)
+    evaluated_at     = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BodyMetricHistory(Base):
+    """Mốc cân nặng theo ngày — dùng để tính weight_change_kg giữa 2 kỳ đánh giá."""
+    __tablename__ = "body_metrics_history"
+    id          = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    recorded_at = Column(Date, nullable=False, server_default=func.current_date())
+    weight_kg   = Column(Numeric(5, 2))
+    bmi         = Column(Numeric(5, 2))
 
 from sqlalchemy import Enum as SAEnum
 

@@ -1,10 +1,34 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
+from app.config import settings
 from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision
+from app.services import plan_evaluator
 
-app = FastAPI(title="NutriSmart Agent API", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Bật job nền đánh giá lộ trình 7 ngày (tắt khi PLAN_EVAL_INTERVAL_MINUTES = 0)."""
+    task = None
+    if settings.PLAN_EVAL_INTERVAL_MINUTES > 0:
+        task = asyncio.create_task(plan_evaluator.scheduler_loop())
+        logger.info("Đã bật job đánh giá lộ trình mỗi %s phút",
+                    settings.PLAN_EVAL_INTERVAL_MINUTES)
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+
+
+app = FastAPI(title="NutriSmart Agent API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

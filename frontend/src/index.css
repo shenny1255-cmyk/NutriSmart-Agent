@@ -96,4 +96,21 @@
     .animate-toast-in {
         animation: toast-in var(--dur-short) var(--ease-out);
     }
+
+    /* Toast neo ở mép trên thì phải trượt xuống, không thể dùng chung keyframes */
+    @keyframes toast-in-top {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    .animate-toast-in-top {
+        animation: toast-in-top var(--dur-short) var(--ease-out);
+    }
 }
