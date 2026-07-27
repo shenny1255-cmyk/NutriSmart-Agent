@@ -67,9 +67,44 @@ def _ensure_default_drugs(db: Session):
 
 
 # ---------- Quản lý người dùng ----------
+# Có extension unaccent thì tìm được kiểu gõ không dấu ("nguyen van" → "Nguyễn Văn An").
+# Kiểm tra một lần cho mỗi tiến trình; DB nào chưa cài thì tự lùi về ilike thường.
+_co_unaccent: bool | None = None
+
+
+def _kiem_tra_unaccent(db: Session) -> bool:
+    global _co_unaccent
+    if _co_unaccent is None:
+        _co_unaccent = db.execute(
+            text("SELECT 1 FROM pg_extension WHERE extname = 'unaccent'")
+        ).first() is not None
+    return _co_unaccent
+
+
+def search_users(db: Session, q: str | None) -> list[User]:
+    """Danh sách user chưa xóa, lọc theo HỌ TÊN hoặc email khi có từ khóa."""
+    query = db.query(User).filter(User.deleted_at.is_(None))  # type: ignore
+
+    tu_khoa = (q or "").strip()
+    if tu_khoa:
+        kw = f"%{tu_khoa}%"
+        if _kiem_tra_unaccent(db):
+            dieu_kien = text(
+                "unaccent(coalesce(users.full_name, '')) ILIKE unaccent(:kw)"
+                " OR unaccent(users.email) ILIKE unaccent(:kw)"
+            ).bindparams(kw=kw)
+        else:
+            dieu_kien = text(
+                "coalesce(users.full_name, '') ILIKE :kw OR users.email ILIKE :kw"
+            ).bindparams(kw=kw)
+        query = query.filter(dieu_kien)
+
+    return query.order_by(User.created_at.desc()).all()
+
+
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(
-    q: str | None = Query(None, description="tìm theo email"),
+    q: str | None = Query(None, description="tìm theo họ tên hoặc email"),
     db: Session = Depends(get_db),
     _: User = admin_only,
 ):
@@ -77,10 +112,7 @@ def list_users(
     db.execute(text("DELETE FROM users WHERE email LIKE 'banned_drug_%' OR email LIKE 'rag_%';"))
     db.commit()
 
-    query = db.query(User).filter(User.deleted_at.is_(None))  # type: ignore
-    if q:
-        query = query.filter(User.email.ilike(f"%{q}%"))
-    return query.order_by(User.created_at.desc()).all()
+    return search_users(db, q)
 
 
 @router.patch("/users/{user_id}/role", response_model=AdminUserOut)

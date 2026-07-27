@@ -200,19 +200,23 @@ export function useToast() {
   return { toast, show };
 }
 
-export function Toast({ toast }) {
+export function Toast({ toast, position = 'bottom' }) {
   if (!toast) return null;
   const tones = {
     success: 'bg-accent-strong text-accent-ink',
     danger: 'bg-danger text-paper-2',
     warning: 'bg-warning-strong text-paper-2',
   };
+  const top = position === 'top';
   return (
-    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-toast flex justify-center sm:justify-end">
+    <div
+      className={`pointer-events-none fixed inset-x-4 ${top ? 'top-4' : 'bottom-4'} z-toast flex justify-center sm:justify-end`}
+    >
       <p
         key={toast.key}
-        role="status"
-        className={`animate-toast-in max-w-sm rounded-md px-4 py-3 text-sm font-medium shadow-card ${tones[toast.tone]}`}
+        // Lỗi/cảnh báo dùng role="alert" để trình đọc màn hình đọc ngay
+        role={toast.tone === 'success' ? 'status' : 'alert'}
+        className={`${top ? 'animate-toast-in-top' : 'animate-toast-in'} max-w-sm rounded-md px-4 py-3 text-sm font-medium shadow-card ${tones[toast.tone]}`}
       >
         {toast.message}
       </p>

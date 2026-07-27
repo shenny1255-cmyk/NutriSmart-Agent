@@ -51,6 +51,9 @@ export const api = {
   dailySummary: (days = 7) => request(`/tracking/summary?days=${days}`),
   activePlan: () => request('/plans/active'),
   generatePlan: () => request('/plans/generate', { method: 'POST' }),
+  evaluatePlan: (force = false) =>
+    request(`/plans/evaluate${force ? '?force=true' : ''}`, { method: 'POST' }),
+  planEvaluations: (limit = 10) => request(`/plans/evaluations?limit=${limit}`),
   chat: (message) => request('/chat/messages', { method: 'POST', body: { message } }),
   streamChat: async (message, { onToken, onDone, onError }) => {
     const token = localStorage.getItem('access_token');

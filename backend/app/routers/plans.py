@@ -1,15 +1,20 @@
-import json
-from datetime import date, timedelta
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, get_current_user
-from app.models import User, NutritionPlan
-from app.services import ollama_client
-from app.services.nutrition_context import gather_context
+from app.deps import get_db, get_current_user, require_role
+from app.models import User, NutritionPlan, PlanEvaluation
+from app.services import plan_evaluator, plan_generator
 
 router = APIRouter(prefix="/plans", tags=["plans"])
+
+
+def _active_plan_or_404(db: Session, user: User) -> NutritionPlan:
+    plan = plan_evaluator.active_plan(db, user)
+    if not plan:
+        raise HTTPException(404, "Chưa có lộ trình nào")
+    return plan
 
 
 @router.get("/active")
@@ -17,26 +22,22 @@ def active_plan(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    plan = (
-        db.query(NutritionPlan)
-        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
-        .order_by(NutritionPlan.version.desc())
+    plan = _active_plan_or_404(db, user)
+
+    res = plan_generator.plan_to_dict(plan, user)
+    # Đủ 7 ngày → frontend hiện nút "Đánh giá & cập nhật lộ trình"
+    res["days_elapsed"] = (date.today() - plan.start_date).days
+    res["needs_evaluation"] = plan_evaluator.is_due(plan.start_date) and not \
+        plan_evaluator.already_evaluated(db, plan.id, plan.start_date)
+
+    last_eval = (
+        db.query(PlanEvaluation)
+        .join(NutritionPlan, NutritionPlan.id == PlanEvaluation.plan_id)  # type: ignore
+        .filter(NutritionPlan.user_id == user.id)  # type: ignore
+        .order_by(PlanEvaluation.evaluated_at.desc())
         .first()
     )
-    if not plan:
-        raise HTTPException(404, "Chưa có lộ trình nào")
-    
-    # Chuyển thành dict để nhét thêm BMI cho frontend dễ dùng
-    res = {
-        "id": plan.id,
-        "version": plan.version,
-        "start_date": plan.start_date,
-        "end_date": plan.end_date,
-        "goal": plan.goal,
-        "daily_kcal_target": plan.daily_kcal_target,
-        "content": plan.content,
-        "bmi": user.profile.bmi if user.profile else None
-    }
+    res["last_evaluation"] = plan_evaluator.evaluation_to_dict(last_eval) if last_eval else None
     return res
 
 
@@ -45,117 +46,65 @@ def generate_plan(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng."""
-    profile = user.profile
-    if not profile:
+    """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
+    if not user.profile:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
-    target = profile.daily_calorie_target or 2000
-
-    ctx = gather_context(db, user)
-    profile_data = ctx.get("profile", {})
-    conditions = ", ".join(profile_data.get("conditions") or []) or "không có"
-    allergens = ", ".join(profile_data.get("allergens") or []) or "không có"
-    
-    prompt = f"""Bạn là một chuyên gia dinh dưỡng. Hãy tạo một lộ trình ăn uống và tập luyện 7 ngày cho người dùng sau:
-- Giới tính: {profile_data.get('gender')}
-- Tuổi: {profile_data.get('age')}
-- Chiều cao: {profile_data.get('height_cm')} cm
-- Cân nặng: {profile_data.get('weight_kg')} kg
-- BMI: {profile_data.get('bmi')}
-- Mục tiêu: {profile_data.get('goal')}
-- Lượng calo mục tiêu mỗi ngày: {target} kcal
-- Bệnh nền: {conditions}
-- Dị ứng: {allergens}
-
-YÊU CẦU BẮT BUỘC:
-1. ĐA DẠNG MÓN ĂN: Các món Sáng/Trưa/Tối phải cực kỳ phong phú, ưu tiên món ăn Việt Nam thực tế, đổi mới liên tục qua 7 ngày (không lặp đi lặp lại).
-2. ĐA DẠNG BÀI TẬP: Đề xuất bài tập thể dục thay đổi mỗi ngày (ví dụ: chạy bộ, gym, yoga, HIIT, bơi lội...).
-3. ĐỊNH DẠNG CHUẨN: Trả về KẾT QUẢ ĐẦU RA LÀ ĐÚNG MỘT CHUỖI JSON DUY NHẤT. KHÔNG kèm theo bất kỳ văn bản giải thích nào khác. Đảm bảo cấu trúc JSON như sau:
-{{
-  "days": [
-    {{
-      "meals": [
-        {{"type": "Sáng", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}},
-        {{"type": "Trưa", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}},
-        {{"type": "Tối", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}}
-      ],
-      "exercise": "Mô tả bài tập chi tiết (vd: Chạy bộ - 30 phút - đốt 300 kcal)"
-    }}
-  ]
-}}
-Lưu ý: Mảng "days" phải có đúng 7 phần tử (7 ngày). Tổng kcal mỗi ngày phải xấp xỉ {target} kcal. Tuyệt đối KHÔNG có markdown, KHÔNG có text bên ngoài JSON.
-"""
-
-    content = None
-    try:
-        reply = ollama_client.chat([{"role": "user", "content": prompt}], timeout=180.0)
-        
-        # Xử lý cắt bỏ markdown code block nếu LLM lỡ sinh ra
-        reply = reply.strip()
-        if reply.startswith("```json"):
-            reply = reply[7:]
-        if reply.startswith("```"):
-            reply = reply[3:]
-        if reply.endswith("```"):
-            reply = reply[:-3]
-        reply = reply.strip()
-        
-        content = json.loads(reply)
-        
-        if "days" not in content or not isinstance(content["days"], list):
-            raise ValueError("Missing 'days' array in JSON")
-            
-    except Exception as e:
-        print(f"Lỗi khi sinh JSON bằng AI: {e}. Trả về dữ liệu mẫu.")
-        content = {
-            "days": [
-                {
-                    "meals": [
-                        {"type": "Sáng", "name": "Phở bò (Mẫu)", "kcal": int(target * 0.3)},
-                        {"type": "Trưa", "name": "Cơm gà (Mẫu)", "kcal": int(target * 0.4)},
-                        {"type": "Tối", "name": "Salad (Mẫu)", "kcal": int(target * 0.3)},
-                    ],
-                    "exercise": "Đi bộ 30 phút",
-                }
-                for _ in range(7)
-            ]
-        }
-
-    # Hạ plan cũ xuống REVISED
-    old = (
-        db.query(NutritionPlan)
-        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
-        .order_by(NutritionPlan.version.desc())
-        .first()
-    )
-    if old:
-        old.status = "REVISED"
-
-    plan = NutritionPlan(
-        user_id=user.id,
-        version=(old.version + 1) if old else 1,
-        parent_plan_id=old.id if old else None,
-        start_date=date.today(),
-        end_date=date.today() + timedelta(days=7),
-        daily_kcal_target=target,
-        goal=profile.goal,
-        content=content,
-        generated_by="ai-gemma3",
-        status="ACTIVE",
-    )
-    db.add(plan)
+    plan = plan_generator.create_plan(db, user)
     db.commit()
     db.refresh(plan)
-    
-    res = {
-        "id": plan.id,
-        "version": plan.version,
-        "start_date": plan.start_date,
-        "end_date": plan.end_date,
-        "goal": plan.goal,
-        "daily_kcal_target": plan.daily_kcal_target,
-        "content": plan.content,
-        "bmi": user.profile.bmi if user.profile else None
+    return plan_generator.plan_to_dict(plan, user)
+
+
+@router.post("/evaluate")
+def evaluate_plan(
+    force: bool = Query(False, description="Chấm ngay dù chưa đủ 7 ngày (dùng để demo)"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Chạy job đánh giá chu kỳ 7 ngày cho chính người dùng đang đăng nhập."""
+    if not user.profile:
+        raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
+
+    try:
+        res = plan_evaluator.run_plan_job(db, user, force=force)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Lỗi khi đánh giá lộ trình: {e}")
+
+    if not res["evaluated"]:
+        return {"evaluated": False, "reason": res["reason"]}
+
+    return {
+        "evaluated": True,
+        "evaluation": plan_evaluator.evaluation_to_dict(res["evaluation"]),
+        "plan": plan_generator.plan_to_dict(res["plan"], user),
     }
-    return res
+
+
+@router.get("/evaluations")
+def list_evaluations(
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lịch sử chấm điểm các chu kỳ đã qua của người dùng."""
+    rows = (
+        db.query(PlanEvaluation, NutritionPlan.version)
+        .join(NutritionPlan, NutritionPlan.id == PlanEvaluation.plan_id)  # type: ignore
+        .filter(NutritionPlan.user_id == user.id)  # type: ignore
+        .order_by(PlanEvaluation.period_start.desc())  # type: ignore
+        .limit(limit)
+        .all()
+    )
+    return [{**plan_evaluator.evaluation_to_dict(e), "plan_version": v} for e, v in rows]
+
+
+
+@router.post("/jobs/evaluate-all")
+def evaluate_all(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("ADMIN")),
+):
+    """Chạy job đánh giá cho toàn bộ người dùng có lộ trình đã đủ 7 ngày."""
+    return plan_evaluator.run_job_for_all(db)

@@ -126,6 +126,18 @@ def seed_demo(db: Session = Depends(get_db)):
                 "d": day,
             })
 
+    # 6b. Mốc cân nặng 7 ngày (giảm dần) để job đánh giá tính được weight_change_kg
+    for d in range(6, -1, -1):
+        db.execute(text("""
+            INSERT INTO body_metrics_history (user_id, recorded_at, weight_kg)
+            VALUES (:uid, :d, :w)
+            ON CONFLICT (user_id, recorded_at) DO UPDATE SET weight_kg = EXCLUDED.weight_kg
+        """), {
+            "uid": str(user.id),
+            "d": date.today() - timedelta(days=d),
+            "w": round(float(profile_args["weight_kg"]) + d * 0.1, 2),
+        })
+
     # 7. Một lộ trình đang active
     plan_content = {
         "days": [

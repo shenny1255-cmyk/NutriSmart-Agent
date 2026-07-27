@@ -14,7 +14,21 @@ export default function AdminUsers() {
     const [deleting, setDeleting] = useState(false);
     const { toast, show } = useToast();
 
-    const load = () => api.adminUsers(q).then(setUsers).catch((e) => setErr(e.message));
+    // tuKiemTra = true khi người dùng bấm Tìm/Enter → không có kết quả thì báo đỏ.
+    // Các lần load lại sau khi đổi vai trò/xóa thì im lặng, khỏi đè toast xác nhận.
+    const load = async ({ tuKiemTra = false } = {}) => {
+        const tuKhoa = q.trim();
+        try {
+            const rows = await api.adminUsers(tuKhoa);
+            setUsers(rows);
+            setErr(null);
+            if (tuKiemTra && tuKhoa && rows.length === 0) {
+                show(`Không tìm thấy người dùng nào khớp "${tuKhoa}".`, 'danger');
+            }
+        } catch (e) {
+            setErr(e.message);
+        }
+    };
     useEffect(() => { load(); }, []);
 
     async function changeRole(id, role) {
@@ -27,7 +41,7 @@ export default function AdminUsers() {
         setDeleting(true);
         try {
             await api.deleteUser(deleteTarget.id);
-            show(`Đã xóa tài khoản ${deleteTarget.email}.`);
+            show(`Đã xóa tài khoản ${deleteTarget.full_name || deleteTarget.email}.`);
             setDeleteTarget(null);
             load();
         } catch (e) {
@@ -44,11 +58,11 @@ export default function AdminUsers() {
             <div className="flex flex-wrap gap-2">
                 <Field
                     value={q} onChange={(e) => setQ(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && load()}
-                    placeholder="Tìm theo email…"
-                    className="w-full sm:w-64"
+                    onKeyDown={(e) => e.key === 'Enter' && load({ tuKiemTra: true })}
+                    placeholder="Tìm theo tên hoặc email…"
+                    className="w-full sm:w-72"
                 />
-                <Btn variant="primary" onClick={load}>
+                <Btn variant="primary" onClick={() => load({ tuKiemTra: true })}>
                     <Search size={15} />
                     Tìm
                 </Btn>
@@ -57,13 +71,13 @@ export default function AdminUsers() {
             {err && <Alert tone="warning">{err}</Alert>}
 
             <TableShell>
-                <THead cols={['Email', 'Họ tên', 'Vai trò', '']} />
+                <THead cols={['Họ tên', 'Email', 'Vai trò', '']} />
                 <tbody>
                     {users.length === 0 && <EmptyRow colSpan={4}>Không tìm thấy người dùng nào.</EmptyRow>}
                     {users.map((u) => (
                         <Tr key={u.id}>
-                            <Td className="font-medium text-ink [overflow-wrap:anywhere]">{u.email}</Td>
-                            <Td className="text-ink-2">{u.full_name || '—'}</Td>
+                            <Td className="font-medium text-ink">{u.full_name || '—'}</Td>
+                            <Td className="text-ink-2 [overflow-wrap:anywhere]">{u.email}</Td>
                             <Td>
                                 <Select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}>
                                     {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -98,11 +112,11 @@ export default function AdminUsers() {
                     </>
                 }
             >
-                Tài khoản <b className="text-ink [overflow-wrap:anywhere]">{deleteTarget?.email}</b>
-                {deleteTarget?.full_name && <> ({deleteTarget.full_name})</>} sẽ bị xóa vĩnh viễn cùng toàn bộ hồ sơ sức khỏe. Hành động này không hoàn tác được.
+                Tài khoản <b className="text-ink">{deleteTarget?.full_name || deleteTarget?.email}</b>
+                {deleteTarget?.full_name && <> (<span className="[overflow-wrap:anywhere]">{deleteTarget.email}</span>)</>} sẽ bị xóa vĩnh viễn cùng toàn bộ hồ sơ sức khỏe. Hành động này không hoàn tác được.
             </Modal>
 
-            <Toast toast={toast} />
+            <Toast toast={toast} position="top" />
         </div>
     );
 }

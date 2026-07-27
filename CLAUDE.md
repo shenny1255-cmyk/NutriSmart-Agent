@@ -34,10 +34,12 @@ Open http://localhost:5173. Demo accounts (via the "Dùng thử ngay (Demo)" but
 ## Tests
 
 ```bash
-cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest -q
+cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests -q
 ```
 
 - `PYTHONUTF8=1` is **required** on this Windows box or Vietnamese output crashes (cp1252).
+- Point pytest at `tests/` — a bare `pytest -q` from `backend/` also collects the ad-hoc
+  scripts (`test_flow.py`, `test_vision_flow.py`) and dies with `I/O operation on closed file`.
 - Tests needing Postgres **skip automatically** when the DB is down (see `_db_up()` guards).
 - Use **TDD** for backend logic (write the failing test first). Frontend: `npm run build`
   compiles; verify UI by driving the app in a browser.
@@ -95,6 +97,16 @@ cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest -q
   in `security.py`, `/auth/verify` + `/auth/resend-verification`, `pages/Verify.jsx`,
   `components/VerifyBanner.jsx`. Soft enforcement (unverified users can still log in).
   Configure `SMTP_*` in `.env` for real delivery (Gmail needs an App Password).
+- **Lộ trình thích ứng (task 12)** — `services/plan_generator.py` (prompt LLM: profile +
+  bệnh nền + dị ứng + calo target) và `services/plan_evaluator.py` (chấm chu kỳ 7 ngày →
+  `plan_evaluations` → sinh plan `version+1`, hạ plan cũ = `REVISED`, hoặc `COMPLETED` khi
+  ĐẠT). API: `POST /plans/evaluate[?force=true]`, `GET /plans/evaluations`,
+  `POST /plans/jobs/evaluate-all` (ADMIN). Job nền chạy mỗi `PLAN_EVAL_INTERVAL_MINUTES`
+  phút (0 = tắt). UI ở `pages/Plan.jsx`.
+  - Sinh 7 ngày JSON tốn ~3–5 phút trên máy này → `PLAN_LLM_TIMEOUT_SECONDS` mặc định 420;
+    quá hạn thì rơi về thực đơn mẫu (`generated_by="fallback-template"`).
+  - `HealthProfile.conditions/allergens` là relationship mới; trước đó `gather_context`
+    đọc thuộc tính không tồn tại nên bệnh nền/dị ứng **không bao giờ** tới LLM (cả chat lẫn plan).
 
 ## Not yet built
 
