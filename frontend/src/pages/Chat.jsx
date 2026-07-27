@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink } from 'lucide-react';
+import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink, Trash2 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { Modal, Btn } from '../components/ui.jsx';
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);   // { role, content, citations? }
@@ -32,26 +33,85 @@ export default function Chat() {
 
     setError(null);
     setInput('');
-    setMessages((m) => [...m, { role: 'user', content: text }]);   // hiện ngay
+
+    // Thêm câu hỏi của user và 1 bong bóng assistant rỗng để nhận stream
+    setMessages((m) => [
+      ...m,
+      { role: 'user', content: text },
+      { role: 'assistant', content: '', citations: [] },
+    ]);
     setSending(true);
 
+    await api.streamChat(text, {
+      onToken: (token) => {
+        setMessages((m) => {
+          const next = [...m];
+          const last = next[next.length - 1];
+          if (last && last.role === 'assistant') {
+            next[next.length - 1] = {
+              ...last,
+              content: last.content + token,
+            };
+          }
+          return next;
+        });
+      },
+      onDone: (citations) => {
+        setMessages((m) => {
+          const next = [...m];
+          const last = next[next.length - 1];
+          if (last && last.role === 'assistant') {
+            next[next.length - 1] = {
+              ...last,
+              citations,
+            };
+          }
+          return next;
+        });
+        setSending(false);
+      },
+      onError: (err) => {
+        setError(err || 'Trợ lý AI chưa phản hồi được.');
+        setSending(false);
+      },
+    });
+  }
+
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  async function confirmClearHistory() {
+    setClearing(true);
     try {
-      const { reply, citations } = await api.chat(text);
-      setMessages((m) => [...m, { role: 'assistant', content: reply, citations }]);
+      await api.clearChatHistory();
+      setMessages([]);
+      setConfirmClearOpen(false);
     } catch {
-      setError('Trợ lý AI chưa phản hồi được. Kiểm tra Ollama đang chạy rồi thử lại.');
+      setError('Không thể xóa lịch sử trò chuyện.');
     } finally {
-      setSending(false);
+      setClearing(false);
     }
   }
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-6.5rem)] max-w-3xl flex-col md:h-[calc(100vh-4rem)]">
-      <header className="mb-4">
-        <h1 className="font-display text-2xl font-bold tracking-tight">Trợ lý AI</h1>
-        <p className="text-sm text-muted">
-          Tư vấn dinh dưỡng cá nhân hóa dựa trên hồ sơ và lộ trình của bạn.
-        </p>
+      <header className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Trợ lý AI</h1>
+          <p className="text-sm text-muted">
+            Tư vấn dinh dưỡng cá nhân hóa dựa trên hồ sơ và lộ trình của bạn.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={() => setConfirmClearOpen(true)}
+            className="flex items-center gap-1.5 rounded-md bg-paper-3 px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-soft transition-colors"
+            title="Xóa lịch sử chat"
+          >
+            <Trash2 size={14} />
+            Xóa lịch sử
+          </button>
+        )}
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto rounded-md bg-paper-2 p-4 shadow-hairline md:p-5">
@@ -65,20 +125,23 @@ export default function Chat() {
           </div>
         )}
 
-        {messages.map((m, i) => (
-          <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />
-        ))}
-
-        {sending && (
-          <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-              <Bot size={16} />
-            </span>
-            <span className="flex items-center gap-1 rounded-md bg-paper-3 px-4 py-3" aria-label="Đang soạn câu trả lời">
-              <Dot delay="0ms" /><Dot delay="150ms" /><Dot delay="300ms" />
-            </span>
-          </div>
-        )}
+        {messages.map((m, i) => {
+          const isWaitingFirstToken = sending && i === messages.length - 1 && m.role === 'assistant' && !m.content;
+          if (isWaitingFirstToken) {
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
+                  <Bot size={16} />
+                </span>
+                <span className="flex items-center gap-1 rounded-md bg-paper-3 px-4 py-3" aria-label="Đang soạn câu trả lời">
+                  <Dot delay="0ms" /><Dot delay="150ms" /><Dot delay="300ms" />
+                </span>
+              </div>
+            );
+          }
+          if (m.role === 'assistant' && !m.content) return null;
+          return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />;
+        })}
 
         <div ref={endRef} />
       </div>
@@ -116,6 +179,29 @@ export default function Chat() {
           <span className="hidden sm:inline">Gửi</span>
         </button>
       </form>
+
+      {/* Modal xác nhận xóa lịch sử trò chuyện */}
+      <Modal
+        open={confirmClearOpen}
+        onClose={() => !clearing && setConfirmClearOpen(false)}
+        icon={<Trash2 size={20} />}
+        tone="danger"
+        title="Xóa lịch sử trò chuyện"
+        footer={
+          <>
+            <Btn variant="ghost" onClick={() => setConfirmClearOpen(false)} disabled={clearing}>
+              Hủy bỏ
+            </Btn>
+            <Btn variant="danger" onClick={confirmClearHistory} disabled={clearing}>
+              {clearing ? 'Đang xóa…' : 'Xóa tất cả'}
+            </Btn>
+          </>
+        }
+      >
+        <p className="text-ink-2">
+          Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không? Hành động này không thể hoàn tác.
+        </p>
+      </Modal>
     </div>
   );
 }

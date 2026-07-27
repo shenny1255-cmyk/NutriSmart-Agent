@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity,
-  ScrollView, SafeAreaView, StatusBar, TextInput,
+  ScrollView, StatusBar, TextInput,
   Alert, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pedometer, Accelerometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';

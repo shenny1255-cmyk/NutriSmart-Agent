@@ -37,7 +37,8 @@ export default function AdminDrugs() {
     }
 
     function openRule(drug) {
-        setRuleForm({ country_code: 'VN', status: 'BANNED' });
+        const existingVN = drug.rules?.find((r) => r.country_code === 'VN');
+        setRuleForm({ country_code: 'VN', status: existingVN?.status ?? 'BANNED' });
         setRuleTarget(drug);
     }
 
@@ -49,6 +50,7 @@ export default function AdminDrugs() {
             const statusLabel = RULE_STATUSES.find((s) => s.value === ruleForm.status)?.label ?? ruleForm.status;
             show(`Đã đặt "${ruleTarget.name}" thành ${statusLabel} tại ${countryName}.`);
             setRuleTarget(null);
+            load();
         } catch (e) {
             show(`Không cập nhật được quy định: ${e.message}`, 'danger');
         } finally {
@@ -78,13 +80,25 @@ export default function AdminDrugs() {
             </Card>
 
             <TableShell>
-                <THead cols={['Tên', 'Hoạt chất', '']} />
+                <THead cols={['Tên', 'Hoạt chất', 'Quy định quốc gia', '']} />
                 <tbody>
-                    {drugs.length === 0 && <EmptyRow colSpan={3}>Chưa có thuốc nào trong danh mục.</EmptyRow>}
+                    {drugs.length === 0 && <EmptyRow colSpan={4}>Chưa có thuốc nào trong danh mục.</EmptyRow>}
                     {drugs.map((d) => (
                         <Tr key={d.id}>
                             <Td className="font-medium text-ink">{d.name}</Td>
                             <Td className="text-ink-2">{d.active_ingredient || '—'}</Td>
+                            <Td>
+                                {(!d.rules || d.rules.length === 0) && <span className="text-muted text-xs">Chưa cài đặt</span>}
+                                {d.rules?.map((r) => {
+                                    const statusObj = RULE_STATUSES.find((s) => s.value === r.status);
+                                    const badgeCls = r.status === 'BANNED' ? 'bg-danger text-paper-2' : r.status === 'RESTRICTED' ? 'bg-warning-strong text-paper-2' : 'bg-accent-strong text-accent-ink';
+                                    return (
+                                        <span key={r.country_code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold mr-1.5 ${badgeCls}`}>
+                                            {r.country_code}: {statusObj?.label ?? r.status}
+                                        </span>
+                                    );
+                                })}
+                            </Td>
                             <Td className="text-right">
                                 <Btn variant="subtle" size="sm" onClick={() => openRule(d)}>
                                     <Globe size={13} />
@@ -120,7 +134,11 @@ export default function AdminDrugs() {
                         <Select
                             id="rule-country"
                             value={ruleForm.country_code}
-                            onChange={(e) => setRuleForm((f) => ({ ...f, country_code: e.target.value }))}
+                            onChange={(e) => {
+                                const code = e.target.value;
+                                const existing = ruleTarget?.rules?.find((r) => r.country_code === code);
+                                setRuleForm({ country_code: code, status: existing?.status ?? 'BANNED' });
+                            }}
                             className="w-full"
                         >
                             {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}

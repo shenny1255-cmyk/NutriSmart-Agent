@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet, Text, View, ScrollView, SafeAreaView, StatusBar, ActivityIndicator, TouchableOpacity,
+  StyleSheet, Text, View, ScrollView, StatusBar, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { Target, Flame, Calendar, Sparkles, RefreshCw, CheckCircle2, ChevronRight, Scale } from 'lucide-react-native';
