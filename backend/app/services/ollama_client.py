@@ -33,6 +33,11 @@ def chat(
         "messages": messages,
         "stream": False,
         "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+        "options": {
+            "num_ctx": 2048,
+            "num_predict": 350,
+            "temperature": 0.6,
+        },
     }
 
     try:
@@ -45,6 +50,47 @@ def chat(
     if not content:
         raise OllamaError("Ollama trả về câu trả lời rỗng")
     return content
+
+
+def chat_stream(
+    messages: list[dict],
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 180.0,
+):
+    """Stream từng token từ Ollama /api/chat với stream=True."""
+    import json
+    model = model or settings.OLLAMA_MODEL
+    base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+        "options": {
+            "num_ctx": 2048,
+            "num_predict": 350,
+            "temperature": 0.6,
+        },
+    }
+
+    try:
+        with httpx.stream("POST", f"{base_url}/api/chat", json=payload, timeout=timeout) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    chunk = (data.get("message") or {}).get("content", "")
+                    if chunk:
+                        yield chunk
+                except Exception:
+                    continue
+    except httpx.HTTPError as e:
+        raise OllamaError(f"Không gọi được Ollama Stream: {e}") from e
 
 
 def get_embedding(

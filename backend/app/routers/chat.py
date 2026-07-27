@@ -1,4 +1,6 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -12,7 +14,7 @@ from app.services.nutrition_context import build_system_prompt
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 HISTORY_LIMIT = 10   # số lượt gần nhất đưa lại cho model
-TOP_K = 5            # số đoạn tài liệu đưa vào ngữ cảnh
+TOP_K = 3            # số đoạn tài liệu đưa vào ngữ cảnh (rút gọn để tăng tốc)
 
 
 def _get_or_create_session(db: Session, user: User) -> ChatSession:
@@ -102,7 +104,19 @@ def send_message(
     # dựa trên hồ sơ người dùng như trước.
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
 
-    system_prompt = build_system_prompt(db, user) + retrieval.render_context_block(hits)
+    rag_block = retrieval.render_context_block(hits)
+    override_directive = (
+        "\n\n==================================================\n"
+        "QUY TẮC BẮT BUỘC VỀ QUY ĐỊNH DƯỢC PHẨM (TUÂN THỦ TỰ ĐỘNG 100%):\n"
+        "Bạn BẮT BUỘC phải dựa vào DANH MỤC QUY ĐỊNH DƯỢC PHẨM CỦA HỆ THỐNG NUT RISMART THEO QUỐC GIA ở trên để trả lời.\n"
+        "BẮT BUỘC ƯU TIÊN VÀ GHI ĐÈ dữ liệu trong cơ sở dữ liệu lên trên mọi tài liệu tham khảo RAG, tri thức huấn luyện cũ, VÀ CẢ CÁC TIN NHẮN CỦA TRỢ LÝ TRONG LỊCH SỬ HỘI THOẠI:\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CHO PHÉP (ALLOWED): Bạn BẮT BUỘC trả lời là thuốc ĐƯỢC PHÉP SỬ DỤNG tại quốc gia đó. TUYỆT ĐỐI KHÔNG TRẢ LỜI LÀ BỊ CẤM HAY CẤM LƯU HÀNH (dù trong lịch sử chat tin nhắn cũ từng bảo bị cấm).\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái HẠN CHẾ (RESTRICTED): Bạn BẮT BUỘC trả lời là thuốc bị HẠN CHẾ SỬ DỤNG (THUỐC KÊ ĐƠN) tại quốc gia đó, cần chỉ định của bác sĩ.\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CẤM (BANNED): Bạn BẮT BUỘC trả lời là thuốc ĐÃ BỊ CẤM LƯU HÀNH VÀ SỬ DỤNG tại quốc gia đó.\n"
+        "=================================================="
+    )
+
+    system_prompt = build_system_prompt(db, user) + rag_block + override_directive
 
     recent = (
         db.query(ChatMessage)
@@ -141,3 +155,89 @@ def send_message(
         reply=reply,
         citations=[CitationOut(**retrieval.to_citation(h)) for h in hits],
     )
+
+
+@router.post("/stream")
+def stream_message(
+    payload: ChatIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Stream token phản hồi từ AI qua Server-Sent Events (SSE)."""
+    session = _get_or_create_session(db, user)
+
+    # 1. Lưu tin nhắn người dùng
+    db.add(ChatMessage(session_id=session.id, role="user", content=payload.message))
+    db.commit()
+
+    # 2. Truy hồi RAG & xây dựng System Prompt
+    hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
+    rag_block = retrieval.render_context_block(hits)
+    override_directive = (
+        "\n\n==================================================\n"
+        "QUY TẮC BẮT BUỘC VỀ QUY ĐỊNH DƯỢC PHẨM (TUÂN THỦ TỰ ĐỘNG 100%):\n"
+        "Bạn BẮT BUỘC phải dựa vào DANH MỤC QUY ĐỊNH DƯỢC PHẨM CỦA HỆ THỐNG NUT RISMART THEO QUỐC GIA ở trên để trả lời.\n"
+        "BẮT BUỘC ƯU TIÊN VÀ GHI ĐÈ dữ liệu trong cơ sở dữ liệu lên trên mọi tài liệu tham khảo RAG, tri thức huấn luyện cũ, VÀ CẢ CÁC TIN NHẮN CỦA TRỢ LÝ TRONG LỊCH SỬ HỘI THOẠI:\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CHO PHÉP (ALLOWED): Bạn BẮT BUỘC trả lời là thuốc ĐƯỢC PHÉP SỬ DỤNG tại quốc gia đó. TUYỆT ĐỐI KHÔNG TRẢ LỜI LÀ BỊ CẤM HAY CẤM LƯU HÀNH (dù trong lịch sử chat tin nhắn cũ từng bảo bị cấm).\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái HẠN CHẾ (RESTRICTED): Bạn BẮT BUỘC trả lời là thuốc bị HẠN CHẾ SỬ DỤNG (THUỐC KÊ ĐƠN) tại quốc gia đó, cần chỉ định của bác sĩ.\n"
+        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CẤM (BANNED): Bạn BẮT BUỘC trả lời là thuốc ĐÃ BỊ CẤM LƯU HÀNH VÀ SỬ DỤNG tại quốc gia đó.\n"
+        "=================================================="
+    )
+    system_prompt = build_system_prompt(db, user) + rag_block + override_directive
+
+    recent = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")
+        .order_by(ChatMessage.id.desc())
+        .limit(HISTORY_LIMIT)
+        .all()
+    )
+    recent.reverse()
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages += [{"role": m.role, "content": m.content} for m in recent]
+
+    def event_generator():
+        full_reply = []
+        try:
+            for token in ollama_client.chat_stream(messages):
+                full_reply.append(token)
+                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            return
+
+        full_text = "".join(full_reply).strip()
+        if full_text:
+            answer = ChatMessage(session_id=session.id, role="assistant", content=full_text)
+            db.add(answer)
+            db.flush()
+            for rank, hit in enumerate(hits, start=1):
+                db.execute(text("""
+                    INSERT INTO message_citations (message_id, chunk_id, score, rank)
+                    VALUES (:mid, :cid, :score, :rank)
+                    ON CONFLICT DO NOTHING
+                """), {"mid": answer.id, "cid": hit.chunk_id, "score": round(hit.score, 4), "rank": rank})
+            db.commit()
+
+        cites = [retrieval.to_citation(h) for h in hits]
+        yield f"data: {json.dumps({'done': True, 'citations': cites}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.delete("/messages", status_code=204)
+def clear_history(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Xóa toàn bộ lịch sử trò chuyện của người dùng."""
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.user_id == user.id)
+        .first()
+    )
+    if session:
+        db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()
+        db.commit()
+    return None

@@ -171,6 +171,8 @@ class Drug(Base):
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at        = Column(DateTime(timezone=True))
 
+    rules             = relationship("DrugCountryRule", lazy="selectin", cascade="all, delete-orphan")
+
 
 class DrugCountryRule(Base):
     __tablename__ = "drug_country_rules"

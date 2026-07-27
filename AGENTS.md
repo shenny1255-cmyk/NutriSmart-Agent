@@ -96,10 +96,7 @@ cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest -q
   `components/VerifyBanner.jsx`. Soft enforcement (unverified users can still log in).
   Configure `SMTP_*` in `.env` for real delivery (Gmail needs an App Password).
 
-## Not yet built
-
-- `POST /api/v1/vision/meals/analyze` — the "Phân tích món ăn" (meal scan) page calls it,
-  but no `vision` router exists yet, so that page errors.
+- **Phân tích món ăn (Vision)** — `routers/vision.py`, `services/gemini_vision.py`, `pages/MealAnalysis.jsx`. Phân tích ảnh đĩa thức ăn bằng Gemini Flash 2.0 (`POST /api/v1/vision/analyze-meal`) và lưu nhật ký bữa ăn (`POST /api/v1/vision/log-meal`).
 
 (`POST /api/v1/plans/generate` **is** real — it prompts gemma3 for a JSON meal plan,
 `generated_by="ai-gemma3"`.)

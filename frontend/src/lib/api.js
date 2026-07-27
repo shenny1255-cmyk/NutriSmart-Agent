@@ -52,7 +52,64 @@ export const api = {
   activePlan: () => request('/plans/active'),
   generatePlan: () => request('/plans/generate', { method: 'POST' }),
   chat: (message) => request('/chat/messages', { method: 'POST', body: { message } }),
+  streamChat: async (message, { onToken, onDone, onError }) => {
+    const token = localStorage.getItem('access_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${BASE}/chat/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message }),
+      });
+
+      if (!res.ok) {
+        let detail;
+        try { detail = (await res.json()).detail; } catch {}
+        throw new ApiError(res.status, detail);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (!dataStr) continue;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                onError?.(parsed.error);
+                return;
+              }
+              if (parsed.token) {
+                onToken?.(parsed.token);
+              }
+              if (parsed.done) {
+                onDone?.(parsed.citations || []);
+              }
+            } catch (e) {
+              console.error('Lỗi parse SSE token:', e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      onError?.(e.message || 'Không thể kết nối stream');
+    }
+  },
   chatHistory: () => request('/chat/messages'),
+  clearChatHistory: () => request('/chat/messages', { method: 'DELETE' }),
   analyzeMeal: (file) => {
     const fd = new FormData();
     fd.append('file', file);

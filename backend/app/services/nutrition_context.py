@@ -1,20 +1,6 @@
-"""Xây dựng system prompt cho Trợ lý AI, dựa trên dữ liệu sức khỏe của người dùng.
-
-Tách làm 2 phần để dễ kiểm thử:
-- render_system_prompt(ctx)  -> hàm THUẦN, không chạm DB (unit test).
-- build_system_prompt(db, user) -> lấy dữ liệu từ DB rồi gọi render (integration).
-"""
-
-from datetime import date, timedelta
-
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models import (
-    User, MedicalCondition, Allergen,
-    ProfileCondition, ProfileAllergen, NutritionPlan,
-)
-from app.services.calorie import calc_age
+from app.models import User, Country, Drug, DrugCountryRule
 
 _SAFETY = (
     "Bạn là trợ lý dinh dưỡng của ứng dụng NutriSmart. Trả lời bằng tiếng Việt, "
@@ -23,8 +9,39 @@ _SAFETY = (
 )
 
 
+def get_country_drug_rules(db: Session, country_code: str) -> tuple[str, list[dict]]:
+    c_row = db.query(Country.name).filter(Country.code == country_code).first()
+    country_name = c_row[0] if c_row else country_code
+
+    rules = (
+        db.query(
+            Drug.name,
+            Drug.active_ingredient,
+            DrugCountryRule.country_code,
+            Country.name,
+            DrugCountryRule.status,
+            DrugCountryRule.note,
+        )
+        .join(DrugCountryRule, DrugCountryRule.drug_id == Drug.id)
+        .outerjoin(Country, Country.code == DrugCountryRule.country_code)
+        .all()
+    )
+
+    rule_list = [
+        {
+            "drug_name": r[0],
+            "active_ingredient": r[1],
+            "country_code": r[2],
+            "country_name": r[3] or r[2],
+            "status": r[4],
+            "note": r[5],
+        }
+        for r in rules
+    ]
+    return country_name, rule_list
+
+
 def render_system_prompt(ctx: dict) -> str:
-    """Ghép các mảnh dữ liệu thành system prompt. Bỏ qua phần nào thiếu dữ liệu."""
     lines = [_SAFETY, ""]
 
     name = ctx.get("full_name")
@@ -67,62 +84,84 @@ def render_system_prompt(ctx: dict) -> str:
             "kcal mỗi ngày."
         )
 
+    user_country_code = ctx.get("country_code") or "VN"
+    user_country_name = ctx.get("country_name") or "Việt Nam"
+    drug_rules = ctx.get("drug_rules") or []
+
+    lines.append("")
+    lines.append(f"Quốc gia mặc định của người dùng: {user_country_name} ({user_country_code})")
+    if drug_rules:
+        lines.append("DANH MỤC QUY ĐỊNH DƯỢC PHẨM CỦA HỆ THỐNG NUT RISMART THEO QUỐC GIA:")
+        for r in drug_rules:
+            st_val = r["status"]
+            c_code = r.get("country_code") or user_country_code
+            c_name = r.get("country_name") or c_code
+
+            if st_val == "BANNED":
+                st = "CẤM (BANNED)"
+            elif st_val == "RESTRICTED":
+                st = "HẠN CHẾ SỬ DỤNG (RESTRICTED - THUỐC KÊ ĐƠN)"
+            else:
+                st = "CHO PHÉP (ALLOWED)"
+
+            ing = f" ({r['active_ingredient']})" if r.get("active_ingredient") else ""
+            note_str = f" - Ghi chú: {r['note']}" if r.get("note") else ""
+            lines.append(f"- Thuốc/Hoạt chất {r['drug_name']}{ing} tại {c_name} ({c_code}): Trạng thái {st}{note_str}")
+
     return "\n".join(lines)
 
 
 def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
-    """Truy vấn hồ sơ + lộ trình + theo dõi từ DB, trả về ctx cho render_system_prompt."""
-    ctx: dict = {"full_name": user.full_name, "profile": None,
-                 "active_plan": None, "tracking": None}
+    country_code = user.country_code or "VN"
+    country_name, drug_rules = get_country_drug_rules(db, country_code)
 
-    profile = user.profile
-    if profile:
-        conditions = (
-            db.query(MedicalCondition.name)
-            .join(ProfileCondition, ProfileCondition.condition_id == MedicalCondition.id)
-            .filter(ProfileCondition.profile_id == profile.id).all()
-        )
-        allergens = (
-            db.query(Allergen.name)
-            .join(ProfileAllergen, ProfileAllergen.allergen_id == Allergen.id)
-            .filter(ProfileAllergen.profile_id == profile.id).all()
-        )
+    ctx: dict = {
+        "full_name": user.full_name,
+        "country_code": country_code,
+        "country_name": country_name,
+        "drug_rules": drug_rules,
+        "profile": None,
+        "active_plan": None,
+        "tracking": None,
+    }
+
+    if user.profile:
+        hp = user.profile
+        from datetime import date
+        age = (date.today() - hp.birth_date).days // 365 if hp.birth_date else None
+        conditions = [c.name for c in getattr(hp, "conditions", [])]
+        allergens = [a.name for a in getattr(hp, "allergens", [])]
         ctx["profile"] = {
-            "gender": profile.gender,
-            "age": calc_age(profile.birth_date) if profile.birth_date else "?",
-            "height_cm": profile.height_cm,
-            "weight_kg": profile.weight_kg,
-            "bmi": profile.bmi,
-            "goal": profile.goal,
-            "daily_calorie_target": profile.daily_calorie_target,
-            "conditions": [c[0] for c in conditions],
-            "allergens": [a[0] for a in allergens],
+            "goal": hp.goal,
+            "gender": hp.gender,
+            "age": age,
+            "height_cm": hp.height_cm,
+            "weight_kg": hp.weight_kg,
+            "bmi": hp.bmi,
+            "daily_calorie_target": hp.daily_calorie_target,
+            "conditions": conditions,
+            "allergens": allergens,
         }
 
-    plan = (
-        db.query(NutritionPlan)
-        .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")
-        .order_by(NutritionPlan.version.desc()).first()
-    )
-    if plan:
-        ctx["active_plan"] = {"version": plan.version,
-                              "daily_kcal_target": plan.daily_kcal_target}
-
-    since = date.today() - timedelta(days=tracking_days - 1)
-    row = db.execute(
-        text("""
-            SELECT AVG(kcal_intake) AS intake, AVG(kcal_burned) AS burned, COUNT(*) AS n
-            FROM v_daily_summary WHERE user_id = :uid AND day >= :since
-        """),
-        {"uid": str(user.id), "since": since},
-    ).mappings().first()
-    if row and row["n"]:
-        ctx["tracking"] = {"days": tracking_days,
-                           "avg_intake": float(row["intake"] or 0),
-                           "avg_burned": float(row["burned"] or 0)}
+    try:
+        from app.models import NutritionPlan
+        plan = (
+            db.query(NutritionPlan)
+            .filter(NutritionPlan.user_id == user.id)
+            .order_by(NutritionPlan.version.desc())
+            .first()
+        )
+        if plan:
+            ctx["active_plan"] = {
+                "version": plan.version,
+                "daily_kcal_target": plan.daily_kcal_target,
+            }
+    except Exception:
+        pass
 
     return ctx
 
 
 def build_system_prompt(db: Session, user: User) -> str:
-    return render_system_prompt(gather_context(db, user))
+    ctx = gather_context(db, user)
+    return render_system_prompt(ctx)

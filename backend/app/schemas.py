@@ -147,12 +147,20 @@ class DrugIn(BaseModel):
     side_effects: str | None = None
 
 
+class DrugRuleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    country_code: str
+    status: str
+    note: str | None = None
+
+
 class DrugOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     name: str
     active_ingredient: str | None
     category_id: int | None
+    rules: list[DrugRuleOut] = []
 
 
 class DrugRuleIn(BaseModel):

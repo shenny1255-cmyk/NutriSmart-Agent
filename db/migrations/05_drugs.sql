@@ -11,7 +11,8 @@ CREATE TABLE drugs (
     indications       TEXT,
     side_effects      TEXT,
     contraindications TEXT,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at        TIMESTAMPTZ
 );
 
 CREATE TABLE drug_country_rules (

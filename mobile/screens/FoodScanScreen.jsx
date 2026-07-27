@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  StyleSheet, Text, View, TouchableOpacity, Image,
-  ScrollView, SafeAreaView, StatusBar, ActivityIndicator, Alert,
+  StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -86,6 +86,16 @@ export default function FoodScanScreen({ navigation, route }) {
       if (response.ok) {
         setAnalysisResult(data);
         setPortion(1.0);
+      } else if (response.status === 401) {
+        Alert.alert('Phiên đăng nhập hết hạn', 'Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.', [
+          {
+            text: 'Đăng nhập lại',
+            onPress: async () => {
+              await AsyncStorage.removeItem('access_token');
+              navigation.replace('Login', { backendIp });
+            },
+          },
+        ]);
       } else {
         Alert.alert('Phân tích thất bại', data.detail || 'Không thể phân tích ảnh món ăn.');
       }
