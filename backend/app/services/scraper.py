@@ -83,6 +83,40 @@ def get_ssl_context():
     return ctx
 
 
+# URL bài viết chết thường redirect về trang chủ hoặc trang 404 — nội dung thu được
+# chỉ là menu điều hướng. Nạp thứ đó vào RAG thì trợ lý sẽ trích dẫn menu như tài liệu
+# y khoa, nên chặn ngay từ khâu cào.
+_TIEU_DE_RAC = (
+    "trang không tồn tại", "không tìm thấy", "page not found", "404",
+    "lỗi truy cập", "access denied",
+)
+_DO_DAI_TOI_THIEU = 1500      # bài viết y khoa thật luôn dài hơn mức này
+
+
+def _kiem_tra_trang_rac(url: str, title: str, raw_text: str, url_cuoi: str | None = None) -> None:
+    """Ném ValueError nếu trang cào về là 404/trang chủ chứ không phải bài viết."""
+    tieu_de = (title or "").lower()
+    for mau in _TIEU_DE_RAC:
+        if mau in tieu_de:
+            raise ValueError(f"URL {url} trả về trang lỗi ('{title}'), không phải bài viết.")
+
+    # Bài viết chết hay bị 301 về trang chủ: đường dẫn cuối rỗng trong khi đường dẫn
+    # yêu cầu có nội dung → thứ cào được là menu trang chủ, không phải bài.
+    if url_cuoi:
+        duong_dan_goc = urlparse(url).path.strip("/")
+        duong_dan_cuoi = urlparse(url_cuoi).path.strip("/")
+        if duong_dan_goc and not duong_dan_cuoi:
+            raise ValueError(
+                f"URL {url} bị chuyển hướng về trang chủ ({url_cuoi}) — bài viết không còn tồn tại."
+            )
+
+    if len(raw_text) < _DO_DAI_TOI_THIEU:
+        raise ValueError(
+            f"Nội dung từ {url} chỉ có {len(raw_text)} ký tự — nhiều khả năng là "
+            "trang lỗi hoặc trang chủ, không phải bài viết."
+        )
+
+
 def fetch_and_parse_url(url: str, timeout: float = 15.0) -> dict:
     """Tải nội dung trang web từ URL và bóc tách tiêu đề + văn bản thuần."""
     headers = {
@@ -99,6 +133,7 @@ def fetch_and_parse_url(url: str, timeout: float = 15.0) -> dict:
         resp = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True, verify=ssl_ctx)
         resp.raise_for_status()
         html_content = resp.text
+        url_cuoi = str(resp.url)   # sau khi đi hết chuỗi redirect
     except Exception as e:
         logger.error(f"[Scraper] Lỗi khi tải URL {url}: {e}")
         raise ValueError(f"Không thể tải nội dung từ URL {url}: {e}") from e
@@ -116,6 +151,8 @@ def fetch_and_parse_url(url: str, timeout: float = 15.0) -> dict:
 
     if not raw_text or len(raw_text) < 50:
         raise ValueError(f"Nội dung thu thập từ URL {url} quá ngắn hoặc không tìm thấy văn bản hợp lệ.")
+
+    _kiem_tra_trang_rac(url, title, raw_text, url_cuoi)
 
     return {
         "title": title,
@@ -180,31 +217,40 @@ def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
     }
 
 
+# Các URL dưới đây đã được cào thử và xác nhận ra bài viết thật (không phải trang chủ
+# hay trang 404) vào 28/07/2026. Nếu về sau báo đổi đường dẫn, chốt chặn
+# _kiem_tra_trang_rac sẽ báo lỗi rõ ràng thay vì âm thầm nạp menu vào RAG.
 PRESET_SOURCES = {
     "moh": {
         "name": "Báo Sức khỏe & Đời sống - Bộ Y tế (suckhoedoisong.vn)",
         "urls": [
-            "https://suckhoedoisong.vn/dinh-duong-cho-nguoi-tieu-duong-169230510103551522.htm",
-            "https://suckhoedoisong.vn/che-do-an-uong-cho-nguoi-cao-huyet-ap-169230412154512411.htm",
-            "https://suckhoedoisong.vn/dinh-duong-cho-nguoi-roi-loan-lipid-mau-169230515162345112.htm",
-            "https://suckhoedoisong.vn/khuyen-nghi-luong-muoi-cho-nguoi-truong-thanh-169230601091234567.htm",
-            "https://suckhoedoisong.vn/vai-tro-cua-chat-xo-trong-bua-an-hang-ngay-169230605112233445.htm",
+            "https://suckhoedoisong.vn/che-do-an-trong-benh-dai-thao-duong-169240302134740875.htm",
+            "https://suckhoedoisong.vn/che-do-an-cho-nguoi-benh-tieu-duong-type-2-169241027095715726.htm",
+            "https://suckhoedoisong.vn/goi-y-thuc-don-1-tuan-cho-benh-nhan-dai-thao-duong-type-2-169220126162210889.htm",
+            "https://suckhoedoisong.vn/9-thuc-pham-nguoi-benh-gout-nen-dua-vao-thuc-don-hang-ngay-169221227223435435.htm",
+            "https://suckhoedoisong.vn/thuc-pham-nao-co-purine-thap-an-toan-cho-nguoi-benh-gout-169231210143003179.htm",
+            "https://suckhoedoisong.vn/che-do-an-uong-khi-mac-benh-roi-loan-lipid-mau-169240506000646732.htm",
         ]
     },
-    "who": {
-        "name": "Viện Dinh dưỡng Quốc gia (viendinhduong.vn)",
+    "vinmec": {
+        "name": "Hệ thống Y tế Vinmec (vinmec.com)",
         "urls": [
-            "http://viendinhduong.vn/vi/dinh-duong-tiet-che/huong-dan-dinh-duong-cho-nguoi-tieu-duong.html",
-            "http://viendinhduong.vn/vi/dinh-duong-tiet-che/dinh-duong-cho-nguoi-tang-huyet-ap.html",
-            "http://viendinhduong.vn/vi/tin-tuc---su-kien-noi-bat/nhu-cau-dinh-duong-khuyen-nghi-cho-nguoi-viet-nam.html",
+            "https://www.vinmec.com/vie/bai-viet/che-do-an-cho-nguoi-benh-gout-vi",
+            "https://www.vinmec.com/vie/bai-viet/che-do-cho-nguoi-benh-tang-huyet-ap-vi",
+            "https://www.vinmec.com/vie/bai-viet/tim-hieu-ve-che-do-dash-cho-benh-nhan-tang-huyet-ap-vi",
+            "https://www.vinmec.com/vie/bai-viet/dinh-duong-trong-benh-roi-loan-lipid-mau-vi",
         ]
-    }
+    },
 }
+
+# Khóa cũ trên giao diện; giữ lại để nút cào sẵn có không vỡ
+BI_DANH_NGUON = {"who": "vinmec"}
 
 
 def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session = None, uploaded_by_id=None) -> dict:
     """Cào bài viết tự động theo nguồn uy tín có sẵn (vd: Bộ Y tế 'moh', WHO 'who', hoặc 'all')."""
     target_urls = []
+    source_key = BI_DANH_NGUON.get(source_key, source_key)
 
     if source_key == "all":
         for src in PRESET_SOURCES.values():
@@ -212,7 +258,8 @@ def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session =
     elif source_key in PRESET_SOURCES:
         target_urls = PRESET_SOURCES[source_key]["urls"]
     else:
-        raise ValueError(f"Nguồn '{source_key}' không hợp lệ. Các nguồn hỗ trợ: moh, who, all")
+        ho_tro = ", ".join([*PRESET_SOURCES, *BI_DANH_NGUON, "all"])
+        raise ValueError(f"Nguồn '{source_key}' không hợp lệ. Các nguồn hỗ trợ: {ho_tro}")
 
     target_urls = target_urls[:limit]
     return crawl_urls(target_urls, db, uploaded_by_id=uploaded_by_id)

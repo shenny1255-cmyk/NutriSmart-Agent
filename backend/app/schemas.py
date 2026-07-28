@@ -92,6 +92,78 @@ class TodayActivityOut(BaseModel):
     log_date: date
 
 
+# ---------- Nhật ký thủ công (bữa ăn / vận động / cân nặng) ----------
+class FoodOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    serving_desc: str | None = None
+    calories_kcal: float
+    protein_g: float | None = None
+    carb_g: float | None = None
+    fat_g: float | None = None
+
+
+class ExerciseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    met_value: float | None = None
+    category: str | None = None
+
+
+class ManualMealIn(BaseModel):
+    """Ghi bữa ăn tay: chọn món có sẵn (food_id) hoặc gõ tên món mới."""
+    food_id: UUID | None = None
+    food_name: str | None = Field(default=None, max_length=200)
+    calories_kcal: float | None = Field(default=None, ge=0)
+    protein_g: float = Field(default=0.0, ge=0)
+    carb_g: float = Field(default=0.0, ge=0)
+    fat_g: float = Field(default=0.0, ge=0)
+    meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
+    quantity: float = Field(default=1.0, gt=0)
+    log_date: date | None = None
+
+
+class MealLogOut(BaseModel):
+    id: int
+    food_name: str
+    meal_type: str
+    quantity: float
+    calories_kcal: float
+    log_date: date
+
+
+class ManualActivityIn(BaseModel):
+    """Ghi buổi tập tay. Bỏ trống calories_burned → tự tính theo MET × cân nặng × phút."""
+    exercise_id: int
+    duration_min: int = Field(ge=1, le=600)
+    calories_burned: float | None = Field(default=None, ge=0)
+    steps: int = Field(default=0, ge=0)
+    log_date: date | None = None
+
+
+class ActivityLogOut(BaseModel):
+    id: int
+    exercise_name: str
+    duration_min: int
+    calories_burned: float
+    steps: int
+    log_date: date
+
+
+class WeightIn(BaseModel):
+    weight_kg: float = Field(gt=20, lt=400)
+    recorded_at: date | None = None
+
+
+class WeightOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    recorded_at: date
+    weight_kg: float
+    bmi: float | None = None
+
+
 class AdminUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID

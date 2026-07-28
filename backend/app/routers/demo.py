@@ -90,25 +90,29 @@ def seed_demo(db: Session = Depends(get_db)):
     if db.execute(text("SELECT 1 FROM allergens WHERE id = 1")).first():
         db.add(ProfileAllergen(profile_id=profile.id, allergen_id=1, severity=2))
 
-    # 5. Lấy sẵn id món ăn + bài tập từ seed
-    food_ids = [r[0] for r in db.execute(text("SELECT id FROM foods LIMIT 5")).all()]
+    # 5. Lấy sẵn món ăn (kèm calo thật) + bài tập từ seed
+    mon_an = db.execute(text(
+        "SELECT id, calories_kcal FROM foods WHERE calories_kcal > 0 ORDER BY name LIMIT 12"
+    )).all()
     ex_ids = [r[0] for r in db.execute(text("SELECT id FROM exercises LIMIT 3")).all()]
 
     # 6. Nhật ký ăn uống + vận động cho 7 ngày gần nhất
     for d in range(6, -1, -1):
         day = date.today() - timedelta(days=d)
 
-        # 3 bữa/ngày
-        if food_ids:
+        # 3 bữa/ngày — số phần suy ra từ calo THẬT của món để dòng nhật ký khớp
+        # tên món, còn tổng ngày vẫn xấp xỉ mục tiêu calo
+        if mon_an:
             for meal, ratio in [("BREAKFAST", 0.3), ("LUNCH", 0.4), ("DINNER", 0.3)]:
-                fid = random.choice(food_ids)
-                kcal = round(target * ratio + random.randint(-80, 120), 1)
+                fid, kcal_mon = random.choice(mon_an)
+                phan = max(0.5, round((target * ratio) / float(kcal_mon) * 2) / 2)
+                kcal = round(float(kcal_mon) * phan, 1)
                 db.execute(text("""
                     INSERT INTO meal_logs
                         (user_id, food_id, meal_type, quantity, calories_kcal, logged_at, log_date)
-                    VALUES (:uid, :fid, :mt, 1, :kcal, :ts, :d)
+                    VALUES (:uid, :fid, :mt, :qty, :kcal, :ts, :d)
                 """), {
-                    "uid": str(user.id), "fid": str(fid), "mt": meal,
+                    "uid": str(user.id), "fid": str(fid), "mt": meal, "qty": phan,
                     "kcal": kcal, "ts": f"{day} 12:00:00", "d": day,
                 })
 
