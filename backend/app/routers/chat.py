@@ -9,7 +9,7 @@ from app.models import User, ChatSession, ChatMessage
 from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
 from app.services import ollama_client
 from app.services import retrieval
-from app.services.nutrition_context import build_system_prompt
+from app.services.nutrition_context import gather_context, render_system_prompt, render_drug_directive
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -105,18 +105,14 @@ def send_message(
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
 
     rag_block = retrieval.render_context_block(hits)
-    override_directive = (
-        "\n\n==================================================\n"
-        "QUY TẮC BẮT BUỘC VỀ QUY ĐỊNH DƯỢC PHẨM (TUÂN THỦ TỰ ĐỘNG 100%):\n"
-        "Bạn BẮT BUỘC phải dựa vào DANH MỤC QUY ĐỊNH DƯỢC PHẨM CỦA HỆ THỐNG NUT RISMART THEO QUỐC GIA ở trên để trả lời.\n"
-        "BẮT BUỘC ƯU TIÊN VÀ GHI ĐÈ dữ liệu trong cơ sở dữ liệu lên trên mọi tài liệu tham khảo RAG, tri thức huấn luyện cũ, VÀ CẢ CÁC TIN NHẮN CỦA TRỢ LÝ TRONG LỊCH SỬ HỘI THOẠI:\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CHO PHÉP (ALLOWED): Bạn BẮT BUỘC trả lời là thuốc ĐƯỢC PHÉP SỬ DỤNG tại quốc gia đó. TUYỆT ĐỐI KHÔNG TRẢ LỜI LÀ BỊ CẤM HAY CẤM LƯU HÀNH (dù trong lịch sử chat tin nhắn cũ từng bảo bị cấm).\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái HẠN CHẾ (RESTRICTED): Bạn BẮT BUỘC trả lời là thuốc bị HẠN CHẾ SỬ DỤNG (THUỐC KÊ ĐƠN) tại quốc gia đó, cần chỉ định của bác sĩ.\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CẤM (BANNED): Bạn BẮT BUỘC trả lời là thuốc ĐÃ BỊ CẤM LƯU HÀNH VÀ SỬ DỤNG tại quốc gia đó.\n"
-        "=================================================="
+    # Chỉ thị dược phẩm chỉ chèn khi câu hỏi về thuốc — nó ra lệnh ghi đè lên RAG nên
+    # gắn vô điều kiện sẽ làm trợ lý từ chối trả lời câu hỏi dinh dưỡng.
+    ctx = gather_context(db, user)
+    system_prompt = (
+        render_system_prompt(ctx)
+        + rag_block
+        + render_drug_directive(payload.message, ctx.get("drug_rules") or [])
     )
-
-    system_prompt = build_system_prompt(db, user) + rag_block + override_directive
 
     recent = (
         db.query(ChatMessage)
@@ -173,17 +169,12 @@ def stream_message(
     # 2. Truy hồi RAG & xây dựng System Prompt
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
     rag_block = retrieval.render_context_block(hits)
-    override_directive = (
-        "\n\n==================================================\n"
-        "QUY TẮC BẮT BUỘC VỀ QUY ĐỊNH DƯỢC PHẨM (TUÂN THỦ TỰ ĐỘNG 100%):\n"
-        "Bạn BẮT BUỘC phải dựa vào DANH MỤC QUY ĐỊNH DƯỢC PHẨM CỦA HỆ THỐNG NUT RISMART THEO QUỐC GIA ở trên để trả lời.\n"
-        "BẮT BUỘC ƯU TIÊN VÀ GHI ĐÈ dữ liệu trong cơ sở dữ liệu lên trên mọi tài liệu tham khảo RAG, tri thức huấn luyện cũ, VÀ CẢ CÁC TIN NHẮN CỦA TRỢ LÝ TRONG LỊCH SỬ HỘI THOẠI:\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CHO PHÉP (ALLOWED): Bạn BẮT BUỘC trả lời là thuốc ĐƯỢC PHÉP SỬ DỤNG tại quốc gia đó. TUYỆT ĐỐI KHÔNG TRẢ LỜI LÀ BỊ CẤM HAY CẤM LƯU HÀNH (dù trong lịch sử chat tin nhắn cũ từng bảo bị cấm).\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái HẠN CHẾ (RESTRICTED): Bạn BẮT BUỘC trả lời là thuốc bị HẠN CHẾ SỬ DỤNG (THUỐC KÊ ĐƠN) tại quốc gia đó, cần chỉ định của bác sĩ.\n"
-        "- Nếu tại quốc gia đó thuốc/hoạt chất có trạng thái CẤM (BANNED): Bạn BẮT BUỘC trả lời là thuốc ĐÃ BỊ CẤM LƯU HÀNH VÀ SỬ DỤNG tại quốc gia đó.\n"
-        "=================================================="
+    ctx = gather_context(db, user)
+    system_prompt = (
+        render_system_prompt(ctx)
+        + rag_block
+        + render_drug_directive(payload.message, ctx.get("drug_rules") or [])
     )
-    system_prompt = build_system_prompt(db, user) + rag_block + override_directive
 
     recent = (
         db.query(ChatMessage)
