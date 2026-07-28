@@ -24,6 +24,17 @@ def calc_age(birth_date: date) -> int:
     )
 
 
+def calories_burned(met: float | None, weight_kg: float | None, minutes: int | None) -> float:
+    """Calo tiêu hao của một buổi tập: MET × 3.5 × cân nặng / 200 × số phút.
+
+    Thiếu bất kỳ dữ liệu nào (bài tập chưa có MET, hồ sơ chưa có cân nặng) → 0,
+    lúc đó người dùng tự nhập số calo.
+    """
+    if not met or not weight_kg or not minutes:
+        return 0.0
+    return round(float(met) * 3.5 * float(weight_kg) / 200 * int(minutes), 2)
+
+
 def daily_calorie_target(
     gender: str, birth_date: date, height_cm: float,
     weight_kg: float, activity_level: int, goal: str,

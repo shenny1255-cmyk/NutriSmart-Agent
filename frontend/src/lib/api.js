@@ -128,6 +128,8 @@ export const api = {
   countries: () => request('/catalog/countries'),
   conditions: () => request('/catalog/conditions'),
   allergens: () => request('/catalog/allergens'),
+  foods: (q = '') => request(`/catalog/foods${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  exercises: () => request('/catalog/exercises'),
   seedDemo: () => request('/demo/seed', { method: 'POST' }),
   // Admin
   adminUsers: (q = '') => request(`/admin/users${q ? `?q=${q}` : ''}`),
@@ -152,4 +154,14 @@ export const api = {
   // Activity từ Mobile (bước chân, calo tiêu hao)
   todayActivity: () => request('/tracking/today-activity'),
   syncActivity: (payload) => request('/tracking/daily-activity', { method: 'POST', body: payload }),
+
+  // Nhật ký thủ công — bữa ăn, vận động, cân nặng
+  meals: (d) => request(`/tracking/meals${d ? `?d=${d}` : ''}`),
+  addMeal: (payload) => request('/tracking/meals', { method: 'POST', body: payload }),
+  deleteMeal: (id) => request(`/tracking/meals/${id}`, { method: 'DELETE' }),
+  activities: (d) => request(`/tracking/activities${d ? `?d=${d}` : ''}`),
+  addActivity: (payload) => request('/tracking/activities', { method: 'POST', body: payload }),
+  deleteActivity: (id) => request(`/tracking/activities/${id}`, { method: 'DELETE' }),
+  weightHistory: (days = 90) => request(`/tracking/weight?days=${days}`),
+  updateWeight: (payload) => request('/tracking/weight', { method: 'PUT', body: payload }),
 };

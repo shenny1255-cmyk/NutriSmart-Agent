@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X, NotebookPen } from 'lucide-react';
 import Dashboard from './pages/dashboard.jsx';
 import Plan from './pages/Plan.jsx';
+import Diary from './pages/Diary.jsx';
 import MealScan from './pages/mealscan.jsx';
 import Chat from './pages/Chat.jsx';
 import Login from './pages/login.jsx';
@@ -21,12 +22,13 @@ const baseNav = [
 
   { to: '/', label: 'Tổng quan', icon: LayoutDashboard, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/plan', label: 'Lộ trình', icon: CalendarCheck, roles: ['USER', 'EXPERT', 'ADMIN'] },
+  { to: '/diary', label: 'Nhật ký', icon: NotebookPen, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/scan', label: 'Phân tích món ăn', icon: Camera, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/chat', label: 'Trợ lý AI', icon: MessageSquare, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/expert/review', label: 'Duyệt tài liệu', icon: FileCheck, roles: ['EXPERT', 'ADMIN'] },
   { to: '/admin/users', label: 'Người dùng', icon: Shield, roles: ['ADMIN'] },
   { to: '/admin/drugs', label: 'Thuốc', icon: Shield, roles: ['ADMIN'] },
-  { to: '/admin/audit', label: 'Nhật ký', icon: Shield, roles: ['ADMIN'] },
+  { to: '/admin/audit', label: 'Nhật ký hệ thống', icon: Shield, roles: ['ADMIN'] },
 ];
 
 // Chặn truy cập nếu chưa đăng nhập
@@ -189,6 +191,7 @@ export default function App() {
         <Route element={<Shell />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/plan" element={<Plan />} />
+          <Route path="/diary" element={<Diary />} />
           <Route path="/scan" element={<MealScan />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/expert/review" element={<ExpertReview />} />

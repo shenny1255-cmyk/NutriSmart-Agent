@@ -107,6 +107,16 @@ cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests -q
     quá hạn thì rơi về thực đơn mẫu (`generated_by="fallback-template"`).
   - `HealthProfile.conditions/allergens` là relationship mới; trước đó `gather_context`
     đọc thuộc tính không tồn tại nên bệnh nền/dị ứng **không bao giờ** tới LLM (cả chat lẫn plan).
+- **Nhật ký thủ công + cân nặng (task 13)** — `pages/Diary.jsx` (route `/diary`): ghi bữa ăn,
+  buổi tập, cập nhật cân nặng + biểu đồ 90 ngày. API trong `routers/tracking.py`:
+  `POST|GET /tracking/meals`, `DELETE /tracking/meals/{id}`, tương tự `/activities`,
+  và `PUT|GET /tracking/weight`. Danh mục cho form: `GET /catalog/foods?q=`, `/catalog/exercises`
+  (seed thêm ở `14_seed_tracking.sql`).
+  - Không nhập kcal cho buổi tập → tự tính `calories_burned()` theo MET × cân nặng × phút.
+  - Cập nhật cân nặng **không** đụng `daily_calorie_target`: con số đó do lộ trình quản lý và
+    chỉ đổi sau mỗi chu kỳ đánh giá 7 ngày.
+  - Vận động nhập tay luôn có `exercise_id`; bản ghi sync từ Mobile có `exercise_id IS NULL`
+    → hai nguồn không ghi đè nhau.
 
 ## Not yet built
 

@@ -4,11 +4,23 @@ Khi Chuyên gia duyệt (APPROVE) một tài liệu, luồng này sẽ được 
 """
 
 import logging
+import threading
+
 from app.database import SessionLocal
 from app.models import Document, DocChunk
 from app.services.ollama_client import get_embedding, OllamaError
 
 logger = logging.getLogger(__name__)
+
+# Duyệt hàng loạt tài liệu sẽ đẻ ra ngần ấy background task chạy song song. Trước đây
+# chúng vừa làm Ollama timeout (chỉ phục vụ tuần tự) vừa cạn connection pool của
+# SQLAlchemy (5 + 10), khiến chunk bị lưu với embedding = NULL mà không ai biết.
+# Khóa này ép index từng tài liệu một.
+_khoa_index = threading.Lock()
+
+# Một chunk 800 từ mất ~22s để bge-m3 sinh vector trên máy này, nên mặc định 60s của
+# get_embedding quá sát — chỉ cần hai yêu cầu chồng nhau là timeout.
+EMBEDDING_TIMEOUT_SECONDS = 300.0
 
 
 def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 100) -> list[str]:
@@ -54,9 +66,16 @@ def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 100) -> li
 
 def run_indexing_pipeline(doc_id: str):
     """Pipeline chính: Tải tài liệu, cắt chunk, sinh vector embedding và lưu DB.
-    
+
     Hàm này chạy độc lập dưới dạng Background Task với SessionLocal riêng.
+    Các tài liệu được index tuần tự (xem _khoa_index) — mở connection DB sau khi
+    giành được khóa để không giữ chỗ trong pool trong lúc xếp hàng chờ.
     """
+    with _khoa_index:
+        _index_mot_tai_lieu(doc_id)
+
+
+def _index_mot_tai_lieu(doc_id: str):
     db = SessionLocal()
     try:
         doc = db.query(Document).filter(Document.id == doc_id).first()
@@ -79,7 +98,7 @@ def run_indexing_pipeline(doc_id: str):
         for idx, chunk_content in enumerate(text_chunks):
             vector = None
             try:
-                vector = get_embedding(chunk_content)
+                vector = get_embedding(chunk_content, timeout=EMBEDDING_TIMEOUT_SECONDS)
             except OllamaError as e:
                 logger.error(f"[RAG Indexer] Lỗi khi tạo embedding cho chunk {idx} của tài liệu {doc_id}: {e}")
 
@@ -96,7 +115,17 @@ def run_indexing_pipeline(doc_id: str):
 
         db.add_all(chunks_to_insert)
         db.commit()
-        logger.info(f"[RAG Indexer] Hoàn tất index thành công tài liệu {doc_id} với {len(chunks_to_insert)} chunks.")
+
+        thieu_vector = sum(1 for c in chunks_to_insert if c.embedding is None)
+        if thieu_vector:
+            # Chunk không có vector thì tìm kiếm ngữ nghĩa không bao giờ thấy → tài liệu
+            # coi như chưa vào RAG dù trạng thái là APPROVED. Duyệt lại để index lại.
+            logger.error(
+                f"[RAG Indexer] Tài liệu {doc_id} có {thieu_vector}/{len(chunks_to_insert)} "
+                "chunk KHÔNG có embedding (Ollama lỗi). Hãy kiểm tra Ollama rồi duyệt lại tài liệu."
+            )
+        else:
+            logger.info(f"[RAG Indexer] Hoàn tất index thành công tài liệu {doc_id} với {len(chunks_to_insert)} chunks.")
 
     except Exception as e:
         db.rollback()
