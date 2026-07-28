@@ -178,6 +178,28 @@ class UpdateRoleIn(BaseModel):
     role: Literal["ADMIN", "EXPERT", "USER"]
 
 
+# ---------- Danh mục (tài liệu / thuốc) ----------
+class CategoryIn(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    parent_id: int | None = None      # chỉ dùng cho danh mục tài liệu
+
+
+class DocCategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    slug: str
+    parent_id: int | None = None
+    so_tai_lieu: int = 0
+
+
+class DrugCategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    so_thuoc: int = 0
+
+
 # ---------- Documents ----------
 class DocumentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -204,7 +226,8 @@ class CrawlOut(BaseModel):
 
 
 class CrawlPresetIn(BaseModel):
-    source: Literal["moh", "who", "all"] = "moh"
+    # "who" là bí danh cũ của "vinmec", giữ để giao diện cũ không vỡ
+    source: Literal["moh", "vinmec", "who", "all"] = "moh"
     limit: int = Field(default=10, ge=1, le=50)
 
 

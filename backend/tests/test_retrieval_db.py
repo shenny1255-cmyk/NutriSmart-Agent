@@ -80,11 +80,21 @@ def test_offtopic_question_returns_no_hits(indexed_doc):
 
 
 def test_only_approved_documents_are_searchable(indexed_doc):
-    """Tài liệu chưa duyệt phải biến mất khỏi kết quả (kho có thể còn tài liệu khác)."""
+    """Tài liệu chưa duyệt phải biến mất khỏi kết quả (kho có thể còn tài liệu khác).
+
+    Bám theo chunk_id của đúng tài liệu này chứ không lọc theo chữ "gout" trong tiêu đề:
+    kho tri thức thật cũng có bài về gout đã duyệt, lọc theo tiêu đề sẽ báo sai.
+    """
     db, doc_id = indexed_doc
     q = "Bệnh gout kiêng ăn gì?"
-    assert any("gout" in h.doc_title.lower() for h in search_chunks(db, q))
+    chunk_cua_tai_lieu = {
+        r[0] for r in db.execute(
+            text("SELECT id FROM doc_chunks WHERE document_id = :id"), {"id": str(doc_id)}
+        )
+    }
+    assert chunk_cua_tai_lieu, "Fixture phải tạo được ít nhất 1 chunk"
+    assert any(h.chunk_id in chunk_cua_tai_lieu for h in search_chunks(db, q))
 
     db.execute(text("UPDATE documents SET status='PENDING' WHERE id=:id"), {"id": str(doc_id)})
     db.commit()
-    assert not any("gout" in h.doc_title.lower() for h in search_chunks(db, q))
+    assert not any(h.chunk_id in chunk_cua_tai_lieu for h in search_chunks(db, q))

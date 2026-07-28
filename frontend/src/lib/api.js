@@ -139,12 +139,29 @@ export const api = {
   createDrug: (payload) => request('/admin/drugs', { method: 'POST', body: payload }),
   setDrugRule: (id, payload) => request(`/admin/drugs/${id}/rules`, { method: 'PUT', body: payload }),
   auditLogs: () => request('/admin/audit'),
+  // Danh mục tài liệu / nhóm thuốc
+  docCategories: () => request('/admin/doc-categories'),
+  createDocCategory: (payload) => request('/admin/doc-categories', { method: 'POST', body: payload }),
+  updateDocCategory: (id, payload) => request(`/admin/doc-categories/${id}`, { method: 'PATCH', body: payload }),
+  deleteDocCategory: (id) => request(`/admin/doc-categories/${id}`, { method: 'DELETE' }),
+  drugCategories: () => request('/admin/drug-categories'),
+  createDrugCategory: (payload) => request('/admin/drug-categories', { method: 'POST', body: payload }),
+  updateDrugCategory: (id, payload) => request(`/admin/drug-categories/${id}`, { method: 'PATCH', body: payload }),
+  deleteDrugCategory: (id) => request(`/admin/drug-categories/${id}`, { method: 'DELETE' }),
   // Expert
   pendingDocs: () => request('/expert/documents/pending'),
   reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),
   crawlDocs: (urls) => request('/expert/documents/crawl', { method: 'POST', body: { urls } }),
   crawlPresetDocs: (source = 'moh', limit = 10) => request('/expert/documents/crawl-preset', { method: 'POST', body: { source, limit } }),
   resetDocs: () => request('/expert/documents/reset', { method: 'POST' }),
+  uploadDoc: ({ title, category_id, raw_text, file }) => {
+    const fd = new FormData();
+    fd.append('title', title);
+    if (category_id) fd.append('category_id', category_id);
+    if (raw_text) fd.append('raw_text', raw_text);
+    if (file) fd.append('file', file);
+    return request('/expert/documents/upload', { method: 'POST', body: fd, isForm: true });
+  },
 
 
 

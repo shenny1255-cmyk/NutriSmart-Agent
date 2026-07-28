@@ -200,6 +200,12 @@ def seed_demo(db: Session = Depends(get_db)):
         INSERT INTO drug_categories (id, name) VALUES (1, 'Thuốc giảm cân'), (2, 'Thuốc cảm sốt')
         ON CONFLICT DO NOTHING;
     """))
+    # Chèn kèm id tường minh không làm sequence nhích → nhóm thuốc đầu tiên tạo qua
+    # màn quản trị sẽ xin id = 1 và vỡ vì trùng khóa chính. Kéo sequence về đúng chỗ.
+    db.execute(text("""
+        SELECT setval(pg_get_serial_sequence('drug_categories', 'id'),
+                      (SELECT COALESCE(MAX(id), 0) + 1 FROM drug_categories), false);
+    """))
     sample_drugs = [
         ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát'),
         ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ'),

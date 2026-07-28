@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { RotateCcw, AlertTriangle, Building2, Globe, Zap, Link2, Check, X } from 'lucide-react';
+import { RotateCcw, AlertTriangle, Building2, Globe, Zap, Link2, Check, X, Upload } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { Btn, Field, Alert, Card, Modal } from '../components/ui.jsx';
+import { Btn, Field, Select, Alert, Card, Modal } from '../components/ui.jsx';
 
 export default function ExpertReview() {
     const [docs, setDocs] = useState([]);
@@ -101,11 +101,11 @@ export default function ExpertReview() {
                 <div className="flex flex-wrap gap-2">
                     <Btn variant="subtle" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('moh')}>
                         <Building2 size={13} />
-                        5 bài từ Bộ Y tế (moh.gov.vn)
+                        6 bài từ Sức khỏe & Đời sống (Bộ Y tế)
                     </Btn>
-                    <Btn variant="subtle" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('who')}>
+                    <Btn variant="subtle" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('vinmec')}>
                         <Globe size={13} />
-                        5 bài từ WHO (who.int)
+                        4 bài từ Vinmec
                     </Btn>
                     <Btn variant="primary" size="sm" disabled={crawling} onClick={() => handlePresetCrawl('all')}>
                         <Zap size={13} />
@@ -136,6 +136,12 @@ export default function ExpertReview() {
                 </form>
                 {msg && <Alert tone="success">{msg}</Alert>}
             </Card>
+
+            {/* Tải tài liệu lên từ máy */}
+            <UploadTaiLieu
+                onDone={(m) => { setMsg(m); setErr(null); load(); }}
+                onError={(m) => { setErr(m); setMsg(null); }}
+            />
 
             {err && <Alert tone="warning">{err}</Alert>}
             {docs.length === 0 && !err && (
@@ -204,5 +210,88 @@ export default function ExpertReview() {
                 Hành động này sẽ xóa toàn bộ bài viết và các đoạn vector đã lưu trong cơ sở dữ liệu để bạn sẵn sàng demo cào & duyệt lại từ đầu.
             </Modal>
         </div>
+    );
+}
+
+function UploadTaiLieu({ onDone, onError }) {
+    const [title, setTitle] = useState('');
+    const [categoryId, setCategoryId] = useState('');
+    const [rawText, setRawText] = useState('');
+    const [file, setFile] = useState(null);
+    const [cats, setCats] = useState([]);
+    const [dangTai, setDangTai] = useState(false);
+
+    useEffect(() => { api.docCategories().then(setCats).catch(() => setCats([])); }, []);
+
+    async function submit(e) {
+        e.preventDefault();
+        setDangTai(true);
+        try {
+            const doc = await api.uploadDoc({
+                title: title.trim(),
+                category_id: categoryId || undefined,
+                raw_text: rawText.trim() || undefined,
+                file: file || undefined,
+            });
+            setTitle(''); setRawText(''); setFile(null); setCategoryId('');
+            e.target.reset();
+            onDone(`Đã tải lên "${doc.title}". Tài liệu đang chờ duyệt.`);
+        } catch (err) {
+            onError(`Không tải lên được: ${err.message}`);
+        } finally {
+            setDangTai(false);
+        }
+    }
+
+    return (
+        <Card className="space-y-3 p-4">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-ink-2">
+                <Upload size={15} className="text-accent-strong" />
+                Tải tài liệu lên từ máy
+            </p>
+            <form onSubmit={submit} className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                    <Field
+                        required
+                        placeholder="Tiêu đề tài liệu"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="w-full flex-1 sm:w-auto"
+                    />
+                    <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full sm:w-52">
+                        <option value="">— Chưa phân loại —</option>
+                        {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </Select>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <input
+                        type="file"
+                        accept=".txt,.md,.pdf"
+                        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                        className="min-h-11 flex-1 rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink-2 shadow-hairline file:mr-3 file:rounded-sm file:border-0 file:bg-accent-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent-strong hover:file:bg-accent-soft/70"
+                    />
+                    <span className="text-xs text-muted">.txt · .md · .pdf (tối đa 10 MB)</span>
+                </div>
+
+                <textarea
+                    rows={3}
+                    placeholder="…hoặc dán thẳng nội dung tài liệu vào đây"
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    className="w-full rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline placeholder:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+                />
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <Btn type="submit" variant="primary" disabled={dangTai || !title.trim() || (!file && !rawText.trim())}>
+                        <Upload size={15} />
+                        {dangTai ? 'Đang tải lên…' : 'Tải lên'}
+                    </Btn>
+                    <span className="text-xs text-muted">
+                        Tài liệu vào trạng thái chờ duyệt; bấm Duyệt mới đưa vào kho tri thức.
+                    </span>
+                </div>
+            </form>
+        </Card>
     );
 }

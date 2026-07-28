@@ -1,14 +1,20 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
 from app.models import User, Document, ChatMessage, DocChunk
 from app.schemas import DocumentOut, DocumentReviewIn, CrawlIn, CrawlOut, CrawlPresetIn
 from app.services.audit import write_audit
+from app.services.doc_upload import (
+    doc_text_tu_file, LoaiFileKhongHoTro, DUOI_FILE_HO_TRO, KICH_THUOC_TOI_DA,
+)
 from app.services.indexer import run_indexing_pipeline
 from app.services.scraper import crawl_urls, crawl_preset_sources
+
+# Ngắn hơn mức này thì chunk ra không đủ ngữ cảnh để RAG trả lời tử tế
+DO_DAI_NOI_DUNG_TOI_THIEU = 100
 
 router = APIRouter(prefix="/expert", tags=["expert"])
 
@@ -73,6 +79,68 @@ def crawl_preset_documents(
 ):
     """Cào tự động N bài viết y khoa từ nguồn uy tín chọn sẵn (Bộ Y tế 'moh', WHO 'who', hoặc 'all')."""
     return crawl_preset_sources(source_key=payload.source, limit=payload.limit, db=db, uploaded_by_id=actor.id)
+
+
+def luu_tai_lieu_upload(
+    db: Session, actor: User, title: str, raw_text: str,
+    category_id: int | None = None, source_name: str | None = None,
+) -> Document:
+    """Tạo tài liệu PENDING từ nội dung tải lên. Vẫn phải qua duyệt mới vào RAG."""
+    noi_dung = (raw_text or "").strip()
+    if len(noi_dung) < DO_DAI_NOI_DUNG_TOI_THIEU:
+        raise HTTPException(
+            400,
+            f"Nội dung quá ngắn ({len(noi_dung)} ký tự). Tài liệu cần ít nhất "
+            f"{DO_DAI_NOI_DUNG_TOI_THIEU} ký tự để chia đoạn cho RAG. "
+            "Nếu là PDF ảnh scan thì phải OCR trước."
+        )
+
+    doc = Document(
+        title=(title or "").strip() or "Tài liệu không tiêu đề",
+        category_id=category_id,
+        source_name=source_name or "Tải lên thủ công",
+        raw_text=noi_dung,
+        status="PENDING",
+        uploaded_by=actor.id,
+    )
+    db.add(doc)
+    db.flush()
+    write_audit(db, actor.id, "CREATE", "documents", str(doc.id),
+                after={"title": doc.title, "source_name": doc.source_name})
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+@router.post("/documents/upload", response_model=DocumentOut, status_code=201)
+async def upload_document(
+    title: str = Form(...),
+    category_id: int | None = Form(None),
+    raw_text: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    actor: User = expert_or_admin,
+):
+    """Tải tài liệu lên: chọn file (.txt/.md/.pdf) hoặc dán thẳng nội dung."""
+    noi_dung = (raw_text or "").strip()
+    nguon = "Tải lên thủ công"
+
+    if file and file.filename:
+        du_lieu = await file.read()
+        if len(du_lieu) > KICH_THUOC_TOI_DA:
+            raise HTTPException(
+                413, f"File vượt quá {KICH_THUOC_TOI_DA // (1024 * 1024)} MB."
+            )
+        try:
+            noi_dung = doc_text_tu_file(file.filename, du_lieu)
+        except LoaiFileKhongHoTro as e:
+            raise HTTPException(400, str(e))
+        nguon = file.filename
+
+    if not noi_dung:
+        raise HTTPException(400, f"Cần chọn file ({', '.join(DUOI_FILE_HO_TRO)}) hoặc dán nội dung tài liệu.")
+
+    return luu_tai_lieu_upload(db, actor, title, noi_dung, category_id, nguon)
 
 
 @router.post("/documents/reset")

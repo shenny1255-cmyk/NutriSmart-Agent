@@ -1,18 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
-from app.models import User, Drug, DrugCountryRule, AuditLog
+from app.models import (
+    User, Drug, DrugCountryRule, AuditLog, DocCategory, DrugCategory, Document,
+)
 from app.schemas import (
     AdminUserOut, UpdateRoleIn, DrugIn, DrugOut, DrugRuleIn, AuditOut,
+    CategoryIn, DocCategoryOut, DrugCategoryOut,
 )
 from app.services.audit import write_audit
+from app.services.slug import tao_slug
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Toàn bộ router này chỉ ADMIN vào được
 admin_only = Depends(require_role("ADMIN"))
+# Riêng danh mục tài liệu thì Chuyên gia cũng cần đọc để gắn khi tải tài liệu lên
+expert_or_admin = Depends(require_role("EXPERT", "ADMIN"))
 
 
 def _ensure_default_drugs(db: Session):
@@ -222,6 +228,179 @@ def set_country_rule(
                 before=None, after={"status": payload.status, "note": new_note})  # type: ignore
     db.commit()
     return {"message": "Đã cập nhật và đồng bộ quy định thuốc theo quốc gia"}
+
+
+# ---------- Danh mục tài liệu ----------
+# Các hàm nhận (db, actor) trực tiếp để test gọi được mà không cần dựng HTTP.
+
+def _slug_chua_dung(db: Session, goc: str) -> str:
+    """Thêm hậu tố -2, -3… nếu slug đã có (cột slug là UNIQUE)."""
+    slug, i = goc, 1
+    while db.query(DocCategory).filter(DocCategory.slug == slug).first():  # type: ignore
+        i += 1
+        slug = f"{goc}-{i}"
+    return slug
+
+
+def danh_sach_doc_category(db: Session) -> list[DocCategoryOut]:
+    rows = (
+        db.query(DocCategory, func.count(Document.id))
+        .outerjoin(Document, Document.category_id == DocCategory.id)  # type: ignore
+        .group_by(DocCategory.id)
+        .order_by(DocCategory.name)
+        .all()
+    )
+    return [
+        DocCategoryOut(id=c.id, name=c.name, slug=c.slug, parent_id=c.parent_id, so_tai_lieu=n)
+        for c, n in rows
+    ]
+
+
+def them_doc_category(db: Session, actor: User, payload: CategoryIn) -> DocCategoryOut:
+    cat = DocCategory(
+        name=payload.name.strip(),
+        slug=_slug_chua_dung(db, tao_slug(payload.name)),
+        parent_id=payload.parent_id,
+    )
+    db.add(cat)
+    db.flush()
+    write_audit(db, actor.id, "CREATE", "doc_categories", str(cat.id),
+                after={"name": cat.name, "slug": cat.slug})
+    db.commit()
+    db.refresh(cat)
+    return DocCategoryOut(id=cat.id, name=cat.name, slug=cat.slug, parent_id=cat.parent_id)
+
+
+def sua_doc_category(db: Session, actor: User, cat_id: int, payload: CategoryIn) -> DocCategoryOut:
+    cat = db.query(DocCategory).filter(DocCategory.id == cat_id).first()  # type: ignore
+    if not cat:
+        raise HTTPException(404, "Không tìm thấy danh mục tài liệu")
+    if payload.parent_id == cat_id:
+        raise HTTPException(400, "Danh mục không thể là cha của chính nó")
+
+    truoc = {"name": cat.name, "parent_id": cat.parent_id}
+    cat.name = payload.name.strip()  # type: ignore
+    cat.parent_id = payload.parent_id  # type: ignore
+    write_audit(db, actor.id, "UPDATE", "doc_categories", str(cat_id),
+                before=truoc, after={"name": cat.name, "parent_id": cat.parent_id})
+    db.commit()
+    db.refresh(cat)
+    return DocCategoryOut(id=cat.id, name=cat.name, slug=cat.slug, parent_id=cat.parent_id)
+
+
+def xoa_doc_category(db: Session, actor: User, cat_id: int) -> None:
+    """Xóa danh mục. Tài liệu thuộc danh mục KHÔNG bị xóa theo — FK là ON DELETE SET NULL."""
+    cat = db.query(DocCategory).filter(DocCategory.id == cat_id).first()  # type: ignore
+    if not cat:
+        raise HTTPException(404, "Không tìm thấy danh mục tài liệu")
+
+    write_audit(db, actor.id, "DELETE", "doc_categories", str(cat_id),
+                before={"name": cat.name, "slug": cat.slug})
+    db.delete(cat)
+    db.commit()
+
+
+@router.get("/doc-categories", response_model=list[DocCategoryOut])
+def api_doc_categories(db: Session = Depends(get_db), _: User = expert_or_admin):
+    return danh_sach_doc_category(db)
+
+
+@router.post("/doc-categories", response_model=DocCategoryOut, status_code=201)
+def api_them_doc_category(payload: CategoryIn, db: Session = Depends(get_db), actor: User = admin_only):
+    return them_doc_category(db, actor, payload)
+
+
+@router.patch("/doc-categories/{cat_id}", response_model=DocCategoryOut)
+def api_sua_doc_category(cat_id: int, payload: CategoryIn,
+                         db: Session = Depends(get_db), actor: User = admin_only):
+    return sua_doc_category(db, actor, cat_id, payload)
+
+
+@router.delete("/doc-categories/{cat_id}", status_code=204)
+def api_xoa_doc_category(cat_id: int, db: Session = Depends(get_db), actor: User = admin_only):
+    xoa_doc_category(db, actor, cat_id)
+
+
+# ---------- Danh mục thuốc ----------
+
+def danh_sach_drug_category(db: Session) -> list[DrugCategoryOut]:
+    rows = (
+        db.query(DrugCategory, func.count(Drug.id))
+        .outerjoin(Drug, (Drug.category_id == DrugCategory.id) & (Drug.deleted_at.is_(None)))  # type: ignore
+        .group_by(DrugCategory.id)
+        .order_by(DrugCategory.name)
+        .all()
+    )
+    return [DrugCategoryOut(id=c.id, name=c.name, so_thuoc=n) for c, n in rows]
+
+
+def them_drug_category(db: Session, actor: User, payload: CategoryIn) -> DrugCategoryOut:
+    ten = payload.name.strip()
+    if db.query(DrugCategory).filter(DrugCategory.name.ilike(ten)).first():  # type: ignore
+        raise HTTPException(409, f"Nhóm thuốc '{ten}' đã tồn tại")
+
+    cat = DrugCategory(name=ten)
+    db.add(cat)
+    db.flush()
+    write_audit(db, actor.id, "CREATE", "drug_categories", str(cat.id), after={"name": ten})
+    db.commit()
+    db.refresh(cat)
+    return DrugCategoryOut(id=cat.id, name=cat.name)
+
+
+def sua_drug_category(db: Session, actor: User, cat_id: int, payload: CategoryIn) -> DrugCategoryOut:
+    cat = db.query(DrugCategory).filter(DrugCategory.id == cat_id).first()  # type: ignore
+    if not cat:
+        raise HTTPException(404, "Không tìm thấy nhóm thuốc")
+
+    ten = payload.name.strip()
+    trung = (
+        db.query(DrugCategory)
+        .filter(DrugCategory.name.ilike(ten), DrugCategory.id != cat_id)  # type: ignore
+        .first()
+    )
+    if trung:
+        raise HTTPException(409, f"Nhóm thuốc '{ten}' đã tồn tại")
+
+    truoc = {"name": cat.name}
+    cat.name = ten  # type: ignore
+    write_audit(db, actor.id, "UPDATE", "drug_categories", str(cat_id),
+                before=truoc, after={"name": ten})
+    db.commit()
+    db.refresh(cat)
+    return DrugCategoryOut(id=cat.id, name=cat.name)
+
+
+def xoa_drug_category(db: Session, actor: User, cat_id: int) -> None:
+    """Xóa nhóm thuốc. Thuốc trong nhóm KHÔNG bị xóa — FK là ON DELETE SET NULL."""
+    cat = db.query(DrugCategory).filter(DrugCategory.id == cat_id).first()  # type: ignore
+    if not cat:
+        raise HTTPException(404, "Không tìm thấy nhóm thuốc")
+
+    write_audit(db, actor.id, "DELETE", "drug_categories", str(cat_id), before={"name": cat.name})
+    db.delete(cat)
+    db.commit()
+
+
+@router.get("/drug-categories", response_model=list[DrugCategoryOut])
+def api_drug_categories(db: Session = Depends(get_db), _: User = admin_only):
+    return danh_sach_drug_category(db)
+
+
+@router.post("/drug-categories", response_model=DrugCategoryOut, status_code=201)
+def api_them_drug_category(payload: CategoryIn, db: Session = Depends(get_db), actor: User = admin_only):
+    return them_drug_category(db, actor, payload)
+
+
+@router.patch("/drug-categories/{cat_id}", response_model=DrugCategoryOut)
+def api_sua_drug_category(cat_id: int, payload: CategoryIn,
+                          db: Session = Depends(get_db), actor: User = admin_only):
+    return sua_drug_category(db, actor, cat_id, payload)
+
+
+@router.delete("/drug-categories/{cat_id}", status_code=204)
+def api_xoa_drug_category(cat_id: int, db: Session = Depends(get_db), actor: User = admin_only):
+    xoa_drug_category(db, actor, cat_id)
 
 
 # ---------- Audit logs ----------
