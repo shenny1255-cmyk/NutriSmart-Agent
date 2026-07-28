@@ -60,8 +60,8 @@ cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests -q
 - Vietnamese for UI + comments (commit *bodies* in English are fine).
 - Match existing style: aligned `=` columns in `models.py`, `# type: ignore` where the
   team added Pyright hints.
-- `requirements.txt` is **UTF-16** — append/edit preserving that encoding (e.g. PowerShell
-  `Out-File -Encoding Unicode`), don't rewrite it as UTF-8 blindly.
+- `requirements.txt` is plain **UTF-8** now (it used to be UTF-16 — that note is stale);
+  check the encoding before editing rather than assuming either way.
 
 ## Gotchas (learned the hard way)
 
@@ -117,6 +117,17 @@ cd backend && PYTHONUTF8=1 ./.venv/Scripts/python.exe -m pytest tests -q
     chỉ đổi sau mỗi chu kỳ đánh giá 7 ngày.
   - Vận động nhập tay luôn có `exercise_id`; bản ghi sync từ Mobile có `exercise_id IS NULL`
     → hai nguồn không ghi đè nhau.
+
+- **CRUD danh mục + upload tài liệu (task 14)** — `pages/AdminCategories.jsx` (route
+  `/admin/categories`, ADMIN): CRUD `doc_categories` + `drug_categories`, sửa tên inline,
+  hiện số mục đang dùng. API `GET|POST|PATCH|DELETE /admin/doc-categories|drug-categories`
+  trong `routers/admin.py`. Upload tài liệu ở `pages/ExpertReview.jsx` →
+  `POST /expert/documents/upload` (multipart: file `.txt/.md/.pdf` ≤10MB **hoặc** dán
+  nội dung), tài liệu vào `PENDING` rồi vẫn phải Duyệt mới index vào RAG.
+  - Xóa danh mục **không** xóa tài liệu/thuốc bên trong (FK `ON DELETE SET NULL`).
+  - Seed chèn ID tường minh không làm sequence nhích → bản ghi đầu tiên tạo qua UI bị
+    trùng khóa chính. `15_fix_sequences.sql` kéo lại sequence, `demo/seed` cũng `setval`
+    sau khi chèn `drug_categories`.
 
 ## Not yet built
 

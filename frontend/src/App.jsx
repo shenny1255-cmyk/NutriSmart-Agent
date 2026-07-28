@@ -8,10 +8,11 @@ import MealScan from './pages/mealscan.jsx';
 import Chat from './pages/Chat.jsx';
 import Login from './pages/login.jsx';
 import Register from './pages/register.jsx';
-import { Shield, FileCheck } from 'lucide-react';
+import { Shield, FileCheck, FolderTree } from 'lucide-react';
 import AdminUsers from './pages/AdminUsers.jsx';
 import AdminDrugs from './pages/AdminDrugs.jsx';
 import AdminAudit from './pages/AdminAudit.jsx';
+import AdminCategories from './pages/AdminCategories.jsx';
 import ExpertReview from './pages/ExpertReview.jsx';
 import Verify from './pages/Verify.jsx';
 import { Logo, LogoMark } from './components/Logo.jsx';
@@ -28,6 +29,7 @@ const baseNav = [
   { to: '/expert/review', label: 'Duyệt tài liệu', icon: FileCheck, roles: ['EXPERT', 'ADMIN'] },
   { to: '/admin/users', label: 'Người dùng', icon: Shield, roles: ['ADMIN'] },
   { to: '/admin/drugs', label: 'Thuốc', icon: Shield, roles: ['ADMIN'] },
+  { to: '/admin/categories', label: 'Danh mục', icon: FolderTree, roles: ['ADMIN'] },
   { to: '/admin/audit', label: 'Nhật ký hệ thống', icon: Shield, roles: ['ADMIN'] },
 ];
 
@@ -197,6 +199,7 @@ export default function App() {
           <Route path="/expert/review" element={<ExpertReview />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/drugs" element={<AdminDrugs />} />
+          <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
         </Route>
       </Route>

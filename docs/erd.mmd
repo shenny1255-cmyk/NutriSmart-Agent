@@ -1,0 +1,275 @@
+%% ERD NutriSmart Agent — sinh từ db/migrations/*.sql (nguồn sự thật của DB)
+%% 25 bảng / 5 miền nghiệp vụ: Người dùng · Tri thức (RAG) · Dược phẩm · Theo dõi · Lộ trình & Chat
+%% Xem trước: https://mermaid.live  (dán nguyên nội dung file này)
+erDiagram
+
+    %% ---------- 1. NGƯỜI DÙNG & HỒ SƠ SỨC KHỎE ----------
+    COUNTRIES {
+        char     code             PK
+        string   name
+    }
+    USERS {
+        uuid        id             PK
+        string      email          UK
+        string      password_hash
+        string      full_name
+        enum        role
+        char        country_code   FK
+        boolean     is_active
+        boolean     email_verified
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+    }
+    HEALTH_PROFILES {
+        uuid        id                   PK
+        uuid        user_id              FK
+        enum        gender
+        date        birth_date
+        numeric     height_cm
+        numeric     weight_kg
+        numeric     bmi
+        smallint    activity_level
+        enum        goal
+        int         daily_calorie_target
+        timestamptz updated_at
+    }
+    MEDICAL_CONDITIONS {
+        int      id      PK
+        string   code    UK
+        string   name
+    }
+    ALLERGENS {
+        int      id    PK
+        string   name  UK
+    }
+    PROFILE_CONDITIONS {
+        uuid  profile_id    PK
+        int   condition_id  PK
+    }
+    PROFILE_ALLERGENS {
+        uuid      profile_id   PK
+        int       allergen_id  PK
+        smallint  severity
+    }
+    BODY_METRICS_HISTORY {
+        bigint   id           PK
+        uuid     user_id      FK
+        date     recorded_at
+        numeric  weight_kg
+        numeric  bmi
+    }
+
+    COUNTRIES        ||--o{ USERS                : "located_in"
+    USERS            ||--o| HEALTH_PROFILES      : "has"
+    HEALTH_PROFILES  ||--o{ PROFILE_CONDITIONS   : "has"
+    MEDICAL_CONDITIONS ||--o{ PROFILE_CONDITIONS : "listed_in"
+    HEALTH_PROFILES  ||--o{ PROFILE_ALLERGENS    : "has"
+    ALLERGENS        ||--o{ PROFILE_ALLERGENS    : "listed_in"
+    USERS            ||--o{ BODY_METRICS_HISTORY : "records"
+
+    %% ---------- 2. TRI THỨC (RAG) ----------
+    DOC_CATEGORIES {
+        int      id         PK
+        int      parent_id  FK
+        string   name
+        string   slug       UK
+    }
+    DOCUMENTS {
+        uuid        id           PK
+        int         category_id  FK
+        text        title
+        text        source_url
+        string      source_name
+        string      language
+        text        file_path
+        text        raw_text
+        enum        status
+        uuid        uploaded_by  FK
+        uuid        approved_by  FK
+        timestamptz approved_at
+        timestamptz created_at
+        timestamptz deleted_at
+    }
+    DOC_CHUNKS {
+        bigint   id           PK
+        uuid     document_id  FK
+        int      chunk_index
+        text     content
+        int      token_count
+        vector   embedding
+        jsonb    metadata
+    }
+
+    DOC_CATEGORIES ||--o{ DOCUMENTS  : "groups"
+    DOC_CATEGORIES ||--o{ DOC_CATEGORIES : "parent_of"
+    DOCUMENTS      ||--o{ DOC_CHUNKS : "split_into"
+    USERS          ||--o{ DOCUMENTS  : "uploads_doc"
+
+    %% ---------- 3. DƯỢC PHẨM THEO QUỐC GIA ----------
+    DRUG_CATEGORIES {
+        int      id    PK
+        string   name  UK
+    }
+    DRUGS {
+        uuid        id                 PK
+        int         category_id        FK
+        string      name
+        string      active_ingredient
+        text        indications
+        text        side_effects
+        text        contraindications
+        timestamptz created_at
+        timestamptz deleted_at
+    }
+    DRUG_COUNTRY_RULES {
+        uuid        drug_id       PK
+        char        country_code  PK
+        enum        status
+        text        note
+        uuid        updated_by    FK
+        timestamptz updated_at
+    }
+
+    DRUG_CATEGORIES ||--o{ DRUGS              : "groups"
+    DRUGS           ||--o{ DRUG_COUNTRY_RULES : "restricted_by"
+    COUNTRIES       ||--o{ DRUG_COUNTRY_RULES : "applies_to"
+
+    %% ---------- 4. THEO DÕI ĂN UỐNG & VẬN ĐỘNG ----------
+    FOODS {
+        uuid     id             PK
+        string   name
+        string   serving_desc
+        numeric  serving_gram
+        numeric  calories_kcal
+        numeric  protein_g
+        numeric  carb_g
+        numeric  fat_g
+        string   source
+    }
+    MEAL_IMAGES {
+        uuid        id                 PK
+        uuid        user_id            FK
+        text        image_path
+        enum        status
+        uuid        predicted_food_id  FK
+        numeric     confidence
+        jsonb       raw_prediction
+        numeric     estimated_kcal
+        text        suitability_note
+        timestamptz created_at
+    }
+    MEAL_LOGS {
+        bigint      id             PK
+        uuid        user_id        FK
+        uuid        food_id        FK
+        uuid        meal_image_id  FK
+        enum        meal_type
+        numeric     quantity
+        numeric     calories_kcal
+        timestamptz logged_at
+        date        log_date
+    }
+    EXERCISES {
+        int      id         PK
+        string   name
+        numeric  met_value
+        string   category
+    }
+    ACTIVITY_LOGS {
+        bigint   id               PK
+        uuid     user_id          FK
+        int      exercise_id      FK
+        int      steps
+        int      duration_min
+        numeric  calories_burned
+        date     log_date
+    }
+
+    USERS       ||--o{ MEAL_IMAGES   : "uploads"
+    USERS       ||--o{ MEAL_LOGS     : "logs"
+    USERS       ||--o{ ACTIVITY_LOGS : "performs"
+    FOODS       ||--o{ MEAL_IMAGES   : "predicted_as"
+    FOODS       ||--o{ MEAL_LOGS     : "consumed_as"
+    MEAL_IMAGES ||--o{ MEAL_LOGS     : "source_of"
+    EXERCISES   ||--o{ ACTIVITY_LOGS : "used_in"
+
+    %% ---------- 5. LỘ TRÌNH, ĐÁNH GIÁ & CHAT ----------
+    NUTRITION_PLANS {
+        uuid        id                 PK
+        uuid        user_id            FK
+        int         version
+        uuid        parent_plan_id     FK
+        date        start_date
+        date        end_date
+        int         daily_kcal_target
+        enum        goal
+        jsonb       content
+        string      generated_by
+        enum        status
+        timestamptz created_at
+    }
+    PLAN_EVALUATIONS {
+        bigint      id                PK
+        uuid        plan_id           FK
+        date        period_start
+        date        period_end
+        numeric     avg_kcal_intake
+        numeric     weight_change_kg
+        enum        result
+        text        ai_feedback
+        timestamptz evaluated_at
+    }
+    CHAT_SESSIONS {
+        uuid        id          PK
+        uuid        user_id     FK
+        string      title
+        timestamptz created_at
+    }
+    CHAT_MESSAGES {
+        bigint      id          PK
+        uuid        session_id  FK
+        string      role
+        text        content
+        boolean     flagged
+        timestamptz created_at
+    }
+    MESSAGE_CITATIONS {
+        bigint    message_id  PK
+        bigint    chunk_id    PK
+        numeric   score
+        smallint  rank
+    }
+
+    USERS           ||--o{ NUTRITION_PLANS   : "follows"
+    NUTRITION_PLANS ||--o{ NUTRITION_PLANS   : "revised_from"
+    NUTRITION_PLANS ||--o{ PLAN_EVALUATIONS  : "evaluated_by"
+    USERS           ||--o{ CHAT_SESSIONS     : "starts"
+    CHAT_SESSIONS   ||--o{ CHAT_MESSAGES     : "contains"
+    CHAT_MESSAGES   ||--o{ MESSAGE_CITATIONS : "cites"
+    DOC_CHUNKS      ||--o{ MESSAGE_CITATIONS : "cited_in"
+
+    %% ---------- 6. THÔNG BÁO & KIỂM TOÁN ----------
+    NOTIFICATIONS {
+        bigint      id          PK
+        uuid        user_id     FK
+        string      type
+        string      title
+        text        body
+        boolean     is_read
+        timestamptz created_at
+    }
+    AUDIT_LOGS {
+        bigint      id           PK
+        uuid        actor_id     FK
+        string      action
+        string      entity
+        text        entity_id
+        jsonb       before_data
+        jsonb       after_data
+        inet        ip_address
+        timestamptz created_at
+    }
+
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AUDIT_LOGS    : "acts"
