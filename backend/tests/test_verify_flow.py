@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(not _db_up(), reason="Postgres chưa chạy")
 client = TestClient(app)
 
 
-def _register(monkeypatch):
+def _register(monkeypatch, user_test):
     captured = {}
     monkeypatch.setattr(
         auth_module, "send_verification_email",
@@ -48,11 +48,12 @@ def _register(monkeypatch):
     }
     r = client.post("/api/v1/auth/register", json=payload)
     assert r.status_code == 201, r.text
+    user_test.append(email)
     return r.json()["access_token"], captured, email
 
 
-def test_register_sends_link_and_user_starts_unverified(monkeypatch):
-    token, captured, email = _register(monkeypatch)
+def test_register_sends_link_and_user_starts_unverified(monkeypatch, user_test):
+    token, captured, email = _register(monkeypatch, user_test)
     headers = {"Authorization": f"Bearer {token}"}
     me = client.get("/api/v1/auth/me", headers=headers).json()
     assert me["email_verified"] is False
@@ -60,8 +61,8 @@ def test_register_sends_link_and_user_starts_unverified(monkeypatch):
     assert captured["to"] == email
 
 
-def test_verify_marks_user_verified(monkeypatch):
-    token, captured, _ = _register(monkeypatch)
+def test_verify_marks_user_verified(monkeypatch, user_test):
+    token, captured, _ = _register(monkeypatch, user_test)
     headers = {"Authorization": f"Bearer {token}"}
     verify_token = captured["link"].split("token=")[1]
 
@@ -78,8 +79,8 @@ def test_verify_bad_token_returns_400():
     assert r.status_code == 400
 
 
-def test_resend_when_already_verified(monkeypatch):
-    token, captured, _ = _register(monkeypatch)
+def test_resend_when_already_verified(monkeypatch, user_test):
+    token, captured, _ = _register(monkeypatch, user_test)
     headers = {"Authorization": f"Bearer {token}"}
     verify_token = captured["link"].split("token=")[1]
     client.get(f"/api/v1/auth/verify?token={verify_token}")

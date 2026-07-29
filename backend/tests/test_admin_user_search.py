@@ -77,3 +77,20 @@ def test_khong_nhap_gi_thi_tra_ve_tat_ca(ba_nguoi_dung):
     db, _ = ba_nguoi_dung
     tat_ca = _ten(search_users(db, None))
     assert "Nguyễn Văn An" in tat_ca and "Trần Thị Bích" in tat_ca
+
+
+def test_email_domain_la_van_serialize_duoc():
+    """Bản ghi cũ có domain dành riêng (.local, .test...) không được làm hỏng cả danh sách."""
+    import datetime as _dt
+
+    from app.schemas import AdminUserOut
+
+    out = AdminUserOut.model_validate({
+        "id":         uuid.uuid4(),
+        "email":      "cat-818813fe@test.local",
+        "full_name":  "Quản trị test",
+        "role":       "ADMIN",
+        "is_active":  True,
+        "created_at": _dt.datetime.now(_dt.timezone.utc),
+    })
+    assert out.email == "cat-818813fe@test.local"

@@ -31,17 +31,19 @@ client = TestClient(app)
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers(user_test):
     countries = client.get("/api/v1/catalog/countries").json()
     cc = countries[0]["code"] if countries else "VN"
+    email = f"rag_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
-        "email": f"rag_{uuid.uuid4().hex[:10]}@example.com",
+        "email": email,
         "password": "password123", "full_name": "RAG Test", "country_code": cc,
         "profile": {"gender": "MALE", "birth_date": "1996-01-01", "height_cm": 175,
                     "weight_kg": 72, "activity_level": 3, "goal": "MAINTAIN",
                     "condition_ids": [], "allergen_ids": []},
     })
     assert r.status_code == 201, r.text
+    user_test.append(email)
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 

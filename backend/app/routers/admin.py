@@ -114,10 +114,6 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = admin_only,
 ):
-    # Dọn dẹp tự động các tài khoản rác sinh ra trong quá trình chạy test
-    db.execute(text("DELETE FROM users WHERE email LIKE 'banned_drug_%' OR email LIKE 'rag_%';"))
-    db.commit()
-
     return search_users(db, q)
 
 
