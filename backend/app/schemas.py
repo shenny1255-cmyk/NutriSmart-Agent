@@ -167,7 +167,10 @@ class WeightOut(BaseModel):
 class AdminUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
-    email: EmailStr
+    # Đây là schema TRẢ VỀ: email đã được validate lúc đăng ký, không validate lại.
+    # Dùng EmailStr ở đây thì chỉ cần MỘT bản ghi cũ/rác có domain lạ (vd .local)
+    # là cả danh sách người dùng hỏng → HTTP 500.
+    email: str
     full_name: str | None
     role: str
     is_active: bool

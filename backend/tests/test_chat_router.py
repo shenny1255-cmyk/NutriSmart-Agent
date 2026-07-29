@@ -31,13 +31,14 @@ pytestmark = pytest.mark.skipif(
 client = TestClient(app)
 
 
-def _register() -> str:
+def _register(user_test) -> str:
     """Đăng ký user mới, trả về access token."""
     countries = client.get("/api/v1/catalog/countries").json()
     country_code = countries[0]["code"] if countries else "VN"
 
+    email = f"chat_{uuid.uuid4().hex[:10]}@example.com"
     payload = {
-        "email": f"chat_{uuid.uuid4().hex[:10]}@example.com",
+        "email": email,
         "password": "password123",
         "full_name": "Người Dùng Thử",
         "country_code": country_code,
@@ -49,13 +50,14 @@ def _register() -> str:
     }
     r = client.post("/api/v1/auth/register", json=payload)
     assert r.status_code == 201, r.text
+    user_test.append(email)
     return r.json()["access_token"]
 
 
-def test_send_message_persists_user_and_assistant(monkeypatch):
+def test_send_message_persists_user_and_assistant(monkeypatch, user_test):
     monkeypatch.setattr(ollama_client, "chat",
                         lambda messages, **kw: "Câu trả lời thử nghiệm")
-    headers = {"Authorization": f"Bearer {_register()}"}
+    headers = {"Authorization": f"Bearer {_register(user_test)}"}
 
     r = client.post("/api/v1/chat/messages",
                     json={"message": "Xin chào trợ lý"}, headers=headers)
@@ -67,12 +69,12 @@ def test_send_message_persists_user_and_assistant(monkeypatch):
     assert history[0]["content"] == "Xin chào trợ lý"
 
 
-def test_ollama_failure_returns_503_but_keeps_user_message(monkeypatch):
+def test_ollama_failure_returns_503_but_keeps_user_message(monkeypatch, user_test):
     def boom(messages, **kw):
         raise ollama_client.OllamaError("server down")
 
     monkeypatch.setattr(ollama_client, "chat", boom)
-    headers = {"Authorization": f"Bearer {_register()}"}
+    headers = {"Authorization": f"Bearer {_register(user_test)}"}
 
     r = client.post("/api/v1/chat/messages",
                     json={"message": "Tin nhắn khi AI lỗi"}, headers=headers)
