@@ -127,6 +127,19 @@
   --z-overlay: 30;
   --z-modal: 40;
   --z-toast: 50;
+
+  /* ── Glassmorphism — dùng cho sidebar, cards, top bar ───── */
+  --glass-bg:          rgba(255, 255, 255, 0.55);
+  --glass-bg-strong:   rgba(255, 255, 255, 0.72);
+  --glass-border:      rgba(255, 255, 255, 0.35);
+  --glass-shadow:      0 8px 32px rgba(50, 100, 70, 0.12);
+  --glass-blur:        blur(18px);
+
+  /* ── Dark Sidebar — màu tối thanh điều hướng ────────────── */
+  --color-sidebar-bg:     #0f1c18;
+  --color-sidebar-ink:    #d0dfd8;
+  --color-sidebar-active: oklch(56% 0.15 155);
+  --color-sidebar-hover:  rgba(255, 255, 255, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {

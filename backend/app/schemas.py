@@ -69,6 +69,41 @@ class UserOut(BaseModel):
     email_verified: bool = False
 
 
+class ProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    gender: str | None
+    birth_date: date | None
+    height_cm: float | None
+    weight_kg: float | None
+    bmi: float | None
+    activity_level: int | None
+    goal: str | None
+    daily_calorie_target: int | None
+    conditions: list[ItemOut] = []
+    allergens: list[ItemOut] = []
+
+
+class MeOut(UserOut):
+    """GET /auth/me trả về kèm hồ sơ sức khỏe để frontend dùng."""
+    profile: ProfileOut | None = None
+
+
+class UserProfileUpdateIn(BaseModel):
+    """Cập nhật thông tin cá nhân + hồ sơ sức khỏe."""
+    full_name: str | None = None
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    # Hồ sơ sức khỏe
+    gender: Literal["MALE", "FEMALE", "OTHER"] | None = None
+    birth_date: date | None = None
+    height_cm: float | None = Field(default=None, gt=50, lt=250)
+    weight_kg: float | None = Field(default=None, gt=20, lt=300)
+    activity_level: int | None = Field(default=None, ge=1, le=5)
+    goal: Literal["LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL"] | None = None
+    condition_ids: list[int] | None = None
+    allergen_ids: list[int] | None = None
+
+
 # ---------- Tracking ----------
 class DailySummaryOut(BaseModel):
     day: date

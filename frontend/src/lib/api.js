@@ -167,6 +167,8 @@ export const api = {
 
   // lấy role người dùng hiện tại (đã có /auth/me)
   me: () => request('/auth/me'),
+  // Cập nhật thông tin cá nhân + hồ sơ sức khỏe
+  updateProfile: (payload) => request('/auth/me', { method: 'PUT', body: payload }),
 
   // Activity từ Mobile (bước chân, calo tiêu hao)
   todayActivity: () => request('/tracking/today-activity'),
