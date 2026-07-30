@@ -14,6 +14,10 @@
 
     body {
         background-color: var(--color-paper);
+        background-image: url('/src/assets/kitchen_bg.jpg');
+        background-size: cover;
+        background-position: center top;
+        background-attachment: fixed;
         color: var(--color-ink);
         font-family: var(--font-body);
         -webkit-font-smoothing: antialiased;
@@ -40,6 +44,35 @@
     ::selection {
         background-color: var(--color-accent-soft);
         color: var(--color-ink);
+    }
+}
+
+/* ── Glassmorphism utilities — không Tailwind class vì cần backdrop-filter full support ── */
+@layer components {
+
+    /* Panel: sidebar, top bar */
+    .glass-panel {
+        background: var(--glass-bg);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border-color: var(--glass-border);
+        box-shadow: var(--glass-shadow);
+    }
+
+    /* Dark Sidebar */
+    .dark-sidebar {
+        background-color: var(--color-sidebar-bg);
+        color: var(--color-sidebar-ink);
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Card: metric cards, chart section */
+    .glass-card {
+        background: var(--glass-bg-strong);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
     }
 }
 

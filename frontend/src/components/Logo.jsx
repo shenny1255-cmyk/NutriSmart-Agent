@@ -29,15 +29,15 @@ export function LogoMark({ size = 40, className = '' }) {
   );
 }
 
-export function Logo({ size = 40, subtitle, className = '' }) {
+export function Logo({ size = 40, subtitle, dark = false, className = '' }) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <LogoMark size={size} />
       <div>
-        <p className="font-display text-lg font-bold leading-tight tracking-tight text-ink">
+        <p className={`font-display text-lg font-bold leading-tight tracking-tight ${dark ? 'text-white' : 'text-ink'}`}>
           Nutri<span className="text-accent-strong">Smart</span>
         </p>
-        {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+        {subtitle && <p className={`text-xs ${dark ? 'text-[#a0b8ad]' : 'text-muted'}`}>{subtitle}</p>}
       </div>
     </div>
   );

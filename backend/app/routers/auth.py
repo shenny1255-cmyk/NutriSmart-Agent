@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
 from app.models import User, HealthProfile, ProfileCondition, ProfileAllergen
-from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut
+from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut, MeOut, UserProfileUpdateIn
 from app.security import (
     hash_password, verify_password, create_access_token,
     create_verification_token, decode_verification_token,
@@ -117,6 +117,70 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     return TokenOut(access_token=create_access_token(str(user.id)))
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@router.put("/me", response_model=MeOut)
+def update_me(
+    payload: UserProfileUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Cập nhật thông tin cá nhân + hồ sơ sức khỏe của chính mình."""
+    # 1. Cập nhật user
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.country_code is not None:
+        user.country_code = payload.country_code
+
+    # 2. Cập nhật hồ sơ sức khỏe (tạo mới nếu chưa có)
+    profile = user.profile
+    if profile is None:
+        profile = HealthProfile(user_id=user.id)
+        db.add(profile)
+        db.flush()
+
+    profile_fields = ["gender", "birth_date", "height_cm", "weight_kg",
+                      "activity_level", "goal"]
+    changed_profile = False
+    for field in profile_fields:
+        val = getattr(payload, field)
+        if val is not None:
+            setattr(profile, field, val)
+            changed_profile = True
+
+    # 3. Tính lại calo mục tiêu nếu hồ sơ đầy đủ và có thay đổi
+    if changed_profile and all([
+        profile.gender, profile.birth_date, profile.height_cm,
+        profile.weight_kg, profile.activity_level, profile.goal,
+    ]):
+        profile.daily_calorie_target = daily_calorie_target(
+            gender=profile.gender,
+            birth_date=profile.birth_date,
+            height_cm=float(profile.height_cm),
+            weight_kg=float(profile.weight_kg),
+            activity_level=profile.activity_level,
+            goal=profile.goal,
+        )
+
+    # 4. Cập nhật bệnh nền + dị ứng nếu có gửi lên
+    if payload.condition_ids is not None:
+        db.query(ProfileCondition).filter(
+            ProfileCondition.profile_id == profile.id
+        ).delete()
+        for cid in payload.condition_ids:
+            db.add(ProfileCondition(profile_id=profile.id, condition_id=cid))
+
+    if payload.allergen_ids is not None:
+        db.query(ProfileAllergen).filter(
+            ProfileAllergen.profile_id == profile.id
+        ).delete()
+        for aid in payload.allergen_ids:
+            db.add(ProfileAllergen(profile_id=profile.id, allergen_id=aid))
+
+    db.commit()
+    db.refresh(user)
+    db.refresh(profile)
     return user

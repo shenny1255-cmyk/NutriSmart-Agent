@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X, NotebookPen } from 'lucide-react';
+import { Routes, Route, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, CalendarCheck, Camera, MessageSquare, LogOut, Menu, X, NotebookPen, UserCircle } from 'lucide-react';
 import Dashboard from './pages/dashboard.jsx';
 import Plan from './pages/Plan.jsx';
 import Diary from './pages/Diary.jsx';
@@ -14,6 +14,7 @@ import AdminDrugs from './pages/AdminDrugs.jsx';
 import AdminAudit from './pages/AdminAudit.jsx';
 import AdminCategories from './pages/AdminCategories.jsx';
 import ExpertReview from './pages/ExpertReview.jsx';
+import Profile from './pages/Profile.jsx';
 import Verify from './pages/Verify.jsx';
 import { Logo, LogoMark } from './components/Logo.jsx';
 import VerifyBanner from './components/VerifyBanner.jsx';
@@ -62,8 +63,8 @@ function NavList({ nav, onNavigate }) {
               'transition-[background-color,color,transform] duration-short ease-out',
               'hover:translate-x-0.5 active:translate-x-0 active:duration-micro',
               isActive
-                ? 'bg-accent-soft text-accent-strong'
-                : 'text-ink-2 hover:bg-paper-3 hover:text-ink',
+                ? 'bg-accent-strong text-white font-semibold shadow-whisper'
+                : 'text-[#b0c8be] hover:bg-white/10 hover:text-white',
             ].join(' ')
           }
         >
@@ -88,9 +89,14 @@ function Shell() {
   const nav = baseNav.filter((item) => item.roles.includes(role));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [emailVerified, setEmailVerified] = useState(true);   // mặc định true → tránh nháy banner
+  const [userName, setUserName] = useState('');                // tên người dùng hiện tại
+  const navigate = useNavigate();
 
   useEffect(() => {
-    api.me().then((me) => setEmailVerified(me.email_verified)).catch(() => {});
+    api.me().then((me) => {
+      setEmailVerified(me.email_verified);
+      setUserName(me.full_name || me.email || '');
+    }).catch(() => {});
   }, []);
 
   function logout() {
@@ -100,14 +106,14 @@ function Shell() {
 
   const brand = (
     <div className="mb-8 px-2">
-      <Logo size={36} subtitle="Agent · Nhóm E15" />
+      <Logo size={36} subtitle="Agent · Nhóm E15" dark />
     </div>
   );
 
   const logoutButton = (
     <button
       onClick={logout}
-      className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted transition-colors duration-short ease-out hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-[#8ea89d] transition-colors duration-short ease-out hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white disabled:cursor-not-allowed disabled:opacity-50"
     >
       <LogOut size={18} />
       Đăng xuất
@@ -115,22 +121,34 @@ function Shell() {
   );
 
   return (
-    <div className="min-h-screen bg-paper font-body text-ink">
+    <div className="min-h-screen font-body text-ink">
       {/* Mobile top bar — 320–767px */}
-      <header className="flex items-center justify-between border-b border-rule bg-paper-2 px-4 py-3 md:hidden">
+      <header className="glass-panel flex items-center justify-between border-b px-4 py-3 md:hidden">
         <div className="flex items-center gap-2.5">
           <LogoMark size={28} />
           <h1 className="font-display text-base font-bold text-ink">
             Nutri<span className="text-accent-strong">Smart</span>
           </h1>
         </div>
-        <button
-          onClick={() => setMobileOpen(true)}
-          aria-label="Mở menu điều hướng"
-          className="flex h-11 w-11 items-center justify-center rounded-md text-ink-2 transition-colors duration-short ease-out hover:bg-paper-3 focus-visible:bg-paper-3"
-        >
-          <Menu size={22} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Lời chào người dùng — mobile */}
+          {userName && (
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-ink-2 transition-colors duration-short ease-out hover:bg-paper-3 hover:text-accent-strong"
+            >
+              <UserCircle size={18} />
+              <span className="max-w-[100px] truncate">{userName.split(' ').pop()}</span>
+            </button>
+          )}
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Mở menu điều hướng"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-ink-2 transition-colors duration-short ease-out hover:bg-paper-3 focus-visible:bg-paper-3"
+          >
+            <Menu size={22} />
+          </button>
+        </div>
       </header>
 
       {/* Mobile off-canvas drawer */}
@@ -140,13 +158,13 @@ function Shell() {
             className="absolute inset-0 bg-ink/40 transition-opacity duration-short ease-out"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-paper-2 p-4 shadow-card">
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col dark-sidebar p-4 shadow-card">
             <div className="mb-4 flex items-center justify-between">
               {brand}
               <button
                 onClick={() => setMobileOpen(false)}
                 aria-label="Đóng menu"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-ink-2 hover:bg-paper-3"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-[#b0c8be] hover:bg-white/10 hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -158,20 +176,35 @@ function Shell() {
       )}
 
       <div className="flex">
-        {/* Desktop sidebar — soft-elevated surface (playful genre bans decorative glassmorphism) */}
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-rule bg-paper-2 p-4 shadow-whisper md:flex">
+        {/* Desktop sidebar — Dark theme */}
+        <aside className="dark-sidebar sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r p-4 md:flex">
           {brand}
           <NavList nav={nav} />
           {logoutButton}
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-8">
-          {!emailVerified && (
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          {/* Top bar trên desktop — chứa lời chào người dùng góc phải, glassmorphism */}
+          <div className="glass-panel hidden items-center justify-end border-b px-6 py-3 md:flex">
+            {userName && (
+              <button
+                onClick={() => navigate('/profile')}
+                className="group flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors duration-short ease-out hover:bg-white/40"
+              >
+                <span className="text-ink-2">Xin chào,</span>
+                <span className="font-semibold text-accent-strong group-hover:underline">{userName}</span>
+              </button>
+            )}
+          </div>
+          {/* Tạm ẩn banner xác minh tài khoản theo yêu cầu */}
+          {/* {!emailVerified && (
             <div className="mb-4">
               <VerifyBanner />
             </div>
-          )}
-          <Outlet />
+          )} */}
+          <div className="p-4 md:p-8">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
@@ -196,6 +229,7 @@ export default function App() {
           <Route path="/diary" element={<Diary />} />
           <Route path="/scan" element={<MealScan />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/expert/review" element={<ExpertReview />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/drugs" element={<AdminDrugs />} />
