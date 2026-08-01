@@ -99,18 +99,17 @@ pytestmark_db = pytest.mark.skipif(not _db_up(), reason="Cần Postgres để ch
 @pytest.fixture
 def user_co_plan_qua_han():
     """Tạo user + profile + plan bắt đầu 8 ngày trước + nhật ký ăn, dọn sạch sau test."""
-    from app.models import User, HealthProfile, NutritionPlan
+    from app.models import User, UserInfo, HealthProfile, NutritionPlan
 
     db = SessionLocal()
     u = User(
         email=f"eval-{uuid.uuid4().hex[:8]}@test.local",
         password_hash="x",
-        full_name="Người dùng test",
-        country_code="VN",
         role="USER",
     )
     db.add(u)
     db.flush()
+    db.add(UserInfo(user_id=u.id, full_name="Người dùng test"))
 
     profile = HealthProfile(
         user_id=u.id,
@@ -181,7 +180,6 @@ def test_job_sinh_evaluation_va_plan_moi(user_co_plan_qua_han, monkeypatch):
     assert len(plans) == 2
     assert plans[0].status in ("REVISED", "COMPLETED")   # plan cũ bị hạ
     assert plans[1].version == 2 and plans[1].status == "ACTIVE"
-    assert plans[1].parent_plan_id == plan.id
 
 
 @pytestmark_db

@@ -11,7 +11,6 @@ import { inputCls } from './login.jsx';
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
 // Fallback khi backend chưa chạy — sau này lấy từ API
-const FALLBACK_COUNTRIES = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
 const FALLBACK_CONDITIONS = [{ id: 1, name: 'Đái tháo đường típ 2' }, { id: 2, name: 'Tăng huyết áp' }, { id: 3, name: 'Rối loạn lipid máu' }];
 const FALLBACK_ALLERGENS = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'Hải sản có vỏ' }, { id: 3, name: 'Sữa bò' }, { id: 4, name: 'Gluten' }];
 
@@ -36,13 +35,12 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const [countries, setCountries] = useState(FALLBACK_COUNTRIES);
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
   const [allergens, setAllergens] = useState(FALLBACK_ALLERGENS);
 
   const [form, setForm] = useState({
     // Bước 1 — tài khoản
-    email: '', password: '', confirm: '', full_name: '', country_code: 'VN',
+    email: '', password: '', confirm: '', full_name: '',
     // Bước 2 — hồ sơ sức khỏe
     gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
     activity_level: 3, goal: 'MAINTAIN',
@@ -175,14 +173,6 @@ export default function Register() {
                   {form.confirm === form.password ? 'Mật khẩu khớp' : 'Mật khẩu chưa khớp'}
                 </p>
               )}
-            </FieldGroup>
-
-            <FieldGroup label="Quốc gia" hint="Dùng để lọc thuốc/hoạt chất bị cấm theo quy định sở tại">
-              <Select value={form.country_code} onChange={(e) => set('country_code', e.target.value)} className="w-full">
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </Select>
             </FieldGroup>
           </div>
         )}

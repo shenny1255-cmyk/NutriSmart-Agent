@@ -174,10 +174,7 @@ def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
             continue
 
         # 1. Kiểm tra trùng lặp đường link trong cơ sở dữ liệu
-        existing = db.query(Document).filter(
-            Document.source_url == url_clean,
-            Document.deleted_at.is_(None)
-        ).first()
+        existing = db.query(Document).filter(Document.source_url == url_clean, Document.deleted_at.is_(None)).first()  # type: ignore
 
         if existing:
             logger.info(f"[Scraper] Đã tồn tại tài liệu với URL {url_clean}, bỏ qua.")
@@ -241,13 +238,19 @@ PRESET_SOURCES = {
             "https://www.vinmec.com/vie/bai-viet/dinh-duong-trong-benh-roi-loan-lipid-mau-vi",
         ]
     },
+    "who": {
+        "name": "Hệ thống Y tế Vinmec (vinmec.com)",
+        "urls": [
+            "https://www.vinmec.com/vie/bai-viet/che-do-an-cho-nguoi-benh-gout-vi",
+        ]
+    }
 }
 
 # Khóa cũ trên giao diện; giữ lại để nút cào sẵn có không vỡ
 BI_DANH_NGUON = {"who": "vinmec"}
 
 
-def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session = None, uploaded_by_id=None) -> dict:
+def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None) -> dict:
     """Cào bài viết tự động theo nguồn uy tín có sẵn (vd: Bộ Y tế 'moh', WHO 'who', hoặc 'all')."""
     target_urls = []
     source_key = BI_DANH_NGUON.get(source_key, source_key)

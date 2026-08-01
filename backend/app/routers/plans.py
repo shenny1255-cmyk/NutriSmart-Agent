@@ -26,9 +26,9 @@ def active_plan(
 
     res = plan_generator.plan_to_dict(plan, user)
     # Đủ 7 ngày → frontend hiện nút "Đánh giá & cập nhật lộ trình"
-    res["days_elapsed"] = (date.today() - plan.start_date).days
+    res["days_elapsed"] = (date.today() - plan.start_date).days  # type: ignore
     res["needs_evaluation"] = plan_evaluator.is_due(plan.start_date) and not \
-        plan_evaluator.already_evaluated(db, plan.id, plan.start_date)
+        plan_evaluator.already_evaluated(db, plan.id, plan.start_date)  # type: ignore
 
     last_eval = (
         db.query(PlanEvaluation)

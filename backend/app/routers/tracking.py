@@ -50,16 +50,16 @@ def upsert_daily_activity(
         existing = (
             db.query(ActivityLog)
             .filter(
-                ActivityLog.user_id == user.id,
-                ActivityLog.log_date == log_date,
-                ActivityLog.exercise_id.is_(None)
+                ActivityLog.user_id == user.id,  # type: ignore
+                ActivityLog.log_date == log_date,  # type: ignore
+                ActivityLog.exercise_id.is_(None)  # type: ignore
             )
             .first()
         )
 
         if existing:
-            existing.steps = payload.steps
-            existing.calories_burned = payload.calories_burned
+            existing.steps = payload.steps  # type: ignore
+            existing.calories_burned = payload.calories_burned  # type: ignore
         else:
             existing = ActivityLog(
                 user_id=user.id,
@@ -73,10 +73,10 @@ def upsert_daily_activity(
         db.refresh(existing)
 
         return TodayActivityOut(
-            steps=existing.steps or 0,
-            calories_burned=float(existing.calories_burned or 0),
+            steps=int(existing.steps or 0),  # type: ignore
+            calories_burned=float(existing.calories_burned or 0),  # type: ignore
             distance_km=payload.distance_km,
-            log_date=existing.log_date,
+            log_date=existing.log_date,  # type: ignore
         )
     except Exception as e:
         db.rollback()
@@ -94,16 +94,16 @@ def get_today_activity(
     log = (
         db.query(ActivityLog)
         .filter(
-            ActivityLog.user_id == user.id,
-            ActivityLog.log_date == today,
-            ActivityLog.exercise_id.is_(None)
+            ActivityLog.user_id == user.id,  # type: ignore
+            ActivityLog.log_date == today,  # type: ignore
+            ActivityLog.exercise_id.is_(None)  # type: ignore
         )
         .first()
     )
 
     return TodayActivityOut(
-        steps=log.steps if log else 0,
-        calories_burned=float(log.calories_burned) if log else 0.0,
+        steps=int(log.steps) if log and log.steps else 0,  # type: ignore
+        calories_burned=float(log.calories_burned) if log and log.calories_burned else 0.0,  # type: ignore
         distance_km=0.0,
         log_date=today,
     )
@@ -118,13 +118,13 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
 
     food = None
     if payload.food_id:
-        food = db.query(Food).filter(Food.id == payload.food_id).first()
+        food = db.query(Food).filter(Food.id == payload.food_id).first()  # type: ignore
         if not food:
             raise HTTPException(404, "Không tìm thấy món ăn")
     elif payload.food_name:
         ten = payload.food_name.strip()
         # Trùng tên thì dùng lại, tránh phình bảng foods mỗi lần ghi nhật ký
-        food = db.query(Food).filter(Food.name.ilike(ten)).first()
+        food = db.query(Food).filter(Food.name.ilike(ten)).first()  # type: ignore
         if not food:
             if payload.calories_kcal is None:
                 raise HTTPException(400, "Món mới cần nhập số calo")
@@ -157,15 +157,15 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
     db.refresh(log)
 
     return MealLogOut(
-        id=log.id, food_name=food.name, meal_type=log.meal_type,
+        id=int(log.id), food_name=str(food.name), meal_type=str(log.meal_type),  # type: ignore
         quantity=float(log.quantity), calories_kcal=float(log.calories_kcal),
-        log_date=log.log_date,
+        log_date=log.log_date,  # type: ignore
     )
 
 
 def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     rows = (
-        db.query(MealLog, Food.name)
+        db.query(MealLog, Food.name)  # type: ignore
         .outerjoin(Food, Food.id == MealLog.food_id)  # type: ignore
         .filter(MealLog.user_id == user.id, MealLog.log_date == ngay)  # type: ignore
         .order_by(MealLog.logged_at)
@@ -173,9 +173,9 @@ def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     )
     return [
         MealLogOut(
-            id=m.id, food_name=ten or "Món không rõ", meal_type=m.meal_type,
+            id=int(m.id), food_name=str(ten) if ten else "Món không rõ", meal_type=str(m.meal_type),  # type: ignore
             quantity=float(m.quantity), calories_kcal=float(m.calories_kcal),
-            log_date=m.log_date,
+            log_date=m.log_date,  # type: ignore
         )
         for m, ten in rows
     ]
@@ -224,14 +224,14 @@ def api_xoa_bua_an(
 
 def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> ActivityLogOut:
     """Ghi một buổi tập. Không nhập calo thì tự tính theo MET × cân nặng × số phút."""
-    bai_tap = db.query(Exercise).filter(Exercise.id == payload.exercise_id).first()
+    bai_tap = db.query(Exercise).filter(Exercise.id == payload.exercise_id).first()  # type: ignore
     if not bai_tap:
         raise HTTPException(404, "Không tìm thấy bài tập")
 
     kcal = payload.calories_burned
     if kcal is None:
         can_nang = user.profile.weight_kg if user.profile else None
-        kcal = calories_burned(bai_tap.met_value, can_nang, payload.duration_min)
+        kcal = calories_burned(float(bai_tap.met_value), float(can_nang) if can_nang else None, payload.duration_min)  # type: ignore
 
     log = ActivityLog(
         user_id=user.id,
@@ -246,26 +246,25 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
     db.refresh(log)
 
     return ActivityLogOut(
-        id=log.id, exercise_name=bai_tap.name, duration_min=log.duration_min or 0,
-        calories_burned=float(log.calories_burned or 0), steps=log.steps or 0,
-        log_date=log.log_date,
+        id=int(log.id), exercise_name=str(bai_tap.name), duration_min=int(log.duration_min or 0),  # type: ignore
+        calories_burned=float(log.calories_burned or 0), steps=int(log.steps or 0),  # type: ignore
+        log_date=log.log_date,  # type: ignore
     )
 
 
 def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogOut]:
     rows = (
-        db.query(ActivityLog, Exercise.name)
+        db.query(ActivityLog, Exercise.name)  # type: ignore
         .outerjoin(Exercise, Exercise.id == ActivityLog.exercise_id)  # type: ignore
-        .filter(ActivityLog.user_id == user.id, ActivityLog.log_date == ngay,  # type: ignore
-                ActivityLog.exercise_id.isnot(None))
-        .order_by(ActivityLog.id)
+        .filter(ActivityLog.user_id == user.id, ActivityLog.log_date == ngay, ActivityLog.exercise_id.isnot(None))  # type: ignore
+        .order_by(ActivityLog.id)  # type: ignore
         .all()
     )
     return [
         ActivityLogOut(
-            id=a.id, exercise_name=ten or "Vận động", duration_min=a.duration_min or 0,
-            calories_burned=float(a.calories_burned or 0), steps=a.steps or 0,
-            log_date=a.log_date,
+            id=int(a.id), exercise_name=str(ten) if ten else "Vận động", duration_min=int(a.duration_min or 0),  # type: ignore
+            calories_burned=float(a.calories_burned or 0), steps=int(a.steps or 0),  # type: ignore
+            log_date=a.log_date,  # type: ignore
         )
         for a, ten in rows
     ]
@@ -325,20 +324,19 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
 
     # Chỉ cân nặng mới nhất mới cập nhật vào hồ sơ (BMI là cột generated, tự tính)
     if ngay >= date.today():
-        user.profile.weight_kg = payload.weight_kg
+        user.profile.weight_kg = payload.weight_kg  # type: ignore
 
     row = (
         db.query(BodyMetricHistory)
-        .filter(BodyMetricHistory.user_id == user.id,  # type: ignore
-                BodyMetricHistory.recorded_at == ngay)
+        .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at == ngay)  # type: ignore
         .first()
     )
     chieu_cao = float(user.profile.height_cm) if user.profile.height_cm else None
     bmi = round(payload.weight_kg / ((chieu_cao / 100) ** 2), 2) if chieu_cao else None
 
     if row:
-        row.weight_kg = payload.weight_kg
-        row.bmi = bmi
+        row.weight_kg = payload.weight_kg  # type: ignore
+        row.bmi = bmi  # type: ignore
     else:
         row = BodyMetricHistory(user_id=user.id, recorded_at=ngay,
                                 weight_kg=payload.weight_kg, bmi=bmi)
@@ -347,22 +345,27 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
     db.commit()
     db.refresh(row)
     db.refresh(user.profile)
-    return WeightOut(recorded_at=row.recorded_at, weight_kg=float(row.weight_kg),
-                     bmi=float(row.bmi) if row.bmi is not None else None)
+    return WeightOut(
+        recorded_at=row.recorded_at,  # type: ignore
+        weight_kg=float(row.weight_kg) if row.weight_kg is not None else 0.0,  # type: ignore
+        bmi=float(row.bmi) if row.bmi is not None else None,  # type: ignore
+    )
 
 
 def lich_su_can_nang(db: Session, user: User, days: int = 90) -> list[WeightOut]:
     tu_ngay = date.today() - timedelta(days=days)
     rows = (
         db.query(BodyMetricHistory)
-        .filter(BodyMetricHistory.user_id == user.id,  # type: ignore
-                BodyMetricHistory.recorded_at >= tu_ngay)
-        .order_by(BodyMetricHistory.recorded_at)
+        .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at >= tu_ngay)  # type: ignore
+        .order_by(BodyMetricHistory.recorded_at)  # type: ignore
         .all()
     )
     return [
-        WeightOut(recorded_at=r.recorded_at, weight_kg=float(r.weight_kg),
-                  bmi=float(r.bmi) if r.bmi is not None else None)
+        WeightOut(
+            recorded_at=r.recorded_at,  # type: ignore
+            weight_kg=float(r.weight_kg) if r.weight_kg is not None else 0.0,  # type: ignore
+            bmi=float(r.bmi) if r.bmi is not None else None,  # type: ignore
+        )
         for r in rows if r.weight_kg is not None
     ]
 

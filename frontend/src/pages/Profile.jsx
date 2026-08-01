@@ -5,7 +5,6 @@ import { api } from '../lib/api.js';
 import { Btn, Field as TextInput, Select, Alert, useToast, Toast } from '../components/ui.jsx';
 
 // Danh sách fallback khi backend chưa chạy
-const FALLBACK_COUNTRIES = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
 const FALLBACK_CONDITIONS = [{ id: 1, name: 'Đái tháo đường típ 2' }, { id: 2, name: 'Tăng huyết áp' }, { id: 3, name: 'Rối loạn lipid máu' }];
 const FALLBACK_ALLERGENS = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'Hải sản có vỏ' }, { id: 3, name: 'Sữa bò' }, { id: 4, name: 'Gluten' }];
 
@@ -35,13 +34,12 @@ export default function Profile() {
   const [err, setErr] = useState(null);
 
   // Dữ liệu dropdown
-  const [countries, setCountries] = useState(FALLBACK_COUNTRIES);
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
   const [allergens, setAllergens] = useState(FALLBACK_ALLERGENS);
 
   // Form state
   const [form, setForm] = useState({
-    email: '', role: '', full_name: '', country_code: 'VN',
+    email: '', role: '', full_name: '',
     gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
     activity_level: 3, goal: 'MAINTAIN',
     condition_ids: [], allergen_ids: [],
@@ -60,11 +58,9 @@ export default function Profile() {
   useEffect(() => {
     Promise.all([
       api.me(),
-      api.countries().catch(() => FALLBACK_COUNTRIES),
       api.conditions().catch(() => FALLBACK_CONDITIONS),
       api.allergens().catch(() => FALLBACK_ALLERGENS),
-    ]).then(([me, ctrs, conds, alls]) => {
-      setCountries(ctrs);
+    ]).then(([me, conds, alls]) => {
       setConditions(conds);
       setAllergens(alls);
 
@@ -176,14 +172,6 @@ export default function Profile() {
 
             <FieldGroup label="Vai trò">
               <TextInput value={ROLE_LABELS[form.role] || form.role} disabled className="w-full" />
-            </FieldGroup>
-
-            <FieldGroup label="Quốc gia">
-              <Select value={form.country_code} onChange={(e) => set('country_code', e.target.value)} className="w-full">
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </Select>
             </FieldGroup>
           </div>
         </section>

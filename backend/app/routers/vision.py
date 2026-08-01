@@ -23,7 +23,7 @@ async def analyze_meal_image(
     """
     Nhận file ảnh tải lên từ Mobile/Web, gọi Gemini Flash 2.0 phân tích dinh dưỡng đĩa thức ăn.
     """
-    if not file.content_type.startswith("image/"):
+    if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File tải lên phải là định dạng hình ảnh (JPEG, PNG, WEBP...)"
@@ -31,7 +31,7 @@ async def analyze_meal_image(
 
     try:
         contents = await file.read()
-        analysis_result = analyze_food_image(contents, mime_type=file.content_type)
+        analysis_result = analyze_food_image(contents, mime_type=file.content_type or "image/jpeg")
         return MealAnalyzeOut(**analysis_result)
     except Exception as e:
         logger.error(f"Lỗi phân tích hình ảnh món ăn: {e}", exc_info=True)
@@ -82,7 +82,7 @@ def log_meal(
         # 3. Tính tổng Calo đã nạp trong ngày hôm nay của User
         total_today = (
             db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0))
-            .filter(MealLog.user_id == user.id, MealLog.log_date == log_date)
+            .filter(MealLog.user_id == user.id, MealLog.log_date == log_date)  # type: ignore
             .scalar()
         )
 

@@ -36,4 +36,4 @@ def test_search_returns_empty_when_embedding_fails(monkeypatch):
 
     monkeypatch.setattr(retrieval, "get_embedding", boom)
     # db không được đụng tới vì lỗi xảy ra trước khi truy vấn
-    assert search_chunks(None, "câu hỏi bất kỳ") == []
+    assert search_chunks(None, "câu hỏi bất kỳ") == [] # type: ignore

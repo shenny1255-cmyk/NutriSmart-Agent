@@ -1,44 +1,29 @@
 from sqlalchemy.orm import Session
+from app.models import User, Drug
 
-from app.models import User, Country, Drug, DrugCountryRule
 
 _SAFETY = (
-    "Bạn là trợ lý dinh dưỡng của ứng dụng NutriSmart. Trả lời bằng tiếng Việt, "
-    "ngắn gọn và thực tế. Bạn KHÔNG phải bác sĩ: với mục tiêu y tế (MEDICAL) hoặc "
-    "bệnh nền nghiêm trọng, hãy khuyên người dùng tham khảo ý kiến chuyên gia y tế."
+    "Bạn là trợ lý dinh dưỡng NutriSmart Agent, tư vấn sức khỏe và dinh dưỡng cá nhân hóa. "
+    "Bạn không phải bác sĩ hay chuyên gia y tế, không thay thế chẩn đoán hay điều trị y khoa. "
+    "Bạn trả lời bằng tiếng Việt, lịch sự, ngắn gọn và có căn cứ khoa học."
 )
 
 
-def get_country_drug_rules(db: Session, country_code: str) -> tuple[str, list[dict]]:
-    c_row = db.query(Country.name).filter(Country.code == country_code).first()
-    country_name = c_row[0] if c_row else country_code
-
-    rules = (
-        db.query(
-            Drug.name,
-            Drug.active_ingredient,
-            DrugCountryRule.country_code,
-            Country.name,
-            DrugCountryRule.status,
-            DrugCountryRule.note,
-        )
-        .join(DrugCountryRule, DrugCountryRule.drug_id == Drug.id)
-        .outerjoin(Country, Country.code == DrugCountryRule.country_code)
-        .all()
-    )
+def get_country_drug_rules(db: Session, country_code: str = "VN") -> tuple[str, list[dict]]:
+    drugs = db.query(Drug).filter(Drug.deleted_at.is_(None)).all()
 
     rule_list = [
         {
-            "drug_name": r[0],
-            "active_ingredient": r[1],
-            "country_code": r[2],
-            "country_name": r[3] or r[2],
-            "status": r[4],
-            "note": r[5],
+            "drug_name": d.name,
+            "active_ingredient": d.active_ingredient,
+            "country_code": "VN",
+            "country_name": "Việt Nam",
+            "status": d.status,
+            "note": d.status_note,
         }
-        for r in rules
+        for d in drugs
     ]
-    return country_name, rule_list
+    return "Việt Nam", rule_list
 
 
 # Từ khóa cho thấy người dùng đang hỏi về thuốc chứ không phải dinh dưỡng
@@ -155,11 +140,12 @@ def render_system_prompt(ctx: dict) -> str:
 
 
 def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
-    country_code = user.country_code or "VN"
+    country_code = getattr(user, "country_code", None) or "VN"
     country_name, drug_rules = get_country_drug_rules(db, country_code)
+    full_name = user.info.full_name if user.info else "Người dùng"
 
     ctx: dict = {
-        "full_name": user.full_name,
+        "full_name": full_name,
         "country_code": country_code,
         "country_name": country_name,
         "drug_rules": drug_rules,

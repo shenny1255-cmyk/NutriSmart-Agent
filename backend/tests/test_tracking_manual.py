@@ -138,7 +138,7 @@ def test_cap_nhat_can_nang_ghi_lich_su_va_tinh_lai_bmi(nguoi_dung):
 
     assert float(ket_qua.weight_kg) == pytest.approx(68, abs=0.01)
     # BMI = 68 / 1.7² ≈ 23.53 — cột generated của Postgres tự tính
-    assert float(ket_qua.bmi) == pytest.approx(23.53, abs=0.05)
+    assert float(ket_qua.bmi) == pytest.approx(23.53, abs=0.05) # type: ignore
     assert float(u.profile.weight_kg) == pytest.approx(68, abs=0.01)
 
     lich_su = lich_su_can_nang(db, u, days=30)

@@ -5,7 +5,7 @@ from app.services.indexer import split_text
 
 def test_split_text_empty():
     assert split_text("") == []
-    assert split_text(None) == []
+    assert split_text(None) == [] # type: ignore
 
 
 def test_split_text_short():

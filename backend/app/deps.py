@@ -29,8 +29,8 @@ def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token không hợp lệ")
 
     import uuid
-    user = db.query(User).filter(User.id == uuid.UUID(user_id), User.deleted_at.is_(None)).first()  # type: ignore
-    if user is None or not user.is_active:
+    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()  # type: ignore
+    if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
 
     return user

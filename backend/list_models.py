@@ -16,7 +16,7 @@ print("=" * 60)
 try:
     models = client.models.list()
     for m in models:
-        if "flash" in m.name.lower() or "gemini" in m.name.lower():
+        if "flash" in m.name.lower() or "gemini" in m.name.lower(): # type: ignore
             print(f"  • {m.name}")
 except Exception as e:
         print(f"Lỗi: {e}")

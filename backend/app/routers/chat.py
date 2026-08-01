@@ -64,7 +64,7 @@ def history(
 ):
     session = (
         db.query(ChatSession)
-        .filter(ChatSession.user_id == user.id)
+        .filter(ChatSession.user_id == user.id)  # type: ignore
         .order_by(ChatSession.created_at.asc())
         .first()
     )
@@ -73,16 +73,16 @@ def history(
 
     msgs = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")
+        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")  # type: ignore
         .order_by(ChatMessage.id.asc())
         .all()
     )
     # Trả kèm nguồn trích dẫn để tải lại trang vẫn thấy nguồn
-    cites = _citations_by_message(db, [m.id for m in msgs])
+    cites = _citations_by_message(db, [int(m.id) for m in msgs])  # type: ignore
     return [
         ChatMessageOut(
-            id=m.id, role=m.role, content=m.content, created_at=m.created_at,
-            citations=cites.get(m.id, []),
+            id=int(m.id), role=str(m.role), content=str(m.content), created_at=m.created_at,  # type: ignore
+            citations=cites.get(int(m.id), []),  # type: ignore
         )
         for m in msgs
     ]
@@ -116,7 +116,7 @@ def send_message(
 
     recent = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")
+        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")  # type: ignore
         .order_by(ChatMessage.id.desc())
         .limit(HISTORY_LIMIT)
         .all()
@@ -178,7 +178,7 @@ def stream_message(
 
     recent = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")
+        .filter(ChatMessage.session_id == session.id, ChatMessage.role != "system")  # type: ignore
         .order_by(ChatMessage.id.desc())
         .limit(HISTORY_LIMIT)
         .all()
@@ -225,10 +225,10 @@ def clear_history(
     """Xóa toàn bộ lịch sử trò chuyện của người dùng."""
     session = (
         db.query(ChatSession)
-        .filter(ChatSession.user_id == user.id)
+        .filter(ChatSession.user_id == user.id)  # type: ignore
         .first()
     )
     if session:
-        db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()
+        db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()  # type: ignore
         db.commit()
     return None

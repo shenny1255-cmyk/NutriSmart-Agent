@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app.main import app
 from app.database import engine, SessionLocal
-from app.models import User, HealthProfile, Drug, DrugCountryRule, Country
+from app.models import User, HealthProfile, Drug
 from app.services.nutrition_context import (
     render_system_prompt, get_country_drug_rules, gather_context, build_system_prompt
 )
