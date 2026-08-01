@@ -124,8 +124,7 @@ export const api = {
   verifyEmail: (token) => request(`/auth/verify?token=${encodeURIComponent(token)}`),
   resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
 
-  // dữ liệu cho dropdown/checkbox — lấy từ bảng countries, medical_conditions, allergens
-  countries: () => request('/catalog/countries'),
+  // dữ liệu cho dropdown/checkbox — lấy từ bảng medical_conditions, allergens
   conditions: () => request('/catalog/conditions'),
   allergens: () => request('/catalog/allergens'),
   foods: (q = '') => request(`/catalog/foods${q ? `?q=${encodeURIComponent(q)}` : ''}`),

@@ -37,6 +37,7 @@ export default function Register() {
 
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
   const [allergens, setAllergens] = useState(FALLBACK_ALLERGENS);
+  // Quốc gia đã bỏ (mặc định Việt Nam)
 
   const [form, setForm] = useState({
     // Bước 1 — tài khoản
@@ -56,7 +57,6 @@ export default function Register() {
     }));
 
   useEffect(() => {
-    api.countries().then(setCountries).catch(() => { });
     api.conditions().then(setConditions).catch(() => { });
     api.allergens().then(setAllergens).catch(() => { });
   }, []);
@@ -79,7 +79,6 @@ export default function Register() {
       email: form.email,
       password: form.password,
       full_name: form.full_name,
-      country_code: form.country_code,
       profile: {
         gender: form.gender,
         birth_date: form.birth_date,
