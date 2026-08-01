@@ -59,13 +59,14 @@ def analyze_food_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
                     ),
                     FOOD_ANALYSIS_PROMPT
                 ],
-                config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json"
-                )
+                config=types.GenerateContentConfig(  # type: ignore
+                    temperature=0.2,  # type: ignore
+                    response_mime_type="application/json",  # type: ignore
+                ),
             )
 
-            text_content = response.text.strip()
+            raw_text = response.text or ""
+            text_content = raw_text.strip()
             if text_content.startswith("```json"):
                 text_content = text_content[7:]
             if text_content.startswith("```"):

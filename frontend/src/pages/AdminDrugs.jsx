@@ -1,54 +1,45 @@
 import { useEffect, useState } from 'react';
-import { Plus, Globe, ShieldBan } from 'lucide-react';
+import { Plus, ShieldBan } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { TableShell, THead, Tr, Td, Btn, Field, Select, EmptyRow, Card, Modal, Toast, useToast } from '../components/ui.jsx';
-
-// Fallback khi backend catalog chưa chạy — cùng pattern với Register
-const FALLBACK_COUNTRIES = [{ code: 'VN', name: 'Việt Nam' }, { code: 'US', name: 'Hoa Kỳ' }, { code: 'JP', name: 'Nhật Bản' }];
+import { TableShell, THead, Tr, Td, Btn, Field, EmptyRow, Card, Modal, Toast, useToast } from '../components/ui.jsx';
 
 const RULE_STATUSES = [
     { value: 'ALLOWED', label: 'Cho phép', cls: 'bg-accent-strong text-accent-ink shadow-whisper', idle: 'hover:bg-accent-soft hover:text-accent-strong' },
-    { value: 'RESTRICTED', label: 'Hạn chế', cls: 'bg-warning-strong text-paper-2 shadow-whisper', idle: 'hover:bg-warning-soft hover:text-warning-strong' },
-    { value: 'BANNED', label: 'Cấm', cls: 'bg-danger text-paper-2 shadow-whisper', idle: 'hover:bg-danger-soft hover:text-danger' },
+    { value: 'RESTRICTED', label: 'Hạn chế (Kê đơn)', cls: 'bg-warning-strong text-paper-2 shadow-whisper', idle: 'hover:bg-warning-soft hover:text-warning-strong' },
+    { value: 'BANNED', label: 'Cấm lưu hành', cls: 'bg-danger text-paper-2 shadow-whisper', idle: 'hover:bg-danger-soft hover:text-danger' },
 ];
 
 export default function AdminDrugs() {
     const [drugs, setDrugs] = useState([]);
-    const [form, setForm] = useState({ name: '', active_ingredient: '' });
-    const [countries, setCountries] = useState(FALLBACK_COUNTRIES);
+    const [form, setForm] = useState({ name: '', active_ingredient: '', status: 'ALLOWED', status_note: '' });
     // Modal đặt quy định: null = đóng, ngược lại là thuốc đang chọn
     const [ruleTarget, setRuleTarget] = useState(null);
-    const [ruleForm, setRuleForm] = useState({ country_code: 'VN', status: 'BANNED' });
+    const [ruleForm, setRuleForm] = useState({ status: 'BANNED', status_note: '' });
     const [saving, setSaving] = useState(false);
     const { toast, show } = useToast();
 
     const load = () => api.adminDrugs().then(setDrugs).catch(() => { });
-    useEffect(() => {
-        load();
-        api.countries().then(setCountries).catch(() => { });
-    }, []);
+    useEffect(() => { load(); }, []);
 
     async function addDrug() {
         if (!form.name) return;
         await api.createDrug(form);
-        setForm({ name: '', active_ingredient: '' });
+        setForm({ name: '', active_ingredient: '', status: 'ALLOWED', status_note: '' });
         show(`Đã thêm thuốc "${form.name}".`);
         load();
     }
 
     function openRule(drug) {
-        const existingVN = drug.rules?.find((r) => r.country_code === 'VN');
-        setRuleForm({ country_code: 'VN', status: existingVN?.status ?? 'BANNED' });
+        setRuleForm({ status: drug.status || 'ALLOWED', status_note: drug.status_note || '' });
         setRuleTarget(drug);
     }
 
     async function saveRule() {
         setSaving(true);
         try {
-            await api.setDrugRule(ruleTarget.id, ruleForm);
-            const countryName = countries.find((c) => c.code === ruleForm.country_code)?.name ?? ruleForm.country_code;
+            await api.updateDrug(ruleTarget.id, ruleForm);
             const statusLabel = RULE_STATUSES.find((s) => s.value === ruleForm.status)?.label ?? ruleForm.status;
-            show(`Đã đặt "${ruleTarget.name}" thành ${statusLabel} tại ${countryName}.`);
+            show(`Đã đặt "${ruleTarget.name}" thành ${statusLabel}.`);
             setRuleTarget(null);
             load();
         } catch (e) {
@@ -60,7 +51,7 @@ export default function AdminDrugs() {
 
     return (
         <div className="space-y-6">
-            <h1 className="font-display text-2xl font-bold tracking-tight">Quản lý thuốc</h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight">Quản lý danh mục thuốc</h1>
 
             <Card className="flex flex-wrap gap-2 p-4">
                 <Field
@@ -80,37 +71,34 @@ export default function AdminDrugs() {
             </Card>
 
             <TableShell>
-                <THead cols={['Tên', 'Hoạt chất', 'Quy định quốc gia', '']} />
+                <THead cols={['Tên thuốc', 'Hoạt chất', 'Trạng thái pháp lý', 'Ghi chú quy định', '']} />
                 <tbody>
-                    {drugs.length === 0 && <EmptyRow colSpan={4}>Chưa có thuốc nào trong danh mục.</EmptyRow>}
-                    {drugs.map((d) => (
-                        <Tr key={d.id}>
-                            <Td className="font-medium text-ink">{d.name}</Td>
-                            <Td className="text-ink-2">{d.active_ingredient || '—'}</Td>
-                            <Td>
-                                {(!d.rules || d.rules.length === 0) && <span className="text-muted text-xs">Chưa cài đặt</span>}
-                                {d.rules?.map((r) => {
-                                    const statusObj = RULE_STATUSES.find((s) => s.value === r.status);
-                                    const badgeCls = r.status === 'BANNED' ? 'bg-danger text-paper-2' : r.status === 'RESTRICTED' ? 'bg-warning-strong text-paper-2' : 'bg-accent-strong text-accent-ink';
-                                    return (
-                                        <span key={r.country_code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold mr-1.5 ${badgeCls}`}>
-                                            {r.country_code}: {statusObj?.label ?? r.status}
-                                        </span>
-                                    );
-                                })}
-                            </Td>
-                            <Td className="text-right">
-                                <Btn variant="subtle" size="sm" onClick={() => openRule(d)}>
-                                    <Globe size={13} />
-                                    Đặt quy định quốc gia
-                                </Btn>
-                            </Td>
-                        </Tr>
-                    ))}
+                    {drugs.length === 0 && <EmptyRow colSpan={5}>Chưa có thuốc nào trong danh mục.</EmptyRow>}
+                    {drugs.map((d) => {
+                        const statusObj = RULE_STATUSES.find((s) => s.value === d.status);
+                        const badgeCls = d.status === 'BANNED' ? 'bg-danger text-paper-2' : d.status === 'RESTRICTED' ? 'bg-warning-strong text-paper-2' : 'bg-accent-strong text-accent-ink';
+                        return (
+                            <Tr key={d.id}>
+                                <Td className="font-medium text-ink">{d.name}</Td>
+                                <Td className="text-ink-2">{d.active_ingredient || '—'}</Td>
+                                <Td>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold ${badgeCls}`}>
+                                        {statusObj?.label ?? d.status}
+                                    </span>
+                                </Td>
+                                <Td className="text-xs text-ink-2 max-w-xs truncate">{d.status_note || '—'}</Td>
+                                <Td className="text-right">
+                                    <Btn variant="subtle" size="sm" onClick={() => openRule(d)}>
+                                        <ShieldBan size={13} />
+                                        Sửa quy định
+                                    </Btn>
+                                </Td>
+                            </Tr>
+                        );
+                    })}
                 </tbody>
             </TableShell>
 
-            {/* Modal đặt quy định — dropdown quốc gia từ catalog + chọn trạng thái đóng khung, hết gõ tay */}
             <Modal
                 open={!!ruleTarget}
                 onClose={() => !saving && setRuleTarget(null)}
@@ -130,23 +118,7 @@ export default function AdminDrugs() {
             >
                 <div className="space-y-4">
                     <div>
-                        <label htmlFor="rule-country" className="mb-1 block text-sm font-medium text-ink-2">Quốc gia</label>
-                        <Select
-                            id="rule-country"
-                            value={ruleForm.country_code}
-                            onChange={(e) => {
-                                const code = e.target.value;
-                                const existing = ruleTarget?.rules?.find((r) => r.country_code === code);
-                                setRuleForm({ country_code: code, status: existing?.status ?? 'BANNED' });
-                            }}
-                            className="w-full"
-                        >
-                            {countries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                        </Select>
-                    </div>
-
-                    <div>
-                        <p className="mb-1 text-sm font-medium text-ink-2">Trạng thái</p>
+                        <p className="mb-1 text-sm font-medium text-ink-2">Trạng thái lưu hành tại Việt Nam</p>
                         <div role="radiogroup" aria-label="Trạng thái quy định" className="grid grid-cols-3 gap-2">
                             {RULE_STATUSES.map((s) => {
                                 const on = ruleForm.status === s.value;
@@ -169,9 +141,17 @@ export default function AdminDrugs() {
                                 );
                             })}
                         </div>
-                        <p className="mt-1 text-xs text-muted">
-                            Quy định dùng để cảnh báo người dùng tại quốc gia tương ứng.
-                        </p>
+                    </div>
+
+                    <div>
+                        <label htmlFor="rule-note" className="mb-1 block text-sm font-medium text-ink-2">Ghi chú quy định / căn cứ pháp lý</label>
+                        <Field
+                            id="rule-note"
+                            value={ruleForm.status_note}
+                            onChange={(e) => setRuleForm((f) => ({ ...f, status_note: e.target.value }))}
+                            placeholder="Ví dụ: Bị cấm theo quyết định của Bộ Y tế..."
+                            className="w-full"
+                        />
                     </div>
                 </div>
             </Modal>

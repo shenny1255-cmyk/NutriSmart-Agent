@@ -6,7 +6,7 @@ from sqlalchemy import (
     Column, String, Boolean, Integer, BigInteger, SmallInteger, Numeric, Date,
     DateTime, ForeignKey, Text, CHAR, Enum as SAEnum, func, FetchedValue
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 
@@ -21,44 +21,59 @@ plan_status = SAEnum("ACTIVE", "COMPLETED", "REVISED", "CANCELLED",
                      name="plan_status", create_type=False)
 eval_result = SAEnum("ACHIEVED", "NOT_ACHIEVED", "PARTIAL",
                      name="eval_result", create_type=False)
-
-
-class Country(Base):
-    __tablename__ = "countries"
-    code = Column(CHAR(2), primary_key=True)
-    name = Column(String(100), nullable=False)
+job_status  = SAEnum("QUEUED", "RUNNING", "DONE", "FAILED",
+                     name="job_status", create_type=False)
 
 
 class User(Base):
     __tablename__ = "users"
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
-    email         = Column(String(255), unique=True, nullable=False)
+    email: str    = Column(String(255), unique=True, nullable=False)  # type: ignore
     password_hash: str = Column(String(255), nullable=False)  # type: ignore
-    full_name     = Column(String(150))
-    role          = Column(user_role, nullable=False, default="USER")
-    country_code  = Column(CHAR(2), ForeignKey("countries.code"))
-    is_active: bool = Column(Boolean, nullable=False, default=True)  # type: ignore
-    email_verified: bool = Column(Boolean, nullable=False, server_default="false")  # type: ignore
+    role: str     = Column(user_role, nullable=False, default="USER")  # type: ignore
+    is_verified: bool = Column(Boolean, nullable=False, server_default="false")  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
-    deleted_at    = Column(DateTime(timezone=True))
+    updated_at    = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     profile = relationship("HealthProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    info    = relationship("UserInfo", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+    @property
+    def full_name(self) -> str | None:
+        return self.info.full_name if self.info else None
+
+    @full_name.setter
+    def full_name(self, value: str | None):
+        if not self.info:
+            self.info = UserInfo()
+        self.info.full_name = value
+
+
+class UserInfo(Base):
+    __tablename__ = "user_info"
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    full_name: str | None = Column(String(150))  # type: ignore
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="info")
 
 
 class HealthProfile(Base):
     __tablename__ = "health_profiles"
-    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id        = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
-                            unique=True, nullable=False)
-    gender         = Column(gender_enum)
-    birth_date     = Column(Date)
-    height_cm      = Column(Numeric(5, 2))
-    weight_kg      = Column(Numeric(5, 2))
+    id: uuid.UUID  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+                            unique=True, nullable=False)  # type: ignore
+    gender: str | None         = Column(gender_enum)  # type: ignore
+    birth_date: date | None     = Column(Date)  # type: ignore
+    height_cm: float | None      = Column(Numeric(5, 2))  # type: ignore
+    weight_kg: float | None      = Column(Numeric(5, 2))  # type: ignore
     # generated column → chỉ đọc, KHÔNG bao giờ insert
-    bmi            = Column(Numeric(5, 2), server_default=FetchedValue())
-    activity_level = Column(SmallInteger)
-    goal           = Column(goal_enum, nullable=False, default="MAINTAIN")
-    daily_calorie_target = Column(Integer)
+    bmi: float | None            = Column(Numeric(5, 2), server_default=FetchedValue())  # type: ignore
+    activity_level: int | None = Column(SmallInteger)  # type: ignore
+    goal: str           = Column(goal_enum, nullable=False, default="MAINTAIN")  # type: ignore
+    daily_calorie_target: int | None = Column(Integer)  # type: ignore
+    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="profile")
     # Bệnh nền + dị ứng — nạp sẵn để prompt LLM luôn có đủ ràng buộc sức khỏe
@@ -103,7 +118,6 @@ class NutritionPlan(Base):
     id: uuid.UUID     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     version           = Column(Integer, nullable=False, default=1)
-    parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id"))
     start_date: date  = Column(Date, nullable=False)  # type: ignore
     end_date: date    = Column(Date, nullable=False)  # type: ignore
     daily_kcal_target: int = Column(Integer, nullable=False)  # type: ignore
@@ -132,11 +146,23 @@ class PlanEvaluation(Base):
 class BodyMetricHistory(Base):
     """Mốc cân nặng theo ngày — dùng để tính weight_change_kg giữa 2 kỳ đánh giá."""
     __tablename__ = "body_metrics_history"
-    id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    recorded_at = Column(Date, nullable=False, server_default=func.current_date())
-    weight_kg   = Column(Numeric(5, 2))
-    bmi         = Column(Numeric(5, 2))
+    id: int          = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    recorded_at: date = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
+    weight_kg: float | None = Column(Numeric(5, 2))  # type: ignore
+    bmi: float | None = Column(Numeric(5, 2))  # type: ignore
+
+
+class Notification(Base):
+    """Thông báo hệ thống gửi tới người dùng."""
+    __tablename__ = "notifications"
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    type       = Column(String(50), nullable=False)
+    title      = Column(String(200), nullable=False)
+    body       = Column(Text)
+    is_read: bool = Column(Boolean, nullable=False, default=False)  # type: ignore
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 from sqlalchemy import Enum as SAEnum
 
@@ -148,74 +174,65 @@ drug_status = SAEnum("ALLOWED", "RESTRICTED", "BANNED",
 
 class DocCategory(Base):
     __tablename__ = "doc_categories"
-    id        = Column(Integer, primary_key=True)
-    parent_id = Column(Integer, ForeignKey("doc_categories.id"))
-    name      = Column(String(150), nullable=False)
-    slug      = Column(String(150), unique=True, nullable=False)
+    id: int          = Column(Integer, primary_key=True)  # type: ignore
+    parent_id: int | None = Column(Integer, ForeignKey("doc_categories.id"))  # type: ignore
+    name: str        = Column(String(150), nullable=False)  # type: ignore
+    slug: str        = Column(String(150), unique=True, nullable=False)  # type: ignore
 
 
 class Document(Base):
     __tablename__ = "documents"
-    id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    category_id = Column(Integer, ForeignKey("doc_categories.id"))
-    title       = Column(Text, nullable=False)
-    source_url  = Column(Text)
-    source_name = Column(String(150))
-    language    = Column(String(10), default="vi")
-    file_path   = Column(Text)
-    raw_text    = Column(Text)
-    status      = Column(doc_status, nullable=False, default="PENDING")
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    approved_at = Column(DateTime(timezone=True))
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
-    deleted_at  = Column(DateTime(timezone=True))
+    id: uuid.UUID   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    category_id: int | None = Column(Integer, ForeignKey("doc_categories.id"))  # type: ignore
+    title: str       = Column(Text, nullable=False)  # type: ignore
+    source_url: str | None  = Column(Text)  # type: ignore
+    source_name: str | None = Column(String(150))  # type: ignore
+    language: str    = Column(String(10), default="vi")  # type: ignore
+    file_path: str | None   = Column(Text)  # type: ignore
+    raw_text: str | None    = Column(Text)  # type: ignore
+    status: str      = Column(doc_status, nullable=False, default="PENDING")  # type: ignore
+    uploaded_by: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # type: ignore
+    approved_by: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # type: ignore
+    approved_at      = Column(DateTime(timezone=True))
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at       = Column(DateTime(timezone=True))
 
 
 class DocChunk(Base):
     __tablename__ = "doc_chunks"
-    id          = Column(BigInteger, primary_key=True, autoincrement=True)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    chunk_index = Column(Integer, nullable=False)
-    content     = Column(Text, nullable=False)
-    token_count = Column(Integer)
-    embedding   = Column(Vector(1024))
-    metadata_   = Column("metadata", JSONB, server_default=FetchedValue())
+    id: int          = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    document_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    chunk_index: int = Column(Integer, nullable=False)  # type: ignore
+    content: str     = Column(Text, nullable=False)  # type: ignore
+    token_count: int | None = Column(Integer)  # type: ignore
+    embedding        = Column(Vector(1024))
+    metadata_        = Column("metadata", JSONB, server_default=FetchedValue())
 
-    document    = relationship("Document")
+    document         = relationship("Document")
 
 
 class DrugCategory(Base):
     __tablename__ = "drug_categories"
-    id   = Column(Integer, primary_key=True)
-    name = Column(String(150), unique=True, nullable=False)
+    id: int   = Column(Integer, primary_key=True)  # type: ignore
+    name: str = Column(String(150), unique=True, nullable=False)  # type: ignore
 
 
 class Drug(Base):
     __tablename__ = "drugs"
-    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    category_id       = Column(Integer, ForeignKey("drug_categories.id"))
-    name              = Column(String(200), nullable=False)
-    active_ingredient = Column(String(200))
-    indications       = Column(Text)
-    side_effects      = Column(Text)
-    contraindications = Column(Text)
+    id: uuid.UUID                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    category_id: int | None       = Column(Integer, ForeignKey("drug_categories.id"))  # type: ignore
+    document_id: uuid.UUID | None       = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"))  # type: ignore
+    name: str              = Column(String(200), nullable=False)  # type: ignore
+    active_ingredient: str | None = Column(String(200))  # type: ignore
+    indications: str | None       = Column(Text)  # type: ignore
+    side_effects: str | None      = Column(Text)  # type: ignore
+    contraindications: str | None = Column(Text)  # type: ignore
+    status: str            = Column(drug_status, nullable=False, default="ALLOWED")  # type: ignore
+    status_note: str | None       = Column(Text)  # type: ignore
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at        = Column(DateTime(timezone=True))
 
-    rules             = relationship("DrugCountryRule", lazy="selectin", cascade="all, delete-orphan")
-
-
-class DrugCountryRule(Base):
-    __tablename__ = "drug_country_rules"
-    drug_id      = Column(UUID(as_uuid=True), ForeignKey("drugs.id", ondelete="CASCADE"),
-                          primary_key=True)
-    country_code = Column(CHAR(2), ForeignKey("countries.code", ondelete="CASCADE"),
-                          primary_key=True)
-    status       = Column(drug_status, nullable=False, default="ALLOWED")
-    note         = Column(Text)
-    updated_by   = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    updated_at   = Column(DateTime(timezone=True), server_default=func.now())
+    document          = relationship("Document")
 
 
 class ChatMessage(Base):
@@ -230,13 +247,14 @@ class ChatMessage(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
-    id          = Column(Integer, primary_key=True)
+    id          = Column(BigInteger, primary_key=True, autoincrement=True)
     actor_id    = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     action      = Column(String(50), nullable=False)
     entity      = Column(String(80), nullable=False)
     entity_id   = Column(Text)
     before_data = Column(JSONB)
     after_data  = Column(JSONB)
+    ip_address  = Column(INET)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -249,49 +267,77 @@ class ChatSession(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class MessageCitation(Base):
+    """Trích dẫn nguồn tài liệu cho từng tin nhắn AI trong chat."""
+    __tablename__ = "message_citations"
+    message_id = Column(BigInteger, ForeignKey("chat_messages.id", ondelete="CASCADE"),
+                        primary_key=True)
+    chunk_id   = Column(BigInteger, ForeignKey("doc_chunks.id", ondelete="CASCADE"),
+                        primary_key=True)
+    score      = Column(Numeric(5, 4))
+    rank       = Column(SmallInteger)
+
+
 class Exercise(Base):
     __tablename__ = "exercises"
-    id        = Column(Integer, primary_key=True)
-    name      = Column(String(150), nullable=False)
-    met_value = Column(Numeric(4, 2))
-    category  = Column(String(80))
+    id: int        = Column(Integer, primary_key=True)  # type: ignore
+    name: str      = Column(String(150), nullable=False)  # type: ignore
+    met_value: float = Column(Numeric(4, 2))  # type: ignore
+    category: str | None = Column(String(80))  # type: ignore
 
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
-    id              = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id         = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    exercise_id     = Column(Integer, ForeignKey("exercises.id"), nullable=True)
-    steps           = Column(Integer, default=0)
-    duration_min    = Column(Integer, default=0)
-    calories_burned = Column(Numeric(7, 2), default=0)
-    log_date        = Column(Date, nullable=False, server_default=func.current_date())
+    id: int              = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    user_id: uuid.UUID   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    exercise_id: int | None = Column(Integer, ForeignKey("exercises.id"), nullable=True)  # type: ignore
+    steps: int | None    = Column(Integer, default=0)  # type: ignore
+    duration_min: int | None = Column(Integer, default=0)  # type: ignore
+    calories_burned: float | None = Column(Numeric(7, 2), default=0)  # type: ignore
+    log_date: date       = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
 
 
 meal_type_enum = SAEnum("BREAKFAST", "LUNCH", "DINNER", "SNACK", name="meal_type", create_type=False)
 
 
+class MealImage(Base):
+    """Ảnh bữa ăn được phân tích bởi AI Vision — một ảnh có thể sinh ra nhiều meal_logs."""
+    __tablename__ = "meal_images"
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+                               nullable=False)
+    image_path        = Column(Text, nullable=False)
+    status            = Column(job_status, nullable=False, default="QUEUED")
+    predicted_food_id = Column(UUID(as_uuid=True), ForeignKey("foods.id"))
+    confidence        = Column(Numeric(4, 3))
+    raw_prediction    = Column(JSONB)
+    estimated_kcal    = Column(Numeric(7, 2))
+    suitability_note  = Column(Text)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Food(Base):
     __tablename__ = "foods"
-    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name          = Column(String(200), nullable=False)
-    serving_desc  = Column(String(100))
-    serving_gram  = Column(Numeric(7, 2))
-    calories_kcal = Column(Numeric(7, 2), nullable=False)
-    protein_g     = Column(Numeric(6, 2), default=0)
-    carb_g        = Column(Numeric(6, 2), default=0)
-    fat_g         = Column(Numeric(6, 2), default=0)
-    source        = Column(String(100), default="AI Gemini")
+    id: uuid.UUID  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    name: str      = Column(String(200), nullable=False)  # type: ignore
+    serving_desc: str | None = Column(String(100))  # type: ignore
+    serving_gram: float | None = Column(Numeric(7, 2))  # type: ignore
+    calories_kcal: float = Column(Numeric(7, 2), nullable=False)  # type: ignore
+    protein_g: float = Column(Numeric(6, 2), default=0)  # type: ignore
+    carb_g: float    = Column(Numeric(6, 2), default=0)  # type: ignore
+    fat_g: float     = Column(Numeric(6, 2), default=0)  # type: ignore
+    source: str      = Column(String(100), default="AI Gemini")  # type: ignore
 
 
 class MealLog(Base):
     __tablename__ = "meal_logs"
-    id            = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id       = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    food_id       = Column(UUID(as_uuid=True), ForeignKey("foods.id"), nullable=True)
-    meal_type     = Column(meal_type_enum, nullable=False, default="LUNCH")
-    quantity      = Column(Numeric(6, 2), nullable=False, default=1)
-    calories_kcal = Column(Numeric(7, 2), nullable=False)
-    logged_at     = Column(DateTime(timezone=True), server_default=func.now())
-    log_date      = Column(Date, nullable=False, server_default=func.current_date())
+    id: int            = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    food_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("foods.id"), nullable=True)  # type: ignore
+    meal_image_id: uuid.UUID | None = Column(UUID(as_uuid=True), ForeignKey("meal_images.id"), nullable=True)  # type: ignore
+    meal_type: str     = Column(meal_type_enum, nullable=False)  # type: ignore
+    quantity: float    = Column(Numeric(6, 2), nullable=False, default=1)  # type: ignore
+    calories_kcal: float = Column(Numeric(7, 2), nullable=False)  # type: ignore
+    logged_at          = Column(DateTime(timezone=True), server_default=func.now())
+    log_date: date     = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
 

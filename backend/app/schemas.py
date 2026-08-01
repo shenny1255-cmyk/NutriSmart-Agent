@@ -31,7 +31,6 @@ class RegisterIn(BaseModel):
     email: NormalizedEmail
     password: str = Field(min_length=8)
     full_name: str
-    country_code: str = Field(min_length=2, max_length=2)
     profile: ProfileIn
 
 
@@ -46,12 +45,6 @@ class TokenOut(BaseModel):
 
 
 # ---------- Catalog ----------
-class CountryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    code: str
-    name: str
-
-
 class ItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -63,10 +56,9 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     email: EmailStr
-    full_name: str | None
+    full_name: str | None = None
     role: str
-    country_code: str | None
-    email_verified: bool = False
+    is_verified: bool = False
 
 
 class ProfileOut(BaseModel):
@@ -92,7 +84,6 @@ class MeOut(UserOut):
 class UserProfileUpdateIn(BaseModel):
     """Cập nhật thông tin cá nhân + hồ sơ sức khỏe."""
     full_name: str | None = None
-    country_code: str | None = Field(default=None, min_length=2, max_length=2)
     # Hồ sơ sức khỏe
     gender: Literal["MALE", "FEMALE", "OTHER"] | None = None
     birth_date: date | None = None
@@ -208,8 +199,7 @@ class AdminUserOut(BaseModel):
     email: str
     full_name: str | None
     role: str
-    is_active: bool
-    created_at: datetime
+    updated_at: datetime
 
 
 class UpdateRoleIn(BaseModel):
@@ -274,17 +264,14 @@ class CrawlPresetIn(BaseModel):
 # ---------- Drugs ----------
 class DrugIn(BaseModel):
     category_id: int | None = None
+    document_id: UUID | None = None
     name: str
     active_ingredient: str | None = None
     indications: str | None = None
     side_effects: str | None = None
-
-
-class DrugRuleOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    country_code: str
-    status: str
-    note: str | None = None
+    contraindications: str | None = None
+    status: Literal["ALLOWED", "RESTRICTED", "BANNED"] = "ALLOWED"
+    status_note: str | None = None
 
 
 class DrugOut(BaseModel):
@@ -293,13 +280,12 @@ class DrugOut(BaseModel):
     name: str
     active_ingredient: str | None
     category_id: int | None
-    rules: list[DrugRuleOut] = []
-
-
-class DrugRuleIn(BaseModel):
-    country_code: str = Field(min_length=2, max_length=2)
-    status: Literal["ALLOWED", "RESTRICTED", "BANNED"]
-    note: str | None = None
+    document_id: UUID | None
+    indications: str | None
+    side_effects: str | None
+    contraindications: str | None
+    status: str
+    status_note: str | None
 
 
 # ---------- Audit ----------

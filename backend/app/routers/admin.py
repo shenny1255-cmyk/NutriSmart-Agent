@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
 from app.models import (
-    User, Drug, DrugCountryRule, AuditLog, DocCategory, DrugCategory, Document,
+    User, UserInfo, Drug, AuditLog, DocCategory, DrugCategory, Document,
 )
 from app.schemas import (
-    AdminUserOut, UpdateRoleIn, DrugIn, DrugOut, DrugRuleIn, AuditOut,
+    AdminUserOut, UpdateRoleIn, DrugIn, DrugOut, AuditOut,
     CategoryIn, DocCategoryOut, DrugCategoryOut,
 )
 from app.services.audit import write_audit
@@ -22,8 +22,10 @@ expert_or_admin = Depends(require_role("EXPERT", "ADMIN"))
 
 
 def _ensure_default_drugs(db: Session):
-    """Dọn dẹp dữ liệu rác từ test và đảm bảo nạp đủ 5 thuốc chuẩn kèm quy định quốc gia."""
+    """Dọn dẹp dữ liệu rác từ test và đảm bảo nạp đủ 5 thuốc chuẩn."""
     db.execute(text("ALTER TABLE drugs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;"))
+    db.execute(text("ALTER TABLE drugs ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ALLOWED';"))
+    db.execute(text("ALTER TABLE drugs ADD COLUMN IF NOT EXISTS status_note TEXT;"))
     # Xóa các dòng rác sinh ra do test tự động
     db.execute(text("DELETE FROM drugs WHERE name ILIKE 'Test%';"))
 
@@ -33,41 +35,18 @@ def _ensure_default_drugs(db: Session):
     """))
 
     sample_drugs = [
-        ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát'),
-        ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ'),
-        ('a0000000-0000-0000-0000-000000000003', 1, 'Phentermine', 'Phentermine', 'Giảm thèm ăn', 'Tăng nhịp tim, mất ngủ, nghiện', 'Bệnh tim, tăng áp phổi'),
-        ('a0000000-0000-0000-0000-000000000004', 2, 'Pseudoephedrine', 'Pseudoephedrine', 'Giảm sung huyết mũi', 'Tăng huyết áp, hồi hộp', 'Bệnh tăng huyết áp nặng'),
-        ('a0000000-0000-0000-0000-000000000005', 2, 'Paracetamol', 'Paracetamol', 'Giảm đau hạ sốt', 'Hại gan khi dùng quá liều', 'Suy gan nặng'),
+        ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát', 'BANNED', 'Bị cấm lưu hành tại Việt Nam do nguy cơ tim mạch và đột quỵ nghiêm trọng.'),
+        ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ', 'BANNED', 'Bị rút giấy phép lưu hành tại Việt Nam do chứa Sibutramine.'),
+        ('a0000000-0000-0000-0000-000000000003', 1, 'Phentermine', 'Phentermine', 'Giảm thèm ăn', 'Tăng nhịp tim, mất ngủ, nghiện', 'Bệnh tim, tăng áp phổi', 'BANNED', 'Cấm sử dụng trong thực phẩm chức năng và thuốc giảm cân không kê đơn tại Việt Nam.'),
+        ('a0000000-0000-0000-0000-000000000004', 2, 'Pseudoephedrine', 'Pseudoephedrine', 'Giảm sung huyết mũi', 'Tăng huyết áp, hồi hộp', 'Bệnh tăng huyết áp nặng', 'RESTRICTED', 'Thuốc kê đơn, cần quản lý đặc biệt và có chỉ định của bác sĩ tại Việt Nam.'),
+        ('a0000000-0000-0000-0000-000000000005', 2, 'Paracetamol', 'Paracetamol', 'Giảm đau hạ sốt', 'Hại gan khi dùng quá liều', 'Suy gan nặng', 'ALLOWED', 'Được phép sử dụng theo đúng liều lượng khuyến cáo.'),
     ]
-    for did, cid, name, active, ind, side, contra in sample_drugs:
-        # Nếu chưa có thuốc cùng tên thì chèn
+    for did, cid, name, active, ind, side, contra, st, note in sample_drugs:
         db.execute(text("""
-            INSERT INTO drugs (id, category_id, name, active_ingredient, indications, side_effects, contraindications)
-            SELECT :id, :cid, :n, :a, :i, :s, :c
+            INSERT INTO drugs (id, category_id, name, active_ingredient, indications, side_effects, contraindications, status, status_note)
+            SELECT :id, :cid, :n, :a, :i, :s, :c, :st, :note
             WHERE NOT EXISTS (SELECT 1 FROM drugs WHERE name = :n);
-        """), {"id": did, "cid": cid, "n": name, "a": active, "i": ind, "s": side, "c": contra})
-
-    # Xóa các dòng trùng tên không phải ID chuẩn
-    db.execute(text("""
-        DELETE FROM drugs WHERE id NOT IN (
-            SELECT MIN(id::text)::uuid FROM drugs GROUP BY name
-        );
-    """))
-
-    sample_rules = [
-        ('a0000000-0000-0000-0000-000000000001', 'VN', 'BANNED', 'Bị cấm lưu hành tại Việt Nam do nguy cơ tim mạch và đột quỵ nghiêm trọng.'),
-        ('a0000000-0000-0000-0000-000000000002', 'VN', 'BANNED', 'Bị rút giấy phép lưu hành tại Việt Nam do chứa Sibutramine.'),
-        ('a0000000-0000-0000-0000-000000000003', 'VN', 'BANNED', 'Cấm sử dụng trong thực phẩm chức năng và thuốc giảm cân không kê đơn tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000004', 'VN', 'RESTRICTED', 'Thuốc kê đơn, cần quản lý đặc biệt và có chỉ định của bác sĩ tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000005', 'VN', 'ALLOWED', 'Được phép sử dụng theo đúng liều lượng khuyến cáo.'),
-    ]
-    for did, cc, st, note in sample_rules:
-        # Tìm drug_id theo did hoặc theo tên thuốc chuẩn tương ứng
-        db.execute(text("""
-            INSERT INTO drug_country_rules (drug_id, country_code, status, note)
-            SELECT id, :cc, :st, :note FROM drugs WHERE id = :did OR name IN ('Sibutramine', 'Reductil', 'Phentermine', 'Pseudoephedrine', 'Paracetamol')
-            ON CONFLICT (drug_id, country_code) DO NOTHING;
-        """), {"did": did, "cc": cc, "st": st, "note": note})
+        """), {"id": did, "cid": cid, "n": name, "a": active, "i": ind, "s": side, "c": contra, "st": st, "note": note})
 
     db.commit()
 
@@ -88,24 +67,24 @@ def _kiem_tra_unaccent(db: Session) -> bool:
 
 
 def search_users(db: Session, q: str | None) -> list[User]:
-    """Danh sách user chưa xóa, lọc theo HỌ TÊN hoặc email khi có từ khóa."""
-    query = db.query(User).filter(User.deleted_at.is_(None))  # type: ignore
+    """Danh sách user, lọc theo HỌ TÊN hoặc email khi có từ khóa."""
+    query = db.query(User).outerjoin(UserInfo, UserInfo.user_id == User.id)
 
     tu_khoa = (q or "").strip()
     if tu_khoa:
         kw = f"%{tu_khoa}%"
         if _kiem_tra_unaccent(db):
             dieu_kien = text(
-                "unaccent(coalesce(users.full_name, '')) ILIKE unaccent(:kw)"
+                "unaccent(coalesce(user_info.full_name, '')) ILIKE unaccent(:kw)"
                 " OR unaccent(users.email) ILIKE unaccent(:kw)"
             ).bindparams(kw=kw)
         else:
             dieu_kien = text(
-                "coalesce(users.full_name, '') ILIKE :kw OR users.email ILIKE :kw"
+                "coalesce(user_info.full_name, '') ILIKE :kw OR users.email ILIKE :kw"
             ).bindparams(kw=kw)
         query = query.filter(dieu_kien)
 
-    return query.order_by(User.created_at.desc()).all()
+    return query.order_by(User.updated_at.desc()).all()
 
 
 @router.get("/users", response_model=list[AdminUserOut])
@@ -149,7 +128,7 @@ def soft_delete_user(
     if user.id == actor.id:
         raise HTTPException(400, "Không thể tự xóa tài khoản của mình")
 
-    user.deleted_at = datetime.now(timezone.utc)   # type: ignore
+    db.delete(user)
     write_audit(db, actor.id, "DELETE", "users", user_id)
     db.commit()
 
@@ -176,54 +155,34 @@ def create_drug(
     return drug
 
 
-@router.put("/drugs/{drug_id}/rules")
-def set_country_rule(
-    drug_id: str, payload: DrugRuleIn,
+@router.put("/drugs/{drug_id}", response_model=DrugOut)
+def update_drug(
+    drug_id: str, payload: DrugIn,
     db: Session = Depends(get_db),
     actor: User = admin_only,
 ):
-    """Đặt trạng thái thuốc theo quốc gia (ALLOWED/RESTRICTED/BANNED) và đồng bộ thuốc cùng hoạt chất."""
-    default_notes = {
-        "BANNED": "Bị cấm lưu hành và sử dụng tại quốc gia này do nguy cơ tim mạch và tác hại nghiêm trọng.",
-        "RESTRICTED": "Thuốc bị hạn chế sử dụng (thuốc kê đơn / quản lý đặc biệt), bắt buộc phải có chỉ định của bác sĩ chuyên khoa.",
-        "ALLOWED": "Được phép sử dụng theo đúng chỉ định và liều lượng khuyến cáo.",
-    }
-    new_note = payload.note or default_notes.get(payload.status, "")
-
-    target_drug = db.query(Drug).filter(Drug.id == drug_id).first()
+    """Cập nhật thông tin thuốc và đồng bộ thuốc cùng hoạt chất."""
+    target_drug = db.query(Drug).filter(Drug.id == drug_id).first()  # type: ignore
     if not target_drug:
         raise HTTPException(404, "Không tìm thấy thuốc")
 
-    # Tìm tất cả thuốc có cùng hoạt chất để đồng bộ quy định
     drugs_to_update = [target_drug]
-    if target_drug.active_ingredient:
+    if target_drug.active_ingredient is not None:
         related = db.query(Drug).filter(
-            Drug.active_ingredient.ilike(target_drug.active_ingredient),
-            Drug.id != target_drug.id,
+            Drug.active_ingredient.ilike(target_drug.active_ingredient),  # type: ignore
+            Drug.id != target_drug.id,  # type: ignore
         ).all()
         drugs_to_update.extend(related)
 
+    data = payload.model_dump(exclude_unset=True)
     for d in drugs_to_update:
-        rule = db.query(DrugCountryRule).filter(
-            DrugCountryRule.drug_id == d.id,
-            DrugCountryRule.country_code == payload.country_code,
-        ).first()
+        for k, v in data.items():
+            setattr(d, k, v)
 
-        if rule:
-            rule.status = payload.status  # type: ignore
-            rule.note = new_note  # type: ignore
-            rule.updated_by = actor.id  # type: ignore
-        else:
-            db.add(DrugCountryRule(
-                drug_id=d.id, country_code=payload.country_code,
-                status=payload.status, note=new_note, updated_by=actor.id,
-            ))
-
-    write_audit(db, actor.id, "UPDATE", "drug_country_rules",
-                f"{drug_id}:{payload.country_code}",
-                before=None, after={"status": payload.status, "note": new_note})  # type: ignore
+    write_audit(db, actor.id, "UPDATE", "drugs", drug_id, after=data)
     db.commit()
-    return {"message": "Đã cập nhật và đồng bộ quy định thuốc theo quốc gia"}
+    db.refresh(target_drug)
+    return target_drug
 
 
 # ---------- Danh mục tài liệu ----------
@@ -240,14 +199,14 @@ def _slug_chua_dung(db: Session, goc: str) -> str:
 
 def danh_sach_doc_category(db: Session) -> list[DocCategoryOut]:
     rows = (
-        db.query(DocCategory, func.count(Document.id))
+        db.query(DocCategory, func.count(Document.id))  # type: ignore
         .outerjoin(Document, Document.category_id == DocCategory.id)  # type: ignore
-        .group_by(DocCategory.id)
-        .order_by(DocCategory.name)
+        .group_by(DocCategory.id)  # type: ignore
+        .order_by(DocCategory.name)  # type: ignore
         .all()
     )
     return [
-        DocCategoryOut(id=c.id, name=c.name, slug=c.slug, parent_id=c.parent_id, so_tai_lieu=n)
+        DocCategoryOut(id=int(c.id), name=str(c.name), slug=str(c.slug), parent_id=c.parent_id, so_tai_lieu=n)  # type: ignore
         for c, n in rows
     ]
 
@@ -264,7 +223,7 @@ def them_doc_category(db: Session, actor: User, payload: CategoryIn) -> DocCateg
                 after={"name": cat.name, "slug": cat.slug})
     db.commit()
     db.refresh(cat)
-    return DocCategoryOut(id=cat.id, name=cat.name, slug=cat.slug, parent_id=cat.parent_id)
+    return DocCategoryOut(id=int(cat.id), name=str(cat.name), slug=str(cat.slug), parent_id=cat.parent_id)  # type: ignore
 
 
 def sua_doc_category(db: Session, actor: User, cat_id: int, payload: CategoryIn) -> DocCategoryOut:
@@ -281,7 +240,7 @@ def sua_doc_category(db: Session, actor: User, cat_id: int, payload: CategoryIn)
                 before=truoc, after={"name": cat.name, "parent_id": cat.parent_id})
     db.commit()
     db.refresh(cat)
-    return DocCategoryOut(id=cat.id, name=cat.name, slug=cat.slug, parent_id=cat.parent_id)
+    return DocCategoryOut(id=int(cat.id), name=str(cat.name), slug=str(cat.slug), parent_id=cat.parent_id)  # type: ignore
 
 
 def xoa_doc_category(db: Session, actor: User, cat_id: int) -> None:
@@ -321,13 +280,13 @@ def api_xoa_doc_category(cat_id: int, db: Session = Depends(get_db), actor: User
 
 def danh_sach_drug_category(db: Session) -> list[DrugCategoryOut]:
     rows = (
-        db.query(DrugCategory, func.count(Drug.id))
+        db.query(DrugCategory, func.count(Drug.id))  # type: ignore
         .outerjoin(Drug, (Drug.category_id == DrugCategory.id) & (Drug.deleted_at.is_(None)))  # type: ignore
-        .group_by(DrugCategory.id)
-        .order_by(DrugCategory.name)
+        .group_by(DrugCategory.id)  # type: ignore
+        .order_by(DrugCategory.name)  # type: ignore
         .all()
     )
-    return [DrugCategoryOut(id=c.id, name=c.name, so_thuoc=n) for c, n in rows]
+    return [DrugCategoryOut(id=int(c.id), name=str(c.name), so_thuoc=n) for c, n in rows]  # type: ignore
 
 
 def them_drug_category(db: Session, actor: User, payload: CategoryIn) -> DrugCategoryOut:
@@ -341,7 +300,7 @@ def them_drug_category(db: Session, actor: User, payload: CategoryIn) -> DrugCat
     write_audit(db, actor.id, "CREATE", "drug_categories", str(cat.id), after={"name": ten})
     db.commit()
     db.refresh(cat)
-    return DrugCategoryOut(id=cat.id, name=cat.name)
+    return DrugCategoryOut(id=int(cat.id), name=str(cat.name))  # type: ignore
 
 
 def sua_drug_category(db: Session, actor: User, cat_id: int, payload: CategoryIn) -> DrugCategoryOut:
@@ -364,7 +323,7 @@ def sua_drug_category(db: Session, actor: User, cat_id: int, payload: CategoryIn
                 before=truoc, after={"name": ten})
     db.commit()
     db.refresh(cat)
-    return DrugCategoryOut(id=cat.id, name=cat.name)
+    return DrugCategoryOut(id=int(cat.id), name=str(cat.name))  # type: ignore
 
 
 def xoa_drug_category(db: Session, actor: User, cat_id: int) -> None:

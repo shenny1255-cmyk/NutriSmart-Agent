@@ -139,14 +139,12 @@ def record_weight_snapshot(db: Session, user: User) -> None:
         .first()
     )
     if row:
-        row.weight_kg = profile.weight_kg
-        row.bmi = profile.bmi
+        row.weight_kg = profile.weight_kg  # type: ignore
     else:
         db.add(BodyMetricHistory(
             user_id=user.id,
             recorded_at=today,
             weight_kg=profile.weight_kg,
-            bmi=profile.bmi,
         ))
 
 
@@ -170,16 +168,15 @@ def create_plan(
     old = (
         db.query(NutritionPlan)
         .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
-        .order_by(NutritionPlan.version.desc())
+        .order_by(NutritionPlan.version.desc())  # type: ignore
         .first()
     )
     if old:
-        old.status = old_status
+        old.status = old_status  # type: ignore
 
     plan = NutritionPlan(
         user_id=user.id,
-        version=(old.version + 1) if old else 1,
-        parent_plan_id=old.id if old else None,
+        version=(int(old.version) + 1) if old else 1,  # type: ignore
         start_date=date.today(),
         end_date=date.today() + timedelta(days=PLAN_DAYS),
         daily_kcal_target=target,

@@ -1,19 +1,17 @@
-CREATE TABLE countries (
-    code CHAR(2) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL
-);
-
 CREATE TABLE users (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email         VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    full_name     VARCHAR(150),
     role          user_role NOT NULL DEFAULT 'USER',
-    country_code  CHAR(2) REFERENCES countries(code),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at    TIMESTAMPTZ          -- soft delete
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE user_info (
+    user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    full_name    VARCHAR(150),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE health_profiles (

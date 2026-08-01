@@ -212,12 +212,12 @@ def run_plan_job(db: Session, user: User, force: bool = False) -> dict:
     if not plan:
         return {"evaluated": False, "reason": "Chưa có lộ trình nào đang áp dụng"}
 
-    if not force and not is_due(plan.start_date):
-        con_lai = PERIOD_DAYS - (date.today() - plan.start_date).days
+    if not force and not is_due(plan.start_date):  # type: ignore
+        con_lai = PERIOD_DAYS - (date.today() - plan.start_date).days  # type: ignore
         return {"evaluated": False, "reason": f"Lộ trình chưa đủ 7 ngày (còn {con_lai} ngày)"}
 
     period_start = plan.start_date
-    period_end = min(date.today(), period_start + timedelta(days=PERIOD_DAYS - 1))
+    period_end = min(date.today(), period_start + timedelta(days=PERIOD_DAYS - 1))  # type: ignore
 
     if already_evaluated(db, plan.id, period_start):
         return {"evaluated": False, "reason": "Kỳ này đã được đánh giá"}
@@ -246,7 +246,7 @@ def run_plan_job(db: Session, user: User, force: bool = False) -> dict:
 
     # Đồng bộ mục tiêu calo mới vào hồ sơ để dashboard/chat dùng chung một con số
     if user.profile and new_target != target:
-        user.profile.daily_calorie_target = new_target
+        user.profile.daily_calorie_target = new_target  # type: ignore
 
     note = build_note(result, target, new_target, avg_kcal, weight_change)
     new_plan = plan_generator.create_plan(
@@ -279,9 +279,7 @@ def run_job_for_all(db: Session) -> dict:
         db.query(User)
         .join(NutritionPlan, NutritionPlan.user_id == User.id)  # type: ignore
         .filter(NutritionPlan.status == "ACTIVE",  # type: ignore
-                NutritionPlan.start_date <= han,  # type: ignore
-                User.deleted_at.is_(None),
-                User.is_active.is_(True))
+                NutritionPlan.start_date <= han)  # type: ignore
         .distinct()
         .all()
     )

@@ -78,7 +78,7 @@ def run_indexing_pipeline(doc_id: str):
 def _index_mot_tai_lieu(doc_id: str):
     db = SessionLocal()
     try:
-        doc = db.query(Document).filter(Document.id == doc_id).first()
+        doc = db.query(Document).filter(Document.id == doc_id).first()  # type: ignore
         if not doc:
             logger.error(f"[RAG Indexer] Không tìm thấy tài liệu {doc_id}")
             return
@@ -88,7 +88,7 @@ def _index_mot_tai_lieu(doc_id: str):
             return
 
         # Xóa các chunk cũ của tài liệu này để đảm bảo tính Idempotent (không bị trùng lặp khi duyệt lại)
-        db.query(DocChunk).filter(DocChunk.document_id == doc.id).delete()
+        db.query(DocChunk).filter(DocChunk.document_id == doc.id).delete()  # type: ignore
         db.flush()
 
         text_chunks = split_text(doc.raw_text)

@@ -137,7 +137,7 @@ export const api = {
   deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
   adminDrugs: () => request('/admin/drugs'),
   createDrug: (payload) => request('/admin/drugs', { method: 'POST', body: payload }),
-  setDrugRule: (id, payload) => request(`/admin/drugs/${id}/rules`, { method: 'PUT', body: payload }),
+  updateDrug: (id, payload) => request(`/admin/drugs/${id}`, { method: 'PUT', body: payload }),
   auditLogs: () => request('/admin/audit'),
   // Danh mục tài liệu / nhóm thuốc
   docCategories: () => request('/admin/doc-categories'),

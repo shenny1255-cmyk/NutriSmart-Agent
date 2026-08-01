@@ -2,15 +2,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
-from app.models import Country, MedicalCondition, Allergen, Food, Exercise
-from app.schemas import CountryOut, ItemOut, FoodOut, ExerciseOut
+from app.models import MedicalCondition, Allergen, Food, Exercise
+from app.schemas import ItemOut, FoodOut, ExerciseOut
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
-
-
-@router.get("/countries", response_model=list[CountryOut])
-def countries(db: Session = Depends(get_db)):
-    return db.query(Country).order_by(Country.name).all()
 
 
 @router.get("/conditions", response_model=list[ItemOut])
@@ -32,7 +27,7 @@ def foods(
     """Danh mục món ăn cho màn ghi nhật ký (có index trigram trên foods.name)."""
     query = db.query(Food)
     if q and q.strip():
-        query = query.filter(Food.name.ilike(f"%{q.strip()}%"))
+        query = query.filter(Food.name.ilike(f"%{q.strip()}%"))  # type: ignore
     return query.order_by(Food.name).limit(limit).all()
 
 

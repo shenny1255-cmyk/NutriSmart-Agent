@@ -31,13 +31,12 @@ def seed_demo(db: Session = Depends(get_db)):
 
     # 1. Xóa tài khoản demo cũ nếu có (CASCADE dọn sạch profile, logs, plan...)
     all_demo_emails = [DEMO_EMAIL] + [u["email"] for u in EXTRA_DEMO_USERS]
-    old_users = db.query(User).filter(User.email.in_(all_demo_emails)).all()
+    old_users = db.query(User).filter(User.email.in_(all_demo_emails)).all()  # type: ignore
     for old in old_users:
         # Các bảng FK → users.id không có ON DELETE CASCADE → xóa thủ công
         uid = str(old.id)
         db.execute(text("DELETE FROM audit_logs WHERE actor_id = :uid"), {"uid": uid})
         db.execute(text("DELETE FROM documents WHERE uploaded_by = :uid OR approved_by = :uid"), {"uid": uid})
-        db.execute(text("DELETE FROM drug_country_rules WHERE updated_by = :uid"), {"uid": uid})
         db.delete(old)
     db.flush()
 
@@ -46,9 +45,7 @@ def seed_demo(db: Session = Depends(get_db)):
         email=DEMO_EMAIL,
         password_hash=hash_password(DEMO_PASSWORD),
         full_name="Người dùng Demo",
-        country_code="VN",
         role="ADMIN",
-        email_verified=True,
     )
     db.add(user)
     db.flush()
@@ -59,9 +56,7 @@ def seed_demo(db: Session = Depends(get_db)):
             email=u["email"],
             password_hash=hash_password(DEMO_PASSWORD),
             full_name=u["full_name"],
-            country_code="VN",
             role=u["role"],
-            email_verified=True,
         ))
     db.flush()
 
@@ -74,12 +69,19 @@ def seed_demo(db: Session = Depends(get_db)):
         activity_level=3,
         goal="LOSE_WEIGHT",
     )
-    target = daily_calorie_target(**profile_args)
+    target = daily_calorie_target(  # type: ignore
+        gender=str(profile_args["gender"]),
+        birth_date=profile_args["birth_date"],  # type: ignore
+        height_cm=float(profile_args["height_cm"]),  # type: ignore
+        weight_kg=float(profile_args["weight_kg"]),  # type: ignore
+        activity_level=int(profile_args["activity_level"]),  # type: ignore
+        goal=str(profile_args["goal"]),
+    )
 
     profile = HealthProfile(
         user_id=user.id,
         daily_calorie_target=target,
-        **profile_args,
+        **profile_args,  # type: ignore
     )
     db.add(profile)
     db.flush()
@@ -139,7 +141,7 @@ def seed_demo(db: Session = Depends(get_db)):
         """), {
             "uid": str(user.id),
             "d": date.today() - timedelta(days=d),
-            "w": round(float(profile_args["weight_kg"]) + d * 0.1, 2),
+            "w": round(float(profile_args["weight_kg"]) + d * 0.1, 2),  # type: ignore
         })
 
     # 7. Một lộ trình đang active
@@ -207,32 +209,18 @@ def seed_demo(db: Session = Depends(get_db)):
                       (SELECT COALESCE(MAX(id), 0) + 1 FROM drug_categories), false);
     """))
     sample_drugs = [
-        ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát'),
-        ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ'),
-        ('a0000000-0000-0000-0000-000000000003', 1, 'Phentermine', 'Phentermine', 'Giảm thèm ăn', 'Tăng nhịp tim, mất ngủ, nghiện', 'Bệnh tim, tăng áp phổi'),
-        ('a0000000-0000-0000-0000-000000000004', 2, 'Pseudoephedrine', 'Pseudoephedrine', 'Giảm sung huyết mũi', 'Tăng huyết áp, hồi hộp', 'Bệnh tăng huyết áp nặng'),
-        ('a0000000-0000-0000-0000-000000000005', 2, 'Paracetamol', 'Paracetamol', 'Giảm đau hạ sốt', 'Hại gan khi dùng quá liều', 'Suy gan nặng'),
+        ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát', 'BANNED', 'Bị cấm lưu hành tại Việt Nam do nguy cơ tim mạch và đột quỵ nghiêm trọng.'),
+        ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ', 'BANNED', 'Bị rút giấy phép lưu hành tại Việt Nam do chứa Sibutramine.'),
+        ('a0000000-0000-0000-0000-000000000003', 1, 'Phentermine', 'Phentermine', 'Giảm thèm ăn', 'Tăng nhịp tim, mất ngủ, nghiện', 'Bệnh tim, tăng áp phổi', 'BANNED', 'Cấm sử dụng trong thực phẩm chức năng và thuốc giảm cân không kê đơn tại Việt Nam.'),
+        ('a0000000-0000-0000-0000-000000000004', 2, 'Pseudoephedrine', 'Pseudoephedrine', 'Giảm sung huyết mũi', 'Tăng huyết áp, hồi hộp', 'Bệnh tăng huyết áp nặng', 'RESTRICTED', 'Thuốc kê đơn, cần quản lý đặc biệt và có chỉ định của bác sĩ tại Việt Nam.'),
+        ('a0000000-0000-0000-0000-000000000005', 2, 'Paracetamol', 'Paracetamol', 'Giảm đau hạ sốt', 'Hại gan khi dùng quá liều', 'Suy gan nặng', 'ALLOWED', 'Được phép sử dụng theo đúng liều lượng khuyến cáo.'),
     ]
-    for did, cid, name, active, ind, side, contra in sample_drugs:
+    for did, cid, name, active, ind, side, contra, st, note in sample_drugs:
         db.execute(text("""
-            INSERT INTO drugs (id, category_id, name, active_ingredient, indications, side_effects, contraindications)
-            VALUES (:id, :cid, :n, :a, :i, :s, :c)
-            ON CONFLICT DO NOTHING;
-        """), {"id": did, "cid": cid, "n": name, "a": active, "i": ind, "s": side, "c": contra})
-
-    sample_rules = [
-        ('a0000000-0000-0000-0000-000000000001', 'VN', 'BANNED', 'Bị cấm lưu hành tại Việt Nam do nguy cơ tim mạch và đột quỵ nghiêm trọng.'),
-        ('a0000000-0000-0000-0000-000000000002', 'VN', 'BANNED', 'Bị rút giấy phép lưu hành tại Việt Nam do chứa Sibutramine.'),
-        ('a0000000-0000-0000-0000-000000000003', 'VN', 'BANNED', 'Cấm sử dụng trong thực phẩm chức năng và thuốc giảm cân không kê đơn tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000004', 'VN', 'RESTRICTED', 'Thuốc kê đơn, cần quản lý đặc biệt và có chỉ định của bác sĩ tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000005', 'VN', 'ALLOWED', 'Được phép sử dụng theo đúng liều lượng khuyến cáo.'),
-    ]
-    for did, cc, st, note in sample_rules:
-        db.execute(text("""
-            INSERT INTO drug_country_rules (drug_id, country_code, status, note, updated_by)
-            VALUES (:did, :cc, :st, :note, :uid)
-            ON CONFLICT (drug_id, country_code) DO UPDATE SET status = EXCLUDED.status, note = EXCLUDED.note;
-        """), {"did": did, "cc": cc, "st": st, "note": note, "uid": str(user.id)})
+            INSERT INTO drugs (id, category_id, name, active_ingredient, indications, side_effects, contraindications, status, status_note)
+            VALUES (:id, :cid, :n, :a, :i, :s, :c, :st, :note)
+            ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, status_note = EXCLUDED.status_note;
+        """), {"id": did, "cid": cid, "n": name, "a": active, "i": ind, "s": side, "c": contra, "st": st, "note": note})
 
     db.commit()
 

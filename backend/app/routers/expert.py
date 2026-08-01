@@ -27,7 +27,7 @@ def pending_documents(db: Session = Depends(get_db), _: User = expert_or_admin):
     """Tài liệu đang chờ duyệt."""
     return (
         db.query(Document)
-        .filter(Document.status == "PENDING", Document.deleted_at.is_(None))
+        .filter(Document.status == "PENDING", Document.deleted_at.is_(None))  # type: ignore
         .order_by(Document.created_at)
         .all()
     )
@@ -41,7 +41,7 @@ def review_document(
     actor: User = expert_or_admin,
 ):
     """Duyệt hoặc từ chối tài liệu. Duyệt xong mới đưa vào RAG (indexing)."""
-    doc = db.query(Document).filter(Document.id == doc_id).first()
+    doc = db.query(Document).filter(Document.id == doc_id).first()  # type: ignore
     if not doc:
         raise HTTPException(404, "Không tìm thấy tài liệu")
 
@@ -166,7 +166,7 @@ def flag_message(
     actor: User = expert_or_admin,
 ):
     """Gắn cờ câu trả lời AI sai lệch (kiểm định tri thức)."""
-    msg = db.query(ChatMessage).filter(ChatMessage.id == msg_id).first()
+    msg = db.query(ChatMessage).filter(ChatMessage.id == msg_id).first()  # type: ignore
     if not msg:
         raise HTTPException(404, "Không tìm thấy tin nhắn")
 
