@@ -94,7 +94,7 @@ function Shell() {
 
   useEffect(() => {
     api.me().then((me) => {
-      setEmailVerified(me.email_verified);
+      setEmailVerified(me.is_verified);
       setUserName(me.full_name || me.email || '');
     }).catch(() => {});
   }, []);

@@ -69,7 +69,7 @@ export default function Profile() {
         email: me.email || '',
         role: me.role || 'USER',
         full_name: me.full_name || '',
-        country_code: me.country_code || 'VN',
+        // country_code đã bỏ (mặc định Việt Nam)
         gender: p?.gender || 'MALE',
         birth_date: p?.birth_date || '',
         height_cm: p?.height_cm ?? '',
@@ -97,7 +97,7 @@ export default function Profile() {
     try {
       const payload = {
         full_name: form.full_name,
-        country_code: form.country_code,
+        // country_code đã bỏ khỏi user_info
         gender: form.gender,
         birth_date: form.birth_date || null,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
