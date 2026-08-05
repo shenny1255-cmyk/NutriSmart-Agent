@@ -1,229 +1,290 @@
-[countries]
-    *code {label:"CHAR(2)"}
-    name {label:"VARCHAR(100)"}
+// ER Diagram - NutriSmart Agent (Nhóm E15)
+// Cập nhật: Thêm staff_profiles, xóa countries/drug_country_rules/email_verified
+// Tổng: 26 bảng (25 hiện tại + 1 staff_profiles mới theo plan)
+
+// ==================== NHÓM USER & PHÂN QUYỀN ====================
+
 [users]
     *id {label:"UUID"}
-    country_code {label:"CHAR(2)"}
-    created_at {label:"DATETIME"}
-    deleted_at {label:"DATETIME"}
     email {label:"VARCHAR(255)"}
-    email_verified {label:"BOOLEAN"}
-    full_name {label:"VARCHAR(150)"}
-    is_active {label:"BOOLEAN"}
     password_hash {label:"VARCHAR(255)"}
-    role {label:"VARCHAR(6)"}
-    updated_at {label:"DATETIME"}
+    role {label:"user_role (USER/EXPERT/ADMIN)"}
+    is_verified {label:"BOOLEAN"}
+    created_at {label:"TIMESTAMPTZ"}
+    updated_at {label:"TIMESTAMPTZ"}
+
+[user_info]
+    *user_id {label:"UUID (FK → users)"}
+    full_name {label:"VARCHAR(150)"}
+    created_at {label:"TIMESTAMPTZ"}
+    updated_at {label:"TIMESTAMPTZ"}
+
+[staff_profiles]
+    *user_id {label:"UUID (FK → users)"}
+    title {label:"VARCHAR(100)"}
+    department {label:"VARCHAR(100)"}
+    license_no {label:"VARCHAR(50)"}
+    created_at {label:"TIMESTAMPTZ"}
+    updated_at {label:"TIMESTAMPTZ"}
+
+// ==================== HỒ SƠ SỨC KHỎE (chỉ USER) ====================
+
 [health_profiles]
     *id {label:"UUID"}
-    activity_level {label:"SMALLINT"}
-    birth_date {label:"DATE"}
-    bmi {label:"NUMERIC(5, 2)"}
-    daily_calorie_target {label:"INTEGER"}
+    user_id {label:"UUID (FK → users)"}
     gender {label:"VARCHAR(6)"}
-    goal {label:"VARCHAR(11)"}
-    height_cm {label:"NUMERIC(5, 2)"}
-    updated_at {label:"DATETIME"}
-    user_id {label:"UUID"}
-    weight_kg {label:"NUMERIC(5, 2)"}
+    birth_date {label:"DATE"}
+    height_cm {label:"NUMERIC(5,2)"}
+    weight_kg {label:"NUMERIC(5,2)"}
+    bmi {label:"NUMERIC(5,2) GENERATED"}
+    activity_level {label:"SMALLINT"}
+    goal {label:"goal_enum"}
+    daily_calorie_target {label:"INTEGER"}
+    updated_at {label:"TIMESTAMPTZ"}
+
 [medical_conditions]
     *id {label:"INTEGER"}
     code {label:"VARCHAR(50)"}
     name {label:"VARCHAR(150)"}
+
 [allergens]
     *id {label:"INTEGER"}
     name {label:"VARCHAR(150)"}
+
 [profile_conditions]
-    *condition_id {label:"INTEGER"}
-    *profile_id {label:"UUID"}
+    *profile_id {label:"UUID (FK → health_profiles)"}
+    *condition_id {label:"INTEGER (FK → medical_conditions)"}
+
 [profile_allergens]
-    *allergen_id {label:"INTEGER"}
-    *profile_id {label:"UUID"}
+    *profile_id {label:"UUID (FK → health_profiles)"}
+    *allergen_id {label:"INTEGER (FK → allergens)"}
     severity {label:"SMALLINT"}
-[nutrition_plans]
-    *id {label:"UUID"}
-    content {label:"JSONB"}
-    created_at {label:"DATETIME"}
-    daily_kcal_target {label:"INTEGER"}
-    end_date {label:"DATE"}
-    generated_by {label:"VARCHAR(100)"}
-    goal {label:"VARCHAR(11)"}
-    parent_plan_id {label:"UUID"}
-    start_date {label:"DATE"}
-    status {label:"VARCHAR(9)"}
-    user_id {label:"UUID"}
-    version {label:"INTEGER"}
-[plan_evaluations]
-    *id {label:"BIGINT"}
-    ai_feedback {label:"TEXT"}
-    avg_kcal_intake {label:"NUMERIC(8, 2)"}
-    evaluated_at {label:"DATETIME"}
-    period_end {label:"DATE"}
-    period_start {label:"DATE"}
-    plan_id {label:"UUID"}
-    result {label:"VARCHAR(12)"}
-    weight_change_kg {label:"NUMERIC(5, 2)"}
+
+// ==================== THEO DÕI SỨC KHỎE ====================
+
 [body_metrics_history]
     *id {label:"BIGINT"}
-    bmi {label:"NUMERIC(5, 2)"}
+    user_id {label:"UUID (FK → users)"}
     recorded_at {label:"DATE"}
-    user_id {label:"UUID"}
-    weight_kg {label:"NUMERIC(5, 2)"}
-[notifications]
+    weight_kg {label:"NUMERIC(5,2)"}
+    bmi {label:"NUMERIC(5,2)"}
+
+[meal_logs]
     *id {label:"BIGINT"}
-    body {label:"TEXT"}
-    created_at {label:"DATETIME"}
-    is_read {label:"BOOLEAN"}
-    title {label:"VARCHAR(200)"}
-    type {label:"VARCHAR(50)"}
-    user_id {label:"UUID"}
+    user_id {label:"UUID (FK → users)"}
+    food_id {label:"UUID (FK → foods)"}
+    meal_image_id {label:"UUID (FK → meal_images)"}
+    meal_type {label:"VARCHAR(9)"}
+    quantity {label:"NUMERIC(6,2)"}
+    calories_kcal {label:"NUMERIC(7,2)"}
+    log_date {label:"DATE"}
+    logged_at {label:"TIMESTAMPTZ"}
+
+[activity_logs]
+    *id {label:"BIGINT"}
+    user_id {label:"UUID (FK → users)"}
+    exercise_id {label:"INTEGER (FK → exercises)"}
+    duration_min {label:"INTEGER"}
+    calories_burned {label:"NUMERIC(7,2)"}
+    steps {label:"INTEGER"}
+    log_date {label:"DATE"}
+
+// ==================== THỰC PHẨM & BÀI TẬP ====================
+
+[foods]
+    *id {label:"UUID"}
+    name {label:"VARCHAR(200)"}
+    calories_kcal {label:"NUMERIC(7,2)"}
+    protein_g {label:"NUMERIC(6,2)"}
+    carb_g {label:"NUMERIC(6,2)"}
+    fat_g {label:"NUMERIC(6,2)"}
+    serving_gram {label:"NUMERIC(7,2)"}
+    serving_desc {label:"VARCHAR(100)"}
+    source {label:"VARCHAR(100)"}
+
+[exercises]
+    *id {label:"INTEGER"}
+    name {label:"VARCHAR(150)"}
+    category {label:"VARCHAR(80)"}
+    met_value {label:"NUMERIC(4,2)"}
+
+[meal_images]
+    *id {label:"UUID"}
+    user_id {label:"UUID (FK → users)"}
+    image_path {label:"TEXT"}
+    predicted_food_id {label:"UUID (FK → foods)"}
+    estimated_kcal {label:"NUMERIC(7,2)"}
+    confidence {label:"NUMERIC(4,3)"}
+    raw_prediction {label:"JSONB"}
+    suitability_note {label:"TEXT"}
+    status {label:"VARCHAR(7)"}
+    created_at {label:"TIMESTAMPTZ"}
+
+// ==================== LỘ TRÌNH DINH DƯỠNG ====================
+
+[nutrition_plans]
+    *id {label:"UUID"}
+    user_id {label:"UUID (FK → users)"}
+    version {label:"INTEGER"}
+    status {label:"plan_status (ACTIVE/COMPLETED/REVISED/CANCELLED)"}
+    goal {label:"goal_enum"}
+    daily_kcal_target {label:"INTEGER"}
+    content {label:"JSONB"}
+    generated_by {label:"VARCHAR(100)"}
+    start_date {label:"DATE"}
+    end_date {label:"DATE"}
+    created_at {label:"TIMESTAMPTZ"}
+
+[plan_evaluations]
+    *id {label:"BIGINT"}
+    plan_id {label:"UUID (FK → nutrition_plans)"}
+    period_start {label:"DATE"}
+    period_end {label:"DATE"}
+    avg_kcal_intake {label:"NUMERIC(8,2)"}
+    weight_change_kg {label:"NUMERIC(5,2)"}
+    result {label:"VARCHAR(12)"}
+    ai_feedback {label:"TEXT"}
+    evaluated_at {label:"TIMESTAMPTZ"}
+
+// ==================== TÀI LIỆU RAG ====================
+
 [doc_categories]
     *id {label:"INTEGER"}
     name {label:"VARCHAR(150)"}
-    parent_id {label:"INTEGER"}
     slug {label:"VARCHAR(150)"}
+    parent_id {label:"INTEGER (FK → doc_categories)"}
+
 [documents]
     *id {label:"UUID"}
-    approved_at {label:"DATETIME"}
-    approved_by {label:"UUID"}
-    category_id {label:"INTEGER"}
-    created_at {label:"DATETIME"}
-    deleted_at {label:"DATETIME"}
-    file_path {label:"TEXT"}
-    language {label:"VARCHAR(10)"}
+    uploaded_by {label:"UUID (FK → users)"}
+    approved_by {label:"UUID (FK → users)"}
+    category_id {label:"INTEGER (FK → doc_categories)"}
+    title {label:"TEXT"}
     raw_text {label:"TEXT"}
+    file_path {label:"TEXT"}
     source_name {label:"VARCHAR(150)"}
     source_url {label:"TEXT"}
+    language {label:"VARCHAR(10)"}
     status {label:"VARCHAR(8)"}
-    title {label:"TEXT"}
-    uploaded_by {label:"UUID"}
+    created_at {label:"TIMESTAMPTZ"}
+    approved_at {label:"TIMESTAMPTZ"}
+    deleted_at {label:"TIMESTAMPTZ"}
+
 [doc_chunks]
     *id {label:"BIGINT"}
+    document_id {label:"UUID (FK → documents)"}
     chunk_index {label:"INTEGER"}
     content {label:"TEXT"}
-    document_id {label:"UUID"}
+    token_count {label:"INTEGER"}
     embedding {label:"VECTOR(1024)"}
     metadata {label:"JSONB"}
-    token_count {label:"INTEGER"}
+
+// ==================== DƯỢC PHẨM ====================
+
 [drug_categories]
     *id {label:"INTEGER"}
     name {label:"VARCHAR(150)"}
+
 [drugs]
     *id {label:"UUID"}
-    active_ingredient {label:"VARCHAR(200)"}
-    category_id {label:"INTEGER"}
-    contraindications {label:"TEXT"}
-    created_at {label:"DATETIME"}
-    deleted_at {label:"DATETIME"}
-    indications {label:"TEXT"}
+    category_id {label:"INTEGER (FK → drug_categories)"}
     name {label:"VARCHAR(200)"}
+    active_ingredient {label:"VARCHAR(200)"}
+    indications {label:"TEXT"}
+    contraindications {label:"TEXT"}
     side_effects {label:"TEXT"}
-[drug_country_rules]
-    *country_code {label:"CHAR(2)"}
-    *drug_id {label:"UUID"}
-    note {label:"TEXT"}
-    status {label:"VARCHAR(10)"}
-    updated_at {label:"DATETIME"}
-    updated_by {label:"UUID"}
-[chat_messages]
-    *id {label:"INTEGER"}
-    content {label:"TEXT"}
-    created_at {label:"DATETIME"}
-    flagged {label:"BOOLEAN"}
-    role {label:"VARCHAR(20)"}
-    session_id {label:"UUID"}
-[audit_logs]
-    *id {label:"BIGINT"}
-    action {label:"VARCHAR(50)"}
-    actor_id {label:"UUID"}
-    after_data {label:"JSONB"}
-    before_data {label:"JSONB"}
-    created_at {label:"DATETIME"}
-    entity {label:"VARCHAR(80)"}
-    entity_id {label:"TEXT"}
-    ip_address {label:"INET"}
+    status {label:"drug_status (ALLOWED/RESTRICTED/BANNED)"}
+    status_note {label:"TEXT"}
+    created_at {label:"TIMESTAMPTZ"}
+    deleted_at {label:"TIMESTAMPTZ"}
+
+// ==================== CHAT AI ====================
+
 [chat_sessions]
     *id {label:"UUID"}
-    created_at {label:"DATETIME"}
+    user_id {label:"UUID (FK → users)"}
     title {label:"VARCHAR(255)"}
-    user_id {label:"UUID"}
-[message_citations]
-    *chunk_id {label:"BIGINT"}
-    *message_id {label:"BIGINT"}
-    rank {label:"SMALLINT"}
-    score {label:"NUMERIC(5, 4)"}
-[exercises]
+    created_at {label:"TIMESTAMPTZ"}
+
+[chat_messages]
     *id {label:"INTEGER"}
-    category {label:"VARCHAR(80)"}
-    met_value {label:"NUMERIC(4, 2)"}
-    name {label:"VARCHAR(150)"}
-[activity_logs]
+    session_id {label:"UUID (FK → chat_sessions)"}
+    role {label:"VARCHAR(20)"}
+    content {label:"TEXT"}
+    flagged {label:"BOOLEAN"}
+    created_at {label:"TIMESTAMPTZ"}
+
+[message_citations]
+    *message_id {label:"BIGINT (FK → chat_messages)"}
+    *chunk_id {label:"BIGINT (FK → doc_chunks)"}
+    score {label:"NUMERIC(5,4)"}
+    rank {label:"SMALLINT"}
+
+// ==================== HỆ THỐNG ====================
+
+[notifications]
     *id {label:"BIGINT"}
-    calories_burned {label:"NUMERIC(7, 2)"}
-    duration_min {label:"INTEGER"}
-    exercise_id {label:"INTEGER"}
-    log_date {label:"DATE"}
-    steps {label:"INTEGER"}
-    user_id {label:"UUID"}
-[meal_images]
-    *id {label:"UUID"}
-    confidence {label:"NUMERIC(4, 3)"}
-    created_at {label:"DATETIME"}
-    estimated_kcal {label:"NUMERIC(7, 2)"}
-    image_path {label:"TEXT"}
-    predicted_food_id {label:"UUID"}
-    raw_prediction {label:"JSONB"}
-    status {label:"VARCHAR(7)"}
-    suitability_note {label:"TEXT"}
-    user_id {label:"UUID"}
-[foods]
-    *id {label:"UUID"}
-    calories_kcal {label:"NUMERIC(7, 2)"}
-    carb_g {label:"NUMERIC(6, 2)"}
-    fat_g {label:"NUMERIC(6, 2)"}
-    name {label:"VARCHAR(200)"}
-    protein_g {label:"NUMERIC(6, 2)"}
-    serving_desc {label:"VARCHAR(100)"}
-    serving_gram {label:"NUMERIC(7, 2)"}
-    source {label:"VARCHAR(100)"}
-[meal_logs]
+    user_id {label:"UUID (FK → users)"}
+    title {label:"VARCHAR(200)"}
+    body {label:"TEXT"}
+    type {label:"VARCHAR(50)"}
+    is_read {label:"BOOLEAN"}
+    created_at {label:"TIMESTAMPTZ"}
+
+[audit_logs]
     *id {label:"BIGINT"}
-    calories_kcal {label:"NUMERIC(7, 2)"}
-    food_id {label:"UUID"}
-    log_date {label:"DATE"}
-    logged_at {label:"DATETIME"}
-    meal_image_id {label:"UUID"}
-    meal_type {label:"VARCHAR(9)"}
-    quantity {label:"NUMERIC(6, 2)"}
-    user_id {label:"UUID"}
-countries ?--* users
+    actor_id {label:"UUID (FK → users)"}
+    action {label:"VARCHAR(50)"}
+    entity {label:"VARCHAR(80)"}
+    entity_id {label:"TEXT"}
+    before_data {label:"JSONB"}
+    after_data {label:"JSONB"}
+    ip_address {label:"INET"}
+    created_at {label:"TIMESTAMPTZ"}
+
+// ==================== RELATIONSHIPS ====================
+
+// User core
+users 1--1 user_info
+users 1--? staff_profiles
+
+// Health (USER only)
 users 1--1 health_profiles
 health_profiles 1--* profile_conditions
 medical_conditions 1--* profile_conditions
 health_profiles 1--* profile_allergens
 allergens 1--* profile_allergens
-users ?--* nutrition_plans
-nutrition_plans ?--* nutrition_plans
-nutrition_plans 1--* plan_evaluations
+
+// Tracking
 users 1--* body_metrics_history
-users 1--* notifications
+users 1--* meal_logs
+foods ?--* meal_logs
+meal_images ?--* meal_logs
+users 1--* activity_logs
+exercises ?--* activity_logs
+users 1--* meal_images
+foods ?--* meal_images
+
+// Plans
+users 1--* nutrition_plans
+nutrition_plans 1--* plan_evaluations
+
+// RAG Documents
 doc_categories ?--* doc_categories
 doc_categories ?--* documents
 users ?--* documents
 users ?--* documents
 documents 1--* doc_chunks
+
+// Drugs
 drug_categories ?--* drugs
-drugs 1--* drug_country_rules
-users ?--* drug_country_rules
-countries 1--* drug_country_rules
-chat_sessions ?--* chat_messages
-users ?--* audit_logs
+
+// Chat AI
 users 1--* chat_sessions
+chat_sessions 1--* chat_messages
 chat_messages 1--* message_citations
 doc_chunks 1--* message_citations
-users 1--* activity_logs
-exercises ?--* activity_logs
-users 1--* meal_images
-foods ?--* meal_images
-meal_images ?--* meal_logs
-foods ?--* meal_logs
-users 1--* meal_logs
+
+// System
+users 1--* notifications
+users ?--* audit_logs
