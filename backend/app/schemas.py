@@ -1,9 +1,10 @@
 from datetime import date
+import re
 from typing import Annotated, Literal
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator, AfterValidator
 
 
 def _normalize_email(v: str) -> str:
@@ -15,12 +16,58 @@ def _normalize_email(v: str) -> str:
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
 
 
+def _validate_birth_date(value: date) -> date:
+    """Ngày sinh phải ở trong khoảng tuổi hợp lý từ 0 đến 120."""
+    today = date.today()
+    if value > today:
+        raise ValueError("Ngày sinh không được ở trong tương lai")
+    age = today.year - value.year - (
+        (today.month, today.day) < (value.month, value.day)
+    )
+    if age > 120:
+        raise ValueError("Tuổi không được vượt quá 120")
+    return value
+
+
+BirthDate = Annotated[date, AfterValidator(_validate_birth_date)]
+
+
+def _validate_full_name(value: str) -> str:
+    """Chuẩn hóa và chỉ chấp nhận tên người gồm chữ cùng dấu phân cách thông dụng."""
+    normalized = " ".join(value.strip().split())
+    if not 2 <= len(normalized) <= 100:
+        raise ValueError("Họ và tên phải có từ 2 đến 100 ký tự")
+    parts = re.split(r"[ '\-’]", normalized)
+    if any(not part or not all(char.isalpha() for char in part) for part in parts):
+        raise ValueError("Họ và tên chỉ được chứa chữ cái, khoảng trắng, dấu nháy hoặc gạch nối")
+    return normalized
+
+
+FullName = Annotated[str, AfterValidator(_validate_full_name)]
+
+
+def _validate_food_name(value: str) -> str:
+    """Tên món phải dễ đọc nhưng vẫn cho phép số và dấu thường gặp trong thực phẩm."""
+    normalized = " ".join(value.strip().split())
+    if not 2 <= len(normalized) <= 100:
+        raise ValueError("Tên món phải có từ 2 đến 100 ký tự")
+    if sum(char.isalpha() for char in normalized) < 2:
+        raise ValueError("Tên món phải có ít nhất 2 chữ cái")
+    allowed_punctuation = " &/().,'’+-%"
+    if any(not (char.isalpha() or char.isdigit() or char in allowed_punctuation) for char in normalized):
+        raise ValueError("Tên món chứa ký tự không hợp lệ")
+    return normalized
+
+
+FoodName = Annotated[str, AfterValidator(_validate_food_name)]
+
+
 # ---------- Register ----------
 class ProfileIn(BaseModel):
     gender: Literal["MALE", "FEMALE", "OTHER"]
-    birth_date: date
+    birth_date: BirthDate
     height_cm: float = Field(gt=50, lt=250)
-    weight_kg: float = Field(gt=20, lt=300)
+    weight_kg: float = Field(ge=20, le=300)
     activity_level: int = Field(ge=1, le=5)
     goal: Literal["LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL"]
     condition_ids: list[int] = []
@@ -30,7 +77,7 @@ class ProfileIn(BaseModel):
 class RegisterIn(BaseModel):
     email: NormalizedEmail
     password: str = Field(min_length=8)
-    full_name: str
+    full_name: FullName
     profile: ProfileIn
 
 
@@ -106,12 +153,12 @@ class MeOut(UserOut):
 
 class UserProfileUpdateIn(BaseModel):
     """Cập nhật thông tin cá nhân + hồ sơ sức khỏe."""
-    full_name: str | None = None
+    full_name: FullName | None = None
     # Hồ sơ sức khỏe
     gender: Literal["MALE", "FEMALE", "OTHER"] | None = None
-    birth_date: date | None = None
+    birth_date: BirthDate | None = None
     height_cm: float | None = Field(default=None, gt=50, lt=250)
-    weight_kg: float | None = Field(default=None, gt=20, lt=300)
+    weight_kg: float | None = Field(default=None, ge=20, le=300)
     activity_level: int | None = Field(default=None, ge=1, le=5)
     goal: Literal["LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL"] | None = None
     condition_ids: list[int] | None = None
@@ -164,13 +211,13 @@ class ExerciseOut(BaseModel):
 class ManualMealIn(BaseModel):
     """Ghi bữa ăn tay: chọn món có sẵn (food_id) hoặc gõ tên món mới."""
     food_id: UUID | None = None
-    food_name: str | None = Field(default=None, max_length=200)
-    calories_kcal: float | None = Field(default=None, ge=0)
+    food_name: FoodName | None = None
+    calories_kcal: float | None = Field(default=None, ge=1, le=5000)
     protein_g: float = Field(default=0.0, ge=0)
     carb_g: float = Field(default=0.0, ge=0)
     fat_g: float = Field(default=0.0, ge=0)
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
-    quantity: float = Field(default=1.0, gt=0)
+    quantity: float = Field(default=1.0, ge=0.5, le=20)
     log_date: date | None = None
 
 
@@ -206,7 +253,7 @@ class ActivityLogOut(BaseModel):
 
 
 class WeightIn(BaseModel):
-    weight_kg: float = Field(gt=20, lt=400)
+    weight_kg: float = Field(ge=20, le=300)
     recorded_at: date | None = None
 
 

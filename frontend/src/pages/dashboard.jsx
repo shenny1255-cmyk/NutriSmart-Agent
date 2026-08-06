@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceLine, Area, AreaChart } from 'recharts';
 import { Target, Flame, Scale, Footprints, Bell, ChevronRight, Utensils } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
 const MOCK = Array.from({ length: 7 }, (_, i) => ({
@@ -245,10 +246,14 @@ export default function Dashboard() {
               <p className="truncate text-sm font-semibold text-ink">{nextMeal.suggestion}</p>
             </div>
           </div>
-          <button className="mt-2 flex w-full items-center justify-between rounded-md bg-accent-soft px-2 py-1.5 text-xs font-medium text-accent-strong transition-colors hover:bg-accent/10">
+          <Link
+            to="/plan"
+            className="mt-2 flex w-full items-center justify-between rounded-md bg-accent-soft px-2 py-1.5 text-xs font-medium text-accent-strong transition-colors hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            aria-label={`Xem lộ trình cho ${nextMeal.meal.toLowerCase()}`}
+          >
             <span>Xem lộ trình</span>
             <ChevronRight size={14} />
-          </button>
+          </Link>
         </div>
       </div>
     </div>

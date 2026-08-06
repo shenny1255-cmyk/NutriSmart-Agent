@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, CheckCircle2, Utensils } from 'lucide-react';
 import { api } from '../lib/api.js';
 
@@ -48,19 +48,58 @@ const SAMPLE_FOODS = [
   },
 ];
 
+const MEAL_SCAN_SESSION_KEY = 'nutrismart_meal_scan';
+
+function loadMealScanSession() {
+  try {
+    return JSON.parse(sessionStorage.getItem(MEAL_SCAN_SESSION_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+let mealScanCache = loadMealScanSession();
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function MealScan() {
-  const [preview, setPreview] = useState(null);
-  const [result, setResult] = useState(null);
+  const sessionRef = useRef(mealScanCache);
+  const [preview, setPreview] = useState(sessionRef.current.preview ?? null);
+  const [result, setResult] = useState(sessionRef.current.result ?? null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
+  // Giữ ảnh và kết quả khi người dùng chuyển sang trang khác rồi quay lại.
+  useEffect(() => {
+    mealScanCache = { preview, result };
+    try {
+      if (!preview && !result) {
+        sessionStorage.removeItem(MEAL_SCAN_SESSION_KEY);
+        return;
+      }
+      sessionStorage.setItem(
+        MEAL_SCAN_SESSION_KEY,
+        JSON.stringify(mealScanCache),
+      );
+    } catch {
+      // Ảnh lớn có thể vượt dung lượng sessionStorage; bộ nhớ vẫn giữ trạng thái khi chuyển trang.
+    }
+  }, [preview, result]);
+
   async function handleFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
 
-    setPreview(URL.createObjectURL(file));
+    setPreview(await fileToDataUrl(file));
     setResult(null);
     setSavedMsg('');
     setLoading(true);
@@ -98,6 +137,8 @@ export default function MealScan() {
 
   function onFile(e) {
     handleFile(e.target.files?.[0]);
+    // Cho phép chọn lại cùng một tệp sau đó.
+    e.target.value = '';
   }
 
   function onDrop(e) {
@@ -115,17 +156,18 @@ export default function MealScan() {
 
       {/* Main Upload Zone — Glass Card */}
       <div className="glass-card rounded-2xl p-6 sm:p-8">
-        <label
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          className={[
-            'relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 px-6 text-center transition-all duration-short ease-out',
-            dragging
-              ? 'scale-[1.01] border-accent-strong bg-accent-soft/50'
-              : 'border-accent/40 bg-white/30 hover:border-accent-strong hover:bg-white/50',
-          ].join(' ')}
-        >
+        {!preview && (
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            className={[
+              'relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 px-6 text-center transition-all duration-short ease-out',
+              dragging
+                ? 'scale-[1.01] border-accent-strong bg-accent-soft/50'
+                : 'border-accent/40 bg-white/30 hover:border-accent-strong hover:bg-white/50',
+            ].join(' ')}
+          >
           {/* Cloud Upload Icon */}
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft/70 text-accent-strong shadow-sm transition-transform duration-short hover:scale-110">
             <CloudUpload size={32} strokeWidth={1.8} />
@@ -157,24 +199,37 @@ export default function MealScan() {
             Chọn ảnh
           </button>
 
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={onFile}
-            className="sr-only"
-          />
-        </label>
+          </label>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={onFile}
+          className="sr-only"
+        />
 
         {/* Xem trước ảnh đã tải lên */}
         {preview && (
-          <div className="mt-6 overflow-hidden rounded-xl bg-black/5 p-2 backdrop-blur-sm">
+          <div className="overflow-hidden rounded-xl bg-black/5 p-2 backdrop-blur-sm">
             <img
               src={preview}
               alt="Ảnh món ăn"
               className="mx-auto max-h-72 rounded-lg object-contain"
             />
+            <div className="flex justify-center p-3 pb-1">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={loading}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-accent-strong shadow-hairline transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ImagePlus size={17} />
+                Chọn ảnh khác
+              </button>
+            </div>
           </div>
         )}
       </div>
