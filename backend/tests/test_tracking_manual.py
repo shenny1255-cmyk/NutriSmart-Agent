@@ -48,16 +48,15 @@ pytestmark_db = pytest.mark.skipif(not _db_up(), reason="Cần Postgres để ch
 
 @pytest.fixture
 def nguoi_dung():
-    from app.models import User, HealthProfile
+    from app.models import User, UserInfo
 
     db = SessionLocal()
-    u = User(email=f"diary-{uuid.uuid4().hex[:8]}@test.local", password_hash="x",
-             full_name="Người ghi nhật ký", country_code="VN", role="USER")
+    u = User(email=f"diary-{uuid.uuid4().hex[:8]}@test.local", password_hash="x", role="USER")
     db.add(u)
     db.flush()
-    db.add(HealthProfile(user_id=u.id, gender="MALE", birth_date=date(2000, 1, 1),
-                         height_cm=170, weight_kg=70, activity_level=3,
-                         goal="LOSE_WEIGHT", daily_calorie_target=2000))
+    db.add(UserInfo(user_id=u.id, full_name="Người ghi nhật ký", gender="MALE", birth_date=date(2000, 1, 1),
+                    height_cm=170, weight_kg=70, activity_level=3,
+                    goal="LOSE_WEIGHT", daily_calorie_target=2000))
     db.commit()
 
     yield db, u
@@ -139,7 +138,7 @@ def test_cap_nhat_can_nang_ghi_lich_su_va_tinh_lai_bmi(nguoi_dung):
     assert float(ket_qua.weight_kg) == pytest.approx(68, abs=0.01)
     # BMI = 68 / 1.7² ≈ 23.53 — cột generated của Postgres tự tính
     assert float(ket_qua.bmi) == pytest.approx(23.53, abs=0.05) # type: ignore
-    assert float(u.profile.weight_kg) == pytest.approx(68, abs=0.01)
+    assert float(u.info.weight_kg) == pytest.approx(68, abs=0.01)
 
     lich_su = lich_su_can_nang(db, u, days=30)
     assert [float(r.weight_kg) for r in lich_su] == [pytest.approx(68, abs=0.01)]

@@ -47,7 +47,7 @@ def generate_plan(
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
-    if not user.profile:
+    if not user.info:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
     plan = plan_generator.create_plan(db, user)
@@ -63,7 +63,7 @@ def evaluate_plan(
     user: User = Depends(get_current_user),
 ):
     """Chạy job đánh giá chu kỳ 7 ngày cho chính người dùng đang đăng nhập."""
-    if not user.profile:
+    if not user.info:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
     try:

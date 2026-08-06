@@ -128,8 +128,8 @@ def generate_content(db: Session, user: User, target: int, note: str | None = No
 
 def record_weight_snapshot(db: Session, user: User) -> None:
     """Ghi mốc cân nặng hôm nay (mỗi ngày 1 bản ghi) để kỳ sau tính được biến thiên."""
-    profile = user.profile
-    if not profile or profile.weight_kg is None:
+    info = user.info
+    if not info or info.weight_kg is None:
         return
 
     today = date.today()
@@ -139,12 +139,12 @@ def record_weight_snapshot(db: Session, user: User) -> None:
         .first()
     )
     if row:
-        row.weight_kg = profile.weight_kg  # type: ignore
+        row.weight_kg = info.weight_kg  # type: ignore
     else:
         db.add(BodyMetricHistory(
             user_id=user.id,
             recorded_at=today,
-            weight_kg=profile.weight_kg,
+            weight_kg=info.weight_kg,
         ))
 
 
@@ -159,9 +159,9 @@ def create_plan(
 
     Không commit — caller quyết định thời điểm commit.
     """
-    profile = user.profile
+    info = user.info
     if target is None:
-        target = int((profile.daily_calorie_target if profile else None) or 2000)
+        target = int((info.daily_calorie_target if info else None) or 2000)
 
     content, generated_by = generate_content(db, user, target, note)
 
@@ -180,7 +180,7 @@ def create_plan(
         start_date=date.today(),
         end_date=date.today() + timedelta(days=PLAN_DAYS),
         daily_kcal_target=target,
-        goal=profile.goal if profile else "MAINTAIN",
+        goal=info.goal if info else "MAINTAIN",
         content=content,
         generated_by=generated_by,
         status="ACTIVE",
@@ -202,5 +202,5 @@ def plan_to_dict(plan: NutritionPlan, user: User) -> dict:
         "content": plan.content,
         "status": plan.status,
         "generated_by": plan.generated_by,
-        "bmi": user.profile.bmi if user.profile else None,
+        "bmi": user.info.bmi if user.info else None,
     }

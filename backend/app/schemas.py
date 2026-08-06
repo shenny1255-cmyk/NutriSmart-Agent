@@ -51,6 +51,30 @@ class ItemOut(BaseModel):
     name: str
 
 
+class StaffPermissionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    can_manage_users: bool = False
+    can_manage_foods: bool = False
+    can_manage_categories: bool = False
+    can_review_documents: bool = False
+    can_review_plans: bool = False
+    can_review_ai_chat: bool = False
+    can_review_logs: bool = False
+    can_manage_permissions: bool = False
+
+
+class StaffProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    staff_code: str
+    full_name: str
+    gender: str | None = None
+    birth_date: date | None = None
+    specialization: str | None = None
+    qualification: str | None = None
+    employment_status: str = "ACTIVE"
+    permissions: StaffPermissionOut | None = None
+
+
 # ---------- User ----------
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -58,20 +82,19 @@ class UserOut(BaseModel):
     email: EmailStr
     full_name: str | None = None
     role: str
-    is_verified: bool = False
+    staff_profile: StaffProfileOut | None = None
 
 
 class ProfileOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: UUID
-    gender: str | None
-    birth_date: date | None
-    height_cm: float | None
-    weight_kg: float | None
-    bmi: float | None
-    activity_level: int | None
-    goal: str | None
-    daily_calorie_target: int | None
+    gender: str | None = None
+    birth_date: date | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    bmi: float | None = None
+    activity_level: int | None = None
+    goal: str | None = None
+    daily_calorie_target: int | None = None
     conditions: list[ItemOut] = []
     allergens: list[ItemOut] = []
 
@@ -166,16 +189,20 @@ class ManualActivityIn(BaseModel):
     duration_min: int = Field(ge=1, le=600)
     calories_burned: float | None = Field(default=None, ge=0)
     steps: int = Field(default=0, ge=0)
-    log_date: date | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
 
 
 class ActivityLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     exercise_name: str
     duration_min: int
     calories_burned: float
     steps: int
-    log_date: date
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    logged_at: datetime
 
 
 class WeightIn(BaseModel):
@@ -221,13 +248,6 @@ class DocCategoryOut(BaseModel):
     so_tai_lieu: int = 0
 
 
-class DrugCategoryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    name: str
-    so_thuoc: int = 0
-
-
 # ---------- Documents ----------
 class DocumentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -259,33 +279,6 @@ class CrawlPresetIn(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
-
-
-# ---------- Drugs ----------
-class DrugIn(BaseModel):
-    category_id: int | None = None
-    document_id: UUID | None = None
-    name: str
-    active_ingredient: str | None = None
-    indications: str | None = None
-    side_effects: str | None = None
-    contraindications: str | None = None
-    status: Literal["ALLOWED", "RESTRICTED", "BANNED"] = "ALLOWED"
-    status_note: str | None = None
-
-
-class DrugOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: UUID
-    name: str
-    active_ingredient: str | None
-    category_id: int | None
-    document_id: UUID | None
-    indications: str | None
-    side_effects: str | None
-    contraindications: str | None
-    status: str
-    status_note: str | None
 
 
 # ---------- Audit ----------

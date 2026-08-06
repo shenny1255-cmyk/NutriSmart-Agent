@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
-from app.models import User, HealthProfile, ProfileCondition, ProfileAllergen
-from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut, MeOut, UserProfileUpdateIn
+from app.models import User, UserInfo, ProfileCondition, ProfileAllergen
+from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn
 from app.security import (
     hash_password, verify_password, create_access_token,
     create_verification_token, decode_verification_token,
@@ -26,13 +26,12 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         user = User(
             email=payload.email,
             password_hash=hash_password(payload.password),
-            full_name=payload.full_name,
             role="USER",
         )
         db.add(user)
         db.flush()   # lấy user.id mà CHƯA commit
 
-        # 2. health_profiles + tính mục tiêu calo
+        # 2. user_info + tính mục tiêu calo
         target = daily_calorie_target(
             gender=p.gender,
             birth_date=p.birth_date,
@@ -42,8 +41,9 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             goal=p.goal,
         )
 
-        profile = HealthProfile(
+        info = UserInfo(
             user_id=user.id,
+            full_name=payload.full_name,
             gender=p.gender,
             birth_date=p.birth_date,
             height_cm=p.height_cm,
@@ -53,14 +53,14 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             daily_calorie_target=target,
             # KHÔNG set bmi — generated column
         )
-        db.add(profile)
+        db.add(info)
         db.flush()
 
         # 3. bệnh nền + dị ứng (nhiều-nhiều)
         for cid in p.condition_ids:
-            db.add(ProfileCondition(profile_id=profile.id, condition_id=cid))
+            db.add(ProfileCondition(user_id=user.id, condition_id=cid))
         for aid in p.allergen_ids:
-            db.add(ProfileAllergen(profile_id=profile.id, allergen_id=aid))
+            db.add(ProfileAllergen(user_id=user.id, allergen_id=aid))
 
         db.commit()
 
@@ -81,15 +81,12 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     if not user_id:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Liên kết xác minh không hợp lệ hoặc đã hết hạn",
+            "Mã xác thực không hợp lệ",
         )
     import uuid
     user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()  # type: ignore
     if not user:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Người dùng không tồn tại")
-
-    user.is_verified = True  # type: ignore
-    db.commit()
 
     return {"status": "verified"}
 
@@ -112,7 +109,15 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)):
-    return user
+    profile_out = ProfileOut.model_validate(user.info) if user.info else None
+    return MeOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        staff_profile=user.staff_profile,
+        profile=profile_out,
+    )
 
 
 @router.put("/me", response_model=MeOut)
@@ -122,16 +127,14 @@ def update_me(
     user: User = Depends(get_current_user),
 ):
     """Cập nhật thông tin cá nhân + hồ sơ sức khỏe của chính mình."""
-    # 1. Cập nhật user
-    if payload.full_name is not None:
-        user.full_name = payload.full_name
-
-    # 2. Cập nhật hồ sơ sức khỏe (tạo mới nếu chưa có)
-    profile = user.profile
-    if profile is None:
-        profile = HealthProfile(user_id=user.id)
-        db.add(profile)
+    info = user.info
+    if info is None:
+        info = UserInfo(user_id=user.id)
+        db.add(info)
         db.flush()
+
+    if payload.full_name is not None:
+        info.full_name = payload.full_name
 
     profile_fields = ["gender", "birth_date", "height_cm", "weight_kg",
                       "activity_level", "goal"]
@@ -139,39 +142,48 @@ def update_me(
     for field in profile_fields:
         val = getattr(payload, field)
         if val is not None:
-            setattr(profile, field, val)
+            setattr(info, field, val)
             changed_profile = True
 
-    # 3. Tính lại calo mục tiêu nếu hồ sơ đầy đủ và có thay đổi
+    # Tính lại calo mục tiêu nếu hồ sơ đầy đủ và có thay đổi
     if changed_profile and all([
-        profile.gender, profile.birth_date, profile.height_cm,
-        profile.weight_kg, profile.activity_level, profile.goal,
+        info.gender, info.birth_date, info.height_cm,
+        info.weight_kg, info.activity_level, info.goal,
     ]):
-        profile.daily_calorie_target = daily_calorie_target(  # type: ignore
-            gender=str(profile.gender),
-            birth_date=profile.birth_date,  # type: ignore
-            height_cm=float(profile.height_cm),  # type: ignore
-            weight_kg=float(profile.weight_kg),  # type: ignore
-            activity_level=int(profile.activity_level),  # type: ignore
-            goal=str(profile.goal),
+        info.daily_calorie_target = daily_calorie_target(  # type: ignore
+            gender=str(info.gender),
+            birth_date=info.birth_date,  # type: ignore
+            height_cm=float(info.height_cm),  # type: ignore
+            weight_kg=float(info.weight_kg),  # type: ignore
+            activity_level=int(info.activity_level),  # type: ignore
+            goal=str(info.goal),
         )
 
-    # 4. Cập nhật bệnh nền + dị ứng nếu có gửi lên
+    # Cập nhật bệnh nền + dị ứng nếu có gửi lên
     if payload.condition_ids is not None:
         db.query(ProfileCondition).filter(
-            ProfileCondition.profile_id == profile.id
+            ProfileCondition.user_id == user.id
         ).delete()
         for cid in payload.condition_ids:
-            db.add(ProfileCondition(profile_id=profile.id, condition_id=cid))
+            db.add(ProfileCondition(user_id=user.id, condition_id=cid))
 
     if payload.allergen_ids is not None:
         db.query(ProfileAllergen).filter(
-            ProfileAllergen.profile_id == profile.id
+            ProfileAllergen.user_id == user.id
         ).delete()
         for aid in payload.allergen_ids:
-            db.add(ProfileAllergen(profile_id=profile.id, allergen_id=aid))
+            db.add(ProfileAllergen(user_id=user.id, allergen_id=aid))
 
     db.commit()
     db.refresh(user)
-    db.refresh(profile)
-    return user
+    db.refresh(info)
+
+    profile_out = ProfileOut.model_validate(info)
+    return MeOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        staff_profile=user.staff_profile,
+        profile=profile_out,
+    )

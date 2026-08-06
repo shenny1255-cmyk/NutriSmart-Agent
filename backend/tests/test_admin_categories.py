@@ -139,20 +139,7 @@ def test_xoa_danh_muc_khong_lam_mat_tai_lieu(db, admin):
     db.commit()
 
 
-@pytestmark_db
-def test_danh_muc_thuoc_khong_cho_trung_ten(db, admin):
-    from fastapi import HTTPException
-    from app.routers.admin import them_drug_category, xoa_drug_category
-    from app.schemas import CategoryIn
 
-    ten = f"Nhóm thuốc {uuid.uuid4().hex[:6]}"
-    dm = them_drug_category(db, admin, CategoryIn(name=ten))
-    try:
-        with pytest.raises(HTTPException) as e:
-            them_drug_category(db, admin, CategoryIn(name=ten))
-        assert e.value.status_code == 409
-    finally:
-        xoa_drug_category(db, admin, dm.id)
 
 
 @pytestmark_db

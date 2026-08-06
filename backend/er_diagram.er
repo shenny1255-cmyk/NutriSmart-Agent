@@ -1,6 +1,6 @@
 // ER Diagram - NutriSmart Agent (Nhóm E15)
-// Cập nhật: Thêm staff_profiles, xóa countries/drug_country_rules/email_verified
-// Tổng: 26 bảng (25 hiện tại + 1 staff_profiles mới theo plan)
+// Tái cấu trúc theo mô hình Table-per-Role: Hợp nhất sức khỏe vào user_info, thêm staff_profiles & staff_permissions, đã xóa Drug.
+// Tổng: 24 bảng
 
 // ==================== NHÓM USER & PHÂN QUYỀN ====================
 
@@ -9,38 +9,49 @@
     email {label:"VARCHAR(255)"}
     password_hash {label:"VARCHAR(255)"}
     role {label:"user_role (USER/EXPERT/ADMIN)"}
-    is_verified {label:"BOOLEAN"}
     created_at {label:"TIMESTAMPTZ"}
     updated_at {label:"TIMESTAMPTZ"}
 
 [user_info]
     *user_id {label:"UUID (FK → users)"}
     full_name {label:"VARCHAR(150)"}
-    created_at {label:"TIMESTAMPTZ"}
-    updated_at {label:"TIMESTAMPTZ"}
-
-[staff_profiles]
-    *user_id {label:"UUID (FK → users)"}
-    title {label:"VARCHAR(100)"}
-    department {label:"VARCHAR(100)"}
-    license_no {label:"VARCHAR(50)"}
-    created_at {label:"TIMESTAMPTZ"}
-    updated_at {label:"TIMESTAMPTZ"}
-
-// ==================== HỒ SƠ SỨC KHỎE (chỉ USER) ====================
-
-[health_profiles]
-    *id {label:"UUID"}
-    user_id {label:"UUID (FK → users)"}
-    gender {label:"VARCHAR(6)"}
+    gender {label:"VARCHAR(10)"}
     birth_date {label:"DATE"}
     height_cm {label:"NUMERIC(5,2)"}
     weight_kg {label:"NUMERIC(5,2)"}
     bmi {label:"NUMERIC(5,2) GENERATED"}
     activity_level {label:"SMALLINT"}
-    goal {label:"goal_enum"}
+    goal {label:"VARCHAR(20)"}
     daily_calorie_target {label:"INTEGER"}
+    created_at {label:"TIMESTAMPTZ"}
     updated_at {label:"TIMESTAMPTZ"}
+
+[staff_profiles]
+    *user_id {label:"UUID (FK → users)"}
+    staff_code {label:"VARCHAR(30)"}
+    full_name {label:"VARCHAR(150)"}
+    gender {label:"VARCHAR(10)"}
+    birth_date {label:"DATE"}
+    specialization {label:"VARCHAR(100)"}
+    qualification {label:"VARCHAR(100)"}
+    employment_status {label:"VARCHAR(20)"}
+    created_at {label:"TIMESTAMPTZ"}
+    updated_at {label:"TIMESTAMPTZ"}
+
+[staff_permissions]
+    *user_id {label:"UUID (FK → staff_profiles)"}
+    can_manage_users {label:"BOOLEAN"}
+    can_manage_foods {label:"BOOLEAN"}
+    can_manage_categories {label:"BOOLEAN"}
+    can_review_documents {label:"BOOLEAN"}
+    can_review_plans {label:"BOOLEAN"}
+    can_review_ai_chat {label:"BOOLEAN"}
+    can_review_logs {label:"BOOLEAN"}
+    can_manage_permissions {label:"BOOLEAN"}
+    created_at {label:"TIMESTAMPTZ"}
+    updated_at {label:"TIMESTAMPTZ"}
+
+// ==================== BỆNH NỀN & DỊ ỨNG ====================
 
 [medical_conditions]
     *id {label:"INTEGER"}
@@ -52,11 +63,11 @@
     name {label:"VARCHAR(150)"}
 
 [profile_conditions]
-    *profile_id {label:"UUID (FK → health_profiles)"}
+    *user_id {label:"UUID (FK → user_info)"}
     *condition_id {label:"INTEGER (FK → medical_conditions)"}
 
 [profile_allergens]
-    *profile_id {label:"UUID (FK → health_profiles)"}
+    *user_id {label:"UUID (FK → user_info)"}
     *allergen_id {label:"INTEGER (FK → allergens)"}
     severity {label:"SMALLINT"}
 
@@ -87,7 +98,9 @@
     duration_min {label:"INTEGER"}
     calories_burned {label:"NUMERIC(7,2)"}
     steps {label:"INTEGER"}
-    log_date {label:"DATE"}
+    started_at {label:"TIMESTAMPTZ"}
+    ended_at {label:"TIMESTAMPTZ"}
+    logged_at {label:"TIMESTAMPTZ"}
 
 // ==================== THỰC PHẨM & BÀI TẬP ====================
 
@@ -126,7 +139,7 @@
     *id {label:"UUID"}
     user_id {label:"UUID (FK → users)"}
     version {label:"INTEGER"}
-    status {label:"plan_status (ACTIVE/COMPLETED/REVISED/CANCELLED)"}
+    status {label:"plan_status"}
     goal {label:"goal_enum"}
     daily_kcal_target {label:"INTEGER"}
     content {label:"JSONB"}
@@ -179,25 +192,6 @@
     embedding {label:"VECTOR(1024)"}
     metadata {label:"JSONB"}
 
-// ==================== DƯỢC PHẨM ====================
-
-[drug_categories]
-    *id {label:"INTEGER"}
-    name {label:"VARCHAR(150)"}
-
-[drugs]
-    *id {label:"UUID"}
-    category_id {label:"INTEGER (FK → drug_categories)"}
-    name {label:"VARCHAR(200)"}
-    active_ingredient {label:"VARCHAR(200)"}
-    indications {label:"TEXT"}
-    contraindications {label:"TEXT"}
-    side_effects {label:"TEXT"}
-    status {label:"drug_status (ALLOWED/RESTRICTED/BANNED)"}
-    status_note {label:"TEXT"}
-    created_at {label:"TIMESTAMPTZ"}
-    deleted_at {label:"TIMESTAMPTZ"}
-
 // ==================== CHAT AI ====================
 
 [chat_sessions]
@@ -244,18 +238,15 @@
 
 // ==================== RELATIONSHIPS ====================
 
-// User core
 users 1--1 user_info
 users 1--? staff_profiles
+staff_profiles 1--1 staff_permissions
 
-// Health (USER only)
-users 1--1 health_profiles
-health_profiles 1--* profile_conditions
+user_info 1--* profile_conditions
 medical_conditions 1--* profile_conditions
-health_profiles 1--* profile_allergens
+user_info 1--* profile_allergens
 allergens 1--* profile_allergens
 
-// Tracking
 users 1--* body_metrics_history
 users 1--* meal_logs
 foods ?--* meal_logs
@@ -265,26 +256,19 @@ exercises ?--* activity_logs
 users 1--* meal_images
 foods ?--* meal_images
 
-// Plans
 users 1--* nutrition_plans
 nutrition_plans 1--* plan_evaluations
 
-// RAG Documents
 doc_categories ?--* doc_categories
 doc_categories ?--* documents
 users ?--* documents
 users ?--* documents
 documents 1--* doc_chunks
 
-// Drugs
-drug_categories ?--* drugs
-
-// Chat AI
 users 1--* chat_sessions
 chat_sessions 1--* chat_messages
 chat_messages 1--* message_citations
 doc_chunks 1--* message_citations
 
-// System
 users 1--* notifications
 users ?--* audit_logs
