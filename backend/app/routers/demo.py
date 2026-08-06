@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.models import (
-    User, HealthProfile, NutritionPlan, ProfileCondition, ProfileAllergen
+    User, UserInfo, NutritionPlan, ProfileCondition, ProfileAllergen
 )
 from app.security import hash_password, create_access_token
 from app.services.calorie import daily_calorie_target
@@ -51,16 +51,50 @@ def seed_demo(db: Session = Depends(get_db)):
     db.flush()
 
     # 2b. Tạo thêm user demo phụ (USER + EXPERT) để Admin quản lý
-    for u in EXTRA_DEMO_USERS:
-        db.add(User(
+    from app.models import StaffProfile, StaffPermission
+    import uuid
+    # Admin staff_profile & permissions
+    sp_admin = StaffProfile(
+        user_id=user.id,
+        staff_code=f"STF-ADM{uuid.uuid4().hex[:4].upper()}",
+        full_name=user.full_name or "Tài khoản Demo Admin",
+        employment_status="ACTIVE",
+    )
+    sp_admin.permissions = StaffPermission(
+        can_manage_users=True, can_manage_foods=True, can_manage_categories=True,
+        can_review_documents=True, can_review_plans=True, can_review_ai_chat=True,
+        can_review_logs=True, can_manage_permissions=True,
+    )
+    db.add(sp_admin)
+
+    for idx, u in enumerate(EXTRA_DEMO_USERS, start=1):
+        extra_u = User(
             email=u["email"],
             password_hash=hash_password(DEMO_PASSWORD),
-            full_name=u["full_name"],
             role=u["role"],
-        ))
+        )
+        extra_u.info = UserInfo(user_id=extra_u.id, full_name=u["full_name"])
+        db.add(extra_u)
+        db.flush()
+        if u["role"] in ("EXPERT", "ADMIN"):
+            is_adm = (u["role"] == "ADMIN")
+            sp_extra = StaffProfile(
+                user_id=extra_u.id,
+                staff_code=f"STF-EXP{idx:03d}",
+                full_name=u["full_name"],
+                specialization="Dinh dưỡng lâm sàng",
+                qualification="Thạc sĩ Y học",
+                employment_status="ACTIVE",
+            )
+            sp_extra.permissions = StaffPermission(
+                can_manage_users=is_adm, can_manage_foods=is_adm, can_manage_categories=is_adm,
+                can_review_documents=True, can_review_plans=True, can_review_ai_chat=True,
+                can_review_logs=True, can_manage_permissions=is_adm,
+            )
+            db.add(sp_extra)
     db.flush()
 
-    # 3. Hồ sơ sức khỏe
+    # 3. Hồ sơ sức khỏe (nằm trong user_info)
     profile_args = dict(
         gender="MALE",
         birth_date=date(2000, 1, 1),
@@ -78,19 +112,18 @@ def seed_demo(db: Session = Depends(get_db)):
         goal=str(profile_args["goal"]),
     )
 
-    profile = HealthProfile(
-        user_id=user.id,
-        daily_calorie_target=target,
-        **profile_args,  # type: ignore
-    )
-    db.add(profile)
+    if not user.info:
+        user.info = UserInfo(user_id=user.id, full_name=DEMO_NAME)
+    for k, v in profile_args.items():
+        setattr(user.info, k, v)
+    user.info.daily_calorie_target = target
     db.flush()
 
     # 4. Gắn 1 bệnh nền + 1 dị ứng (nếu seed catalog có id 1)
     if db.execute(text("SELECT 1 FROM medical_conditions WHERE id = 1")).first():
-        db.add(ProfileCondition(profile_id=profile.id, condition_id=1))
+        db.add(ProfileCondition(user_id=user.id, condition_id=1))
     if db.execute(text("SELECT 1 FROM allergens WHERE id = 1")).first():
-        db.add(ProfileAllergen(profile_id=profile.id, allergen_id=1, severity=2))
+        db.add(ProfileAllergen(user_id=user.id, allergen_id=1, severity=2))
 
     # 5. Lấy sẵn món ăn (kèm calo thật) + bài tập từ seed
     mon_an = db.execute(text(
@@ -103,7 +136,6 @@ def seed_demo(db: Session = Depends(get_db)):
         day = date.today() - timedelta(days=d)
 
         # 3 bữa/ngày — số phần suy ra từ calo THẬT của món để dòng nhật ký khớp
-        # tên món, còn tổng ngày vẫn xấp xỉ mục tiêu calo
         if mon_an:
             for meal, ratio in [("BREAKFAST", 0.3), ("LUNCH", 0.4), ("DINNER", 0.3)]:
                 fid, kcal_mon = random.choice(mon_an)
@@ -120,16 +152,19 @@ def seed_demo(db: Session = Depends(get_db)):
 
         # 1 buổi vận động/ngày
         if ex_ids:
+            dur = random.randint(20, 50)
             db.execute(text("""
                 INSERT INTO activity_logs
-                    (user_id, exercise_id, steps, duration_min, calories_burned, log_date)
-                VALUES (:uid, :eid, :steps, :dur, :burn, :d)
+                    (user_id, exercise_id, steps, duration_min, calories_burned, started_at, ended_at, logged_at)
+                VALUES (:uid, :eid, :steps, :dur, :burn, :s_at, :e_at, :l_at)
             """), {
                 "uid": str(user.id), "eid": random.choice(ex_ids),
                 "steps": random.randint(4000, 9000),
-                "dur": random.randint(20, 50),
+                "dur": dur,
                 "burn": random.randint(180, 400),
-                "d": day,
+                "s_at": f"{day} 07:00:00",
+                "e_at": f"{day} 07:{dur:02d}:00",
+                "l_at": f"{day} 08:00:00",
             })
 
     # 6b. Mốc cân nặng 7 ngày (giảm dần) để job đánh giá tính được weight_change_kg
@@ -195,32 +230,6 @@ def seed_demo(db: Session = Depends(get_db)):
             INSERT INTO documents (id, title, source_url, source_name, raw_text, status, uploaded_by)
             VALUES (gen_random_uuid(), :t, :u, :s, :raw, 'PENDING', :uid)
         """), {"t": title, "u": src, "s": src, "raw": raw_content, "uid": str(user.id)})
-
-    # Seed mẫu Thuốc và Quy định thuốc theo quốc gia (nếu chưa có)
-    db.execute(text("ALTER TABLE drugs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;"))
-    db.execute(text("""
-        INSERT INTO drug_categories (id, name) VALUES (1, 'Thuốc giảm cân'), (2, 'Thuốc cảm sốt')
-        ON CONFLICT DO NOTHING;
-    """))
-    # Chèn kèm id tường minh không làm sequence nhích → nhóm thuốc đầu tiên tạo qua
-    # màn quản trị sẽ xin id = 1 và vỡ vì trùng khóa chính. Kéo sequence về đúng chỗ.
-    db.execute(text("""
-        SELECT setval(pg_get_serial_sequence('drug_categories', 'id'),
-                      (SELECT COALESCE(MAX(id), 0) + 1 FROM drug_categories), false);
-    """))
-    sample_drugs = [
-        ('a0000000-0000-0000-0000-000000000001', 1, 'Sibutramine', 'Sibutramine', 'Hỗ trợ giảm cân', 'Tăng huyết áp, nguy cơ đột quỵ, tim mạch', 'Bệnh tim mạch, tăng huyết áp chưa kiểm soát', 'BANNED', 'Bị cấm lưu hành tại Việt Nam do nguy cơ tim mạch và đột quỵ nghiêm trọng.'),
-        ('a0000000-0000-0000-0000-000000000002', 1, 'Reductil', 'Sibutramine', 'Giảm cân', 'Tăng nguy cơ biến cố tim mạch', 'Tiền sử bệnh mạch vành, đột quỵ', 'BANNED', 'Bị rút giấy phép lưu hành tại Việt Nam do chứa Sibutramine.'),
-        ('a0000000-0000-0000-0000-000000000003', 1, 'Phentermine', 'Phentermine', 'Giảm thèm ăn', 'Tăng nhịp tim, mất ngủ, nghiện', 'Bệnh tim, tăng áp phổi', 'BANNED', 'Cấm sử dụng trong thực phẩm chức năng và thuốc giảm cân không kê đơn tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000004', 2, 'Pseudoephedrine', 'Pseudoephedrine', 'Giảm sung huyết mũi', 'Tăng huyết áp, hồi hộp', 'Bệnh tăng huyết áp nặng', 'RESTRICTED', 'Thuốc kê đơn, cần quản lý đặc biệt và có chỉ định của bác sĩ tại Việt Nam.'),
-        ('a0000000-0000-0000-0000-000000000005', 2, 'Paracetamol', 'Paracetamol', 'Giảm đau hạ sốt', 'Hại gan khi dùng quá liều', 'Suy gan nặng', 'ALLOWED', 'Được phép sử dụng theo đúng liều lượng khuyến cáo.'),
-    ]
-    for did, cid, name, active, ind, side, contra, st, note in sample_drugs:
-        db.execute(text("""
-            INSERT INTO drugs (id, category_id, name, active_ingredient, indications, side_effects, contraindications, status, status_note)
-            VALUES (:id, :cid, :n, :a, :i, :s, :c, :st, :note)
-            ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, status_note = EXCLUDED.status_note;
-        """), {"id": did, "cid": cid, "n": name, "a": active, "i": ind, "s": side, "c": contra, "st": st, "note": note})
 
     db.commit()
 

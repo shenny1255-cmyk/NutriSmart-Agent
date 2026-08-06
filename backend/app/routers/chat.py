@@ -9,7 +9,7 @@ from app.models import User, ChatSession, ChatMessage
 from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
 from app.services import ollama_client
 from app.services import retrieval
-from app.services.nutrition_context import gather_context, render_system_prompt, render_drug_directive
+from app.services.nutrition_context import gather_context, render_system_prompt
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -107,12 +107,7 @@ def send_message(
     rag_block = retrieval.render_context_block(hits)
     # Chỉ thị dược phẩm chỉ chèn khi câu hỏi về thuốc — nó ra lệnh ghi đè lên RAG nên
     # gắn vô điều kiện sẽ làm trợ lý từ chối trả lời câu hỏi dinh dưỡng.
-    ctx = gather_context(db, user)
-    system_prompt = (
-        render_system_prompt(ctx)
-        + rag_block
-        + render_drug_directive(payload.message, ctx.get("drug_rules") or [])
-    )
+    system_prompt = render_system_prompt(ctx) + rag_block
 
     recent = (
         db.query(ChatMessage)
@@ -169,12 +164,7 @@ def stream_message(
     # 2. Truy hồi RAG & xây dựng System Prompt
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
     rag_block = retrieval.render_context_block(hits)
-    ctx = gather_context(db, user)
-    system_prompt = (
-        render_system_prompt(ctx)
-        + rag_block
-        + render_drug_directive(payload.message, ctx.get("drug_rules") or [])
-    )
+    system_prompt = render_system_prompt(ctx) + rag_block
 
     recent = (
         db.query(ChatMessage)

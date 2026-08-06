@@ -29,7 +29,6 @@ const baseNav = [
   { to: '/chat', label: 'Trợ lý AI', icon: MessageSquare, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/expert/review', label: 'Duyệt tài liệu', icon: FileCheck, roles: ['EXPERT', 'ADMIN'] },
   { to: '/admin/users', label: 'Người dùng', icon: Shield, roles: ['ADMIN'] },
-  { to: '/admin/drugs', label: 'Thuốc', icon: Shield, roles: ['ADMIN'] },
   { to: '/admin/categories', label: 'Danh mục', icon: FolderTree, roles: ['ADMIN'] },
   { to: '/admin/audit', label: 'Nhật ký hệ thống', icon: Shield, roles: ['ADMIN'] },
 ];
@@ -232,7 +231,6 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/expert/review" element={<ExpertReview />} />
           <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/drugs" element={<AdminDrugs />} />
           <Route path="/admin/categories" element={<AdminCategories />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
         </Route>

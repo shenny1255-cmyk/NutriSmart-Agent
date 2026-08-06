@@ -134,19 +134,12 @@ export const api = {
   adminUsers: (q = '') => request(`/admin/users${q ? `?q=${q}` : ''}`),
   updateUserRole: (id, role) => request(`/admin/users/${id}/role`, { method: 'PATCH', body: { role } }),
   deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
-  adminDrugs: () => request('/admin/drugs'),
-  createDrug: (payload) => request('/admin/drugs', { method: 'POST', body: payload }),
-  updateDrug: (id, payload) => request(`/admin/drugs/${id}`, { method: 'PUT', body: payload }),
   auditLogs: () => request('/admin/audit'),
-  // Danh mục tài liệu / nhóm thuốc
+  // Danh mục tài liệu
   docCategories: () => request('/admin/doc-categories'),
   createDocCategory: (payload) => request('/admin/doc-categories', { method: 'POST', body: payload }),
   updateDocCategory: (id, payload) => request(`/admin/doc-categories/${id}`, { method: 'PATCH', body: payload }),
   deleteDocCategory: (id) => request(`/admin/doc-categories/${id}`, { method: 'DELETE' }),
-  drugCategories: () => request('/admin/drug-categories'),
-  createDrugCategory: (payload) => request('/admin/drug-categories', { method: 'POST', body: payload }),
-  updateDrugCategory: (id, payload) => request(`/admin/drug-categories/${id}`, { method: 'PATCH', body: payload }),
-  deleteDrugCategory: (id) => request(`/admin/drug-categories/${id}`, { method: 'DELETE' }),
   // Expert
   pendingDocs: () => request('/expert/documents/pending'),
   reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),

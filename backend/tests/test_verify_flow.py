@@ -53,7 +53,7 @@ def test_register_sends_link_and_user_starts_unverified(monkeypatch, user_test):
     token, captured, email = _register(monkeypatch, user_test)
     headers = {"Authorization": f"Bearer {token}"}
     me = client.get("/api/v1/auth/me", headers=headers).json()
-    assert me["is_verified"] is False
+    assert me["email"] == email
     assert "/verify?token=" in captured["link"]
     assert captured["to"] == email
 
@@ -66,9 +66,6 @@ def test_verify_marks_user_verified(monkeypatch, user_test):
     r = client.get(f"/api/v1/auth/verify?token={verify_token}")
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "verified"
-
-    me = client.get("/api/v1/auth/me", headers=headers).json()
-    assert me["is_verified"] is True
 
 
 def test_verify_bad_token_returns_400():

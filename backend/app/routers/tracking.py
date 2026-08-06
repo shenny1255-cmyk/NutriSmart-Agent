@@ -42,8 +42,9 @@ def upsert_daily_activity(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Mobile gửi số bước + calo tiêu hao lên. UPSERT theo (user_id, log_date)."""
+    """Mobile gửi số bước + calo tiêu hao lên. UPSERT theo (user_id, date)."""
     try:
+        from sqlalchemy import func
         log_date = payload.log_date or date.today()
 
         # Tìm bản ghi hiện có cho ngày hôm đó (exercise_id IS NULL -> log từ Mobile)
@@ -51,7 +52,7 @@ def upsert_daily_activity(
             db.query(ActivityLog)
             .filter(
                 ActivityLog.user_id == user.id,  # type: ignore
-                ActivityLog.log_date == log_date,  # type: ignore
+                func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == log_date,  # type: ignore
                 ActivityLog.exercise_id.is_(None)  # type: ignore
             )
             .first()
@@ -65,7 +66,6 @@ def upsert_daily_activity(
                 user_id=user.id,
                 steps=payload.steps,
                 calories_burned=payload.calories_burned,
-                log_date=log_date,
             )
             db.add(existing)
 
@@ -76,7 +76,7 @@ def upsert_daily_activity(
             steps=int(existing.steps or 0),  # type: ignore
             calories_burned=float(existing.calories_burned or 0),  # type: ignore
             distance_km=payload.distance_km,
-            log_date=existing.log_date,  # type: ignore
+            log_date=log_date,
         )
     except Exception as e:
         db.rollback()
@@ -90,12 +90,13 @@ def get_today_activity(
     user: User = Depends(get_current_user),
 ):
     """Web Dashboard gọi để lấy số bước + calo tiêu hao hôm nay từ Mobile."""
+    from sqlalchemy import func
     today = date.today()
     log = (
         db.query(ActivityLog)
         .filter(
             ActivityLog.user_id == user.id,  # type: ignore
-            ActivityLog.log_date == today,  # type: ignore
+            func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == today,  # type: ignore
             ActivityLog.exercise_id.is_(None)  # type: ignore
         )
         .first()
@@ -230,8 +231,11 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
 
     kcal = payload.calories_burned
     if kcal is None:
-        can_nang = user.profile.weight_kg if user.profile else None
+        can_nang = user.info.weight_kg if user.info else None
         kcal = calories_burned(float(bai_tap.met_value), float(can_nang) if can_nang else None, payload.duration_min)  # type: ignore
+
+    started_at = payload.started_at
+    ended_at = payload.ended_at
 
     log = ActivityLog(
         user_id=user.id,
@@ -239,7 +243,8 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
         steps=payload.steps,
         duration_min=payload.duration_min,
         calories_burned=kcal,
-        log_date=payload.log_date or date.today(),
+        started_at=started_at,
+        ended_at=ended_at,
     )
     db.add(log)
     db.commit()
@@ -248,15 +253,20 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
     return ActivityLogOut(
         id=int(log.id), exercise_name=str(bai_tap.name), duration_min=int(log.duration_min or 0),  # type: ignore
         calories_burned=float(log.calories_burned or 0), steps=int(log.steps or 0),  # type: ignore
-        log_date=log.log_date,  # type: ignore
+        started_at=log.started_at, ended_at=log.ended_at, logged_at=log.logged_at,  # type: ignore
     )
 
 
 def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogOut]:
+    from sqlalchemy import func
     rows = (
         db.query(ActivityLog, Exercise.name)  # type: ignore
         .outerjoin(Exercise, Exercise.id == ActivityLog.exercise_id)  # type: ignore
-        .filter(ActivityLog.user_id == user.id, ActivityLog.log_date == ngay, ActivityLog.exercise_id.isnot(None))  # type: ignore
+        .filter(
+            ActivityLog.user_id == user.id,
+            func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == ngay,
+            ActivityLog.exercise_id.isnot(None)
+        )
         .order_by(ActivityLog.id)  # type: ignore
         .all()
     )
@@ -264,7 +274,7 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
         ActivityLogOut(
             id=int(a.id), exercise_name=str(ten) if ten else "Vận động", duration_min=int(a.duration_min or 0),  # type: ignore
             calories_burned=float(a.calories_burned or 0), steps=int(a.steps or 0),  # type: ignore
-            log_date=a.log_date,  # type: ignore
+            started_at=a.started_at, ended_at=a.ended_at, logged_at=a.logged_at,  # type: ignore
         )
         for a, ten in rows
     ]
@@ -317,21 +327,21 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
     Mục tiêu calo KHÔNG đổi ở đây: nó do lộ trình quản lý và được hiệu chỉnh
     sau mỗi chu kỳ đánh giá 7 ngày (xem services/plan_evaluator.py).
     """
-    if not user.profile:
+    if not user.info:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
     ngay = payload.recorded_at or date.today()
 
     # Chỉ cân nặng mới nhất mới cập nhật vào hồ sơ (BMI là cột generated, tự tính)
     if ngay >= date.today():
-        user.profile.weight_kg = payload.weight_kg  # type: ignore
+        user.info.weight_kg = payload.weight_kg  # type: ignore
 
     row = (
         db.query(BodyMetricHistory)
         .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at == ngay)  # type: ignore
         .first()
     )
-    chieu_cao = float(user.profile.height_cm) if user.profile.height_cm else None
+    chieu_cao = float(user.info.height_cm) if user.info.height_cm else None
     bmi = round(payload.weight_kg / ((chieu_cao / 100) ** 2), 2) if chieu_cao else None
 
     if row:
@@ -344,7 +354,7 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
 
     db.commit()
     db.refresh(row)
-    db.refresh(user.profile)
+    db.refresh(user.info)
     return WeightOut(
         recorded_at=row.recorded_at,  # type: ignore
         weight_kg=float(row.weight_kg) if row.weight_kg is not None else 0.0,  # type: ignore

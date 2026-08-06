@@ -23,19 +23,6 @@ export default function AdminCategories() {
                 show={show}
             />
 
-            <BangDanhMuc
-                icon={Pill}
-                tieuDe="Nhóm thuốc"
-                moTa="Phân nhóm thuốc trong danh mục dược phẩm."
-                cot="Số thuốc"
-                demKey="so_thuoc"
-                tai={api.drugCategories}
-                them={api.createDrugCategory}
-                sua={api.updateDrugCategory}
-                xoa={api.deleteDrugCategory}
-                show={show}
-            />
-
             <Toast toast={toast} position="top" />
         </div>
     );

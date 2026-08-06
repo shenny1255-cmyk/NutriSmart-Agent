@@ -31,12 +31,11 @@ class User(Base):
     email: str    = Column(String(255), unique=True, nullable=False)  # type: ignore
     password_hash: str = Column(String(255), nullable=False)  # type: ignore
     role: str     = Column(user_role, nullable=False, default="USER")  # type: ignore
-    is_verified: bool = Column(Boolean, nullable=False, server_default="false")  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at    = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    profile = relationship("HealthProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    info    = relationship("UserInfo", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    info          = relationship("UserInfo", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    staff_profile = relationship("StaffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     @property
     def full_name(self) -> str | None:
@@ -53,17 +52,6 @@ class UserInfo(Base):
     __tablename__ = "user_info"
     user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     full_name: str | None = Column(String(150))  # type: ignore
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    user = relationship("User", back_populates="info")
-
-
-class HealthProfile(Base):
-    __tablename__ = "health_profiles"
-    id: uuid.UUID  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
-    user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
-                            unique=True, nullable=False)  # type: ignore
     gender: str | None         = Column(gender_enum)  # type: ignore
     birth_date: date | None     = Column(Date)  # type: ignore
     height_cm: float | None      = Column(Numeric(5, 2))  # type: ignore
@@ -73,14 +61,48 @@ class HealthProfile(Base):
     activity_level: int | None = Column(SmallInteger)  # type: ignore
     goal: str           = Column(goal_enum, nullable=False, default="MAINTAIN")  # type: ignore
     daily_calorie_target: int | None = Column(Integer)  # type: ignore
-    updated_at     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", back_populates="profile")
-    # Bệnh nền + dị ứng — nạp sẵn để prompt LLM luôn có đủ ràng buộc sức khỏe
+    user = relationship("User", back_populates="info")
     conditions = relationship("MedicalCondition", secondary="profile_conditions",
                               lazy="selectin", viewonly=True)
     allergens  = relationship("Allergen", secondary="profile_allergens",
                               lazy="selectin", viewonly=True)
+
+
+class StaffProfile(Base):
+    __tablename__ = "staff_profiles"
+    user_id            = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    staff_code: str    = Column(String(30), unique=True, nullable=False)  # type: ignore
+    full_name: str     = Column(String(150), nullable=False)  # type: ignore
+    gender: str | None = Column(String(10))  # type: ignore
+    birth_date: date | None = Column(Date)  # type: ignore
+    specialization: str | None = Column(String(100))  # type: ignore
+    qualification: str | None  = Column(String(100))  # type: ignore
+    employment_status: str     = Column(String(20), nullable=False, default="ACTIVE")  # type: ignore
+    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at         = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user        = relationship("User", back_populates="staff_profile")
+    permissions = relationship("StaffPermission", back_populates="staff_profile", uselist=False, cascade="all, delete-orphan")
+
+
+class StaffPermission(Base):
+    __tablename__ = "staff_permissions"
+    user_id                = Column(UUID(as_uuid=True), ForeignKey("staff_profiles.user_id", ondelete="CASCADE"), primary_key=True)
+    can_manage_users: bool       = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_manage_foods: bool       = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_manage_categories: bool  = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_review_documents: bool   = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_review_plans: bool       = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_review_ai_chat: bool     = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_review_logs: bool        = Column(Boolean, nullable=False, default=False)  # type: ignore
+    can_manage_permissions: bool = Column(Boolean, nullable=False, default=False)  # type: ignore
+    created_at             = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at             = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    staff_profile = relationship("StaffProfile", back_populates="permissions")
 
 
 class MedicalCondition(Base):
@@ -98,18 +120,14 @@ class Allergen(Base):
 
 class ProfileCondition(Base):
     __tablename__ = "profile_conditions"
-    profile_id   = Column(UUID(as_uuid=True), ForeignKey("health_profiles.id", ondelete="CASCADE"),
-                          primary_key=True)
-    condition_id = Column(Integer, ForeignKey("medical_conditions.id", ondelete="CASCADE"),
-                          primary_key=True)
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("user_info.user_id", ondelete="CASCADE"), primary_key=True)
+    condition_id = Column(Integer, ForeignKey("medical_conditions.id", ondelete="CASCADE"), primary_key=True)
 
 
 class ProfileAllergen(Base):
     __tablename__ = "profile_allergens"
-    profile_id  = Column(UUID(as_uuid=True), ForeignKey("health_profiles.id", ondelete="CASCADE"),
-                         primary_key=True)
-    allergen_id = Column(Integer, ForeignKey("allergens.id", ondelete="CASCADE"),
-                         primary_key=True)
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("user_info.user_id", ondelete="CASCADE"), primary_key=True)
+    allergen_id = Column(Integer, ForeignKey("allergens.id", ondelete="CASCADE"), primary_key=True)
     severity    = Column(SmallInteger)
 
 
@@ -168,8 +186,6 @@ from sqlalchemy import Enum as SAEnum
 
 doc_status  = SAEnum("DRAFT", "PENDING", "APPROVED", "REJECTED",
                      name="doc_status", create_type=False)
-drug_status = SAEnum("ALLOWED", "RESTRICTED", "BANNED",
-                     name="drug_status", create_type=False)
 
 
 class DocCategory(Base):
@@ -209,30 +225,6 @@ class DocChunk(Base):
     metadata_        = Column("metadata", JSONB, server_default=FetchedValue())
 
     document         = relationship("Document")
-
-
-class DrugCategory(Base):
-    __tablename__ = "drug_categories"
-    id: int   = Column(Integer, primary_key=True)  # type: ignore
-    name: str = Column(String(150), unique=True, nullable=False)  # type: ignore
-
-
-class Drug(Base):
-    __tablename__ = "drugs"
-    id: uuid.UUID                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
-    category_id: int | None       = Column(Integer, ForeignKey("drug_categories.id"))  # type: ignore
-    document_id: uuid.UUID | None       = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"))  # type: ignore
-    name: str              = Column(String(200), nullable=False)  # type: ignore
-    active_ingredient: str | None = Column(String(200))  # type: ignore
-    indications: str | None       = Column(Text)  # type: ignore
-    side_effects: str | None      = Column(Text)  # type: ignore
-    contraindications: str | None = Column(Text)  # type: ignore
-    status: str            = Column(drug_status, nullable=False, default="ALLOWED")  # type: ignore
-    status_note: str | None       = Column(Text)  # type: ignore
-    created_at        = Column(DateTime(timezone=True), server_default=func.now())
-    deleted_at        = Column(DateTime(timezone=True))
-
-    document          = relationship("Document")
 
 
 class ChatMessage(Base):
@@ -294,7 +286,9 @@ class ActivityLog(Base):
     steps: int | None    = Column(Integer, default=0)  # type: ignore
     duration_min: int | None = Column(Integer, default=0)  # type: ignore
     calories_burned: float | None = Column(Numeric(7, 2), default=0)  # type: ignore
-    log_date: date       = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
+    started_at           = Column(DateTime(timezone=True))
+    ended_at             = Column(DateTime(timezone=True))
+    logged_at            = Column(DateTime(timezone=True), server_default=func.now())
 
 
 meal_type_enum = SAEnum("BREAKFAST", "LUNCH", "DINNER", "SNACK", name="meal_type", create_type=False)
