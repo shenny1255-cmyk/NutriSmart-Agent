@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
+import { isValidFullName } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
@@ -63,6 +65,7 @@ export default function Register() {
 
   function nextStep(e) {
     e.preventDefault();
+    if (!isValidFullName(form.full_name)) return setErr('Họ và tên chưa hợp lệ. Chỉ nhập chữ cái và dấu phân cách tên.');
     if (form.password.length < 8) return setErr('Mật khẩu tối thiểu 8 ký tự.');
     if (form.password !== form.confirm) return setErr('Mật khẩu xác nhận không khớp.');
     setErr(null);
@@ -146,7 +149,19 @@ export default function Register() {
         {step === 1 && (
           <div className="space-y-4">
             <FieldGroup label="Họ và tên">
-              <TextInput required value={form.full_name} onChange={(e) => set('full_name', e.target.value)} className="w-full" />
+              <TextInput
+                required
+                maxLength={100}
+                value={form.full_name}
+                onChange={(e) => set('full_name', e.target.value)}
+                aria-invalid={form.full_name !== '' && !isValidFullName(form.full_name)}
+                className={`w-full ${form.full_name !== '' && !isValidFullName(form.full_name) ? 'outline outline-2 outline-danger' : ''}`}
+              />
+              {form.full_name !== '' && !isValidFullName(form.full_name) && (
+                <p className="mt-1 text-xs font-medium text-danger">
+                  Chỉ nhập chữ cái, khoảng trắng, dấu nháy hoặc gạch nối (2–100 ký tự).
+                </p>
+              )}
             </FieldGroup>
 
             <FieldGroup label="Email">
@@ -188,7 +203,15 @@ export default function Register() {
               </FieldGroup>
 
               <FieldGroup label="Ngày sinh">
-                <TextInput type="date" required value={form.birth_date} onChange={(e) => set('birth_date', e.target.value)} className="w-full" />
+                <TextInput
+                  type="date"
+                  required
+                  min={MIN_BIRTH_DATE}
+                  max={MAX_BIRTH_DATE}
+                  value={form.birth_date}
+                  onChange={(e) => set('birth_date', e.target.value)}
+                  className="w-full"
+                />
               </FieldGroup>
 
               <FieldGroup label="Chiều cao (cm)">

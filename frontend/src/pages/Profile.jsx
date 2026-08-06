@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Save, User } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
+import { isValidFullName } from '../lib/validation.js';
 import { Btn, Field as TextInput, Select, Alert, useToast, Toast } from '../components/ui.jsx';
 
 // Danh sách fallback khi backend chưa chạy
@@ -89,10 +91,15 @@ export default function Profile() {
     form.height_cm && form.weight_kg
       ? (Number(form.weight_kg) / (Number(form.height_cm) / 100) ** 2).toFixed(1)
       : null;
+  const fullNameValid = isValidFullName(form.full_name);
 
   async function handleSave(e) {
     e.preventDefault();
     setErr(null);
+    if (!fullNameValid) {
+      setErr('Họ và tên chưa hợp lệ. Vui lòng kiểm tra lại.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -160,10 +167,17 @@ export default function Profile() {
             <FieldGroup label="Họ và tên">
               <TextInput
                 required
+                maxLength={100}
                 value={form.full_name}
                 onChange={(e) => set('full_name', e.target.value)}
-                className="w-full"
+                aria-invalid={form.full_name !== '' && !fullNameValid}
+                className={`w-full ${form.full_name !== '' && !fullNameValid ? 'outline outline-2 outline-danger' : ''}`}
               />
+              {form.full_name !== '' && !fullNameValid && (
+                <p className="mt-1 text-xs font-medium text-danger">
+                  Chỉ nhập chữ cái, khoảng trắng, dấu nháy hoặc gạch nối (2–100 ký tự).
+                </p>
+              )}
             </FieldGroup>
 
             <FieldGroup label="Email" hint="Không thể thay đổi">
@@ -198,6 +212,8 @@ export default function Profile() {
               <TextInput
                 type="date"
                 required
+                min={MIN_BIRTH_DATE}
+                max={MAX_BIRTH_DATE}
                 value={form.birth_date}
                 onChange={(e) => set('birth_date', e.target.value)}
                 className="w-full"
@@ -270,7 +286,7 @@ export default function Profile() {
           <Btn type="button" variant="ghost" onClick={() => navigate(-1)}>
             Huỷ
           </Btn>
-          <Btn type="submit" variant="primary" disabled={saving}>
+          <Btn type="submit" variant="primary" disabled={saving || !fullNameValid}>
             <Save size={16} />
             {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
           </Btn>

@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { Plus, Trash2, UtensilsCrossed, Dumbbell, Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api.js';
+import { isValidFoodName } from '../lib/validation.js';
 import { Btn, Field, Select, Alert, Toast, useToast } from '../components/ui.jsx';
 
 const MEAL_TYPES = [
@@ -152,29 +153,36 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
 
   const monMoi = foodId === '__new__';
   const monDaChon = foods.find((f) => f.id === foodId);
+  const tenMonHopLe = isValidFoodName(tenMoi);
+  const kcalNumber = Number(kcal);
+  const kcalHopLe = kcal !== '' && Number.isFinite(kcalNumber) && kcalNumber >= 1 && kcalNumber <= 5000;
+  const phanNumber = Number(phan);
+  const phanHopLe = phan !== '' && Number.isFinite(phanNumber) && phanNumber >= 0.5 && phanNumber <= 20;
 
   async function them() {
+    if (!hopLe) return;
     setDangLuu(true);
     try {
       const payload = {
         meal_type: loai,
-        quantity: Number(phan) || 1,
+        quantity: phanNumber,
         log_date: ngay,
         ...(monMoi
-          ? { food_name: tenMoi.trim(), calories_kcal: Number(kcal) }
+          ? { food_name: tenMoi.trim(), calories_kcal: kcalNumber }
           : { food_id: foodId }),
       };
       const res = await api.addMeal(payload);
       setTenMoi(''); setKcal(''); setPhan('1');
       onSaved(`Đã ghi ${res.food_name} (+${Math.round(res.calories_kcal)} kcal).`);
     } catch (e) {
-      onError(`Không ghi được bữa ăn: ${e.message}`);
+      if (e.status === 422) onError('Thông tin món ăn chưa hợp lệ. Vui lòng kiểm tra tên món, kcal và số phần.');
+      else onError(typeof e.detail === 'string' ? e.detail : 'Không ghi được bữa ăn. Vui lòng thử lại.');
     } finally {
       setDangLuu(false);
     }
   }
 
-  const hopLe = monMoi ? tenMoi.trim() && Number(kcal) > 0 : !!foodId;
+  const hopLe = phanHopLe && (monMoi ? tenMonHopLe && kcalHopLe : !!foodId);
 
   return (
     <KhungThe icon={UtensilsCrossed} title="Bữa ăn" subtitle="Chọn món có sẵn hoặc tự nhập món mới">
@@ -194,11 +202,29 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
           <>
             <label className="flex flex-col gap-1 text-xs text-muted">
               Tên món
-              <Field value={tenMoi} onChange={(e) => setTenMoi(e.target.value)} placeholder="VD: Bánh xèo" className="w-40" />
+              <Field
+                value={tenMoi}
+                maxLength={100}
+                onChange={(e) => setTenMoi(e.target.value)}
+                aria-invalid={tenMoi !== '' && !tenMonHopLe}
+                placeholder="VD: Bánh xèo"
+                className={`w-40 ${tenMoi !== '' && !tenMonHopLe ? 'outline outline-2 outline-danger' : ''}`}
+              />
+              {tenMoi !== '' && !tenMonHopLe && (
+                <span className="max-w-44 text-danger">Tên món không hợp lệ (2–100 ký tự)</span>
+              )}
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted">
               Kcal / phần
-              <Field type="number" min="0" value={kcal} onChange={(e) => setKcal(e.target.value)} className="w-24" />
+              <Field
+                type="number" min="1" max="5000" step="1" value={kcal}
+                onChange={(e) => setKcal(e.target.value)}
+                aria-invalid={kcal !== '' && !kcalHopLe}
+                className={`w-24 ${kcal !== '' && !kcalHopLe ? 'outline outline-2 outline-danger' : ''}`}
+              />
+              {kcal !== '' && !kcalHopLe && (
+                <span className="max-w-32 text-danger">Nhập từ 1–5.000 kcal</span>
+              )}
             </label>
           </>
         )}
@@ -212,7 +238,13 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
 
         <label className="flex flex-col gap-1 text-xs text-muted">
           Số phần
-          <Field type="number" min="0.5" step="0.5" value={phan} onChange={(e) => setPhan(e.target.value)} className="w-20" />
+          <Field
+            type="number" min="0.5" max="20" step="0.5" value={phan}
+            onChange={(e) => setPhan(e.target.value)}
+            aria-invalid={!phanHopLe}
+            className={`w-20 ${!phanHopLe ? 'outline outline-2 outline-danger' : ''}`}
+          />
+          {!phanHopLe && <span className="max-w-28 text-danger">Từ 0,5–20 phần</span>}
         </label>
 
         <Btn variant="primary" onClick={them} disabled={!hopLe || dangLuu}>
@@ -337,15 +369,19 @@ function CanNang({ weights, onSaved, onError }) {
   const cuoiKy = weights.at(-1);
   const chenhLech = dauKy && cuoiKy ? cuoiKy.weight_kg - dauKy.weight_kg : null;
   const Xu = (chenhLech ?? 0) <= 0 ? TrendingDown : TrendingUp;
+  const kgNumber = Number(kg);
+  const kgHopLe = kg !== '' && Number.isFinite(kgNumber) && kgNumber >= 20 && kgNumber <= 300;
 
   async function luu() {
+    if (!kgHopLe) return;
     setDangLuu(true);
     try {
-      const res = await api.updateWeight({ weight_kg: Number(kg) });
+      const res = await api.updateWeight({ weight_kg: kgNumber });
       setKg('');
       onSaved(`Đã cập nhật cân nặng ${res.weight_kg} kg${res.bmi ? ` · BMI ${res.bmi}` : ''}.`);
     } catch (e) {
-      onError(`Không lưu được cân nặng: ${e.message}`);
+      if (e.status === 422) onError('Cân nặng phải từ 20 đến 300 kg.');
+      else onError(typeof e.detail === 'string' ? e.detail : 'Không lưu được cân nặng. Vui lòng thử lại.');
     } finally {
       setDangLuu(false);
     }
@@ -363,13 +399,17 @@ function CanNang({ weights, onSaved, onError }) {
         <label className="flex flex-col gap-1 text-xs text-muted">
           Cân nặng hôm nay (kg)
           <Field
-            type="number" min="20" max="400" step="0.1" value={kg}
+            type="number" min="20" max="300" step="0.1" value={kg}
             onChange={(e) => setKg(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && Number(kg) > 0 && luu()}
+            onKeyDown={(e) => e.key === 'Enter' && kgHopLe && luu()}
+            aria-invalid={kg !== '' && !kgHopLe}
             placeholder="VD: 68.5" className="w-32"
           />
+          {kg !== '' && !kgHopLe && (
+            <span className="max-w-36 text-danger">Nhập từ 20 đến 300 kg</span>
+          )}
         </label>
-        <Btn variant="primary" onClick={luu} disabled={!(Number(kg) > 0) || dangLuu}>
+        <Btn variant="primary" onClick={luu} disabled={!kgHopLe || dangLuu}>
           {dangLuu ? 'Đang lưu…' : 'Cập nhật'}
         </Btn>
 

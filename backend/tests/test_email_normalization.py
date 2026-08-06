@@ -22,7 +22,7 @@ def test_login_email_trimmed_and_lowercased():
 def test_register_email_normalized():
     m = RegisterIn(
         email="Foo.Bar+Tag@Example.COM", password="password123",
-        full_name="X", country_code="VN", profile=_profile(), # type: ignore
+        full_name="Nguyễn An", country_code="VN", profile=_profile(), # type: ignore
     )
     assert m.email == "foo.bar+tag@example.com"
 
