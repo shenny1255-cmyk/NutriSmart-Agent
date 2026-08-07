@@ -27,7 +27,7 @@ export function THead({ cols }) {
     <thead className="border-b border-rule-2 text-left text-xs font-medium uppercase tracking-wide text-muted">
       <tr>
         {cols.map((c, i) => (
-          <th key={i} className={`px-4 py-3 ${c === '' ? 'w-0' : ''}`}>{c}</th>
+          <th key={i} className={`whitespace-nowrap px-4 py-3 ${c === '' ? 'w-0' : ''}`}>{c}</th>
         ))}
       </tr>
     </thead>

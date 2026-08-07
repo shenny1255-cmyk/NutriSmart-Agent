@@ -186,7 +186,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
 
   return (
     <KhungThe icon={UtensilsCrossed} title="Bữa ăn" subtitle="Chọn món có sẵn hoặc tự nhập món mới">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Món ăn
           <Select value={foodId} onChange={(e) => setFoodId(e.target.value)} className="w-52">
@@ -211,7 +211,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
                 className={`w-40 ${tenMoi !== '' && !tenMonHopLe ? 'outline outline-2 outline-danger' : ''}`}
               />
               {tenMoi !== '' && !tenMonHopLe && (
-                <span className="max-w-44 text-danger">Tên món không hợp lệ (2–100 ký tự)</span>
+                <span className="max-w-44 text-danger">Tên món từ 2–100 ký tự, không chứa emoji hoặc ký tự đặc biệt</span>
               )}
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted">
@@ -247,7 +247,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
           {!phanHopLe && <span className="max-w-28 text-danger">Từ 0,5–20 phần</span>}
         </label>
 
-        <Btn variant="primary" onClick={them} disabled={!hopLe || dangLuu}>
+        <Btn variant="primary" onClick={them} disabled={!hopLe || dangLuu} className="mt-5">
           <Plus size={15} />
           Thêm
         </Btn>
@@ -289,18 +289,29 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
   const [exId, setExId] = useState('');
   const [phut, setPhut] = useState('30');
   const [kcal, setKcal] = useState('');
+  const [dungKcalThietBi, setDungKcalThietBi] = useState(false);
   const [dangLuu, setDangLuu] = useState(false);
+  const soPhut = Number(phut);
+  const kcalNhap = Number(kcal);
+  const phutHopLe = phut !== '' && Number.isFinite(soPhut) && soPhut >= 1 && soPhut <= 600;
+  const kcalHopLe = !dungKcalThietBi
+    || (kcal !== '' && Number.isFinite(kcalNhap) && kcalNhap >= 1 && kcalNhap <= 5000);
 
   async function them() {
+    if (!phutHopLe || !kcalHopLe) {
+      onError('Vui lòng kiểm tra lại số phút và kcal vận động.');
+      return;
+    }
     setDangLuu(true);
     try {
       const res = await api.addActivity({
         exercise_id: Number(exId),
-        duration_min: Number(phut) || 30,
+        duration_min: soPhut,
         log_date: ngay,
-        ...(kcal ? { calories_burned: Number(kcal) } : {}),
+        ...(dungKcalThietBi ? { calories_burned: kcalNhap } : {}),
       });
       setKcal('');
+      setDungKcalThietBi(false);
       onSaved(`Đã ghi ${res.exercise_name} (−${Math.round(res.calories_burned)} kcal).`);
     } catch (e) {
       onError(`Không ghi được buổi tập: ${e.message}`);
@@ -311,7 +322,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
 
   return (
     <KhungThe icon={Dumbbell} title="Vận động" subtitle="Bỏ trống ô kcal thì hệ thống tự tính theo MET và cân nặng của bạn">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Bài tập
           <Select value={exId} onChange={(e) => setExId(e.target.value)} className="w-52">
@@ -321,13 +332,26 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
           Số phút
-          <Field type="number" min="1" max="600" value={phut} onChange={(e) => setPhut(e.target.value)} className="w-24" />
+          <Field type="number" min="1" max="600" value={phut} onChange={(e) => setPhut(e.target.value)}
+            className={`w-24 ${phut !== '' && !phutHopLe ? 'outline outline-2 outline-danger' : ''}`} />
+          {phut !== '' && !phutHopLe && <span className="font-medium text-danger">Nhập từ 1 đến 600 phút</span>}
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          Kcal (tùy chọn)
-          <Field type="number" min="0" value={kcal} onChange={(e) => setKcal(e.target.value)} placeholder="Tự tính" className="w-28" />
+        <label className="mt-5 flex min-h-11 items-center gap-2 rounded-sm bg-paper-3 px-3 text-xs font-medium text-ink-2 shadow-hairline">
+          <input type="checkbox" checked={dungKcalThietBi} onChange={(e) => {
+            setDungKcalThietBi(e.target.checked);
+            if (!e.target.checked) setKcal('');
+          }} className="h-4 w-4 accent-accent-strong" />
+          Dùng kcal từ thiết bị
         </label>
-        <Btn variant="primary" onClick={them} disabled={!exId || dangLuu}>
+        {dungKcalThietBi && (
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            Kcal thiết bị ghi nhận
+            <Field type="number" min="1" max="5000" value={kcal} onChange={(e) => setKcal(e.target.value)}
+              placeholder="VD: 250" className={`w-32 ${!kcalHopLe ? 'outline outline-2 outline-danger' : ''}`} />
+            {!kcalHopLe && <span className="font-medium text-danger">Nhập từ 1 đến 5000 kcal</span>}
+          </label>
+        )}
+        <Btn variant="primary" onClick={them} disabled={!exId || !phutHopLe || !kcalHopLe || dangLuu} className="mt-5">
           <Plus size={15} />
           Thêm
         </Btn>
@@ -395,7 +419,7 @@ function CanNang({ weights, onSaved, onError }) {
 
   return (
     <KhungThe icon={Scale} title="Cân nặng" subtitle="Cập nhật mỗi tuần một lần là đủ để hệ thống chấm lộ trình">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Cân nặng hôm nay (kg)
           <Field
@@ -409,12 +433,12 @@ function CanNang({ weights, onSaved, onError }) {
             <span className="max-w-36 text-danger">Nhập từ 20 đến 300 kg</span>
           )}
         </label>
-        <Btn variant="primary" onClick={luu} disabled={!kgHopLe || dangLuu}>
+        <Btn variant="primary" onClick={luu} disabled={!kgHopLe || dangLuu} className="mt-5">
           {dangLuu ? 'Đang lưu…' : 'Cập nhật'}
         </Btn>
 
         {cuoiKy && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
             <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2 [font-variant-numeric:tabular-nums]">
               Hiện tại {cuoiKy.weight_kg} kg
             </span>

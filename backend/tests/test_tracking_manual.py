@@ -3,10 +3,27 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import text
 
 from app.database import SessionLocal, engine
-from app.services.calorie import calories_burned
+from app.services.calorie import calories_burned, manual_calories_limit
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"exercise_id": 1, "duration_min": 0},
+        {"exercise_id": 1, "duration_min": 601},
+        {"exercise_id": 1, "duration_min": 30, "calories_burned": 0},
+        {"exercise_id": 1, "duration_min": 30, "calories_burned": 5001},
+    ],
+)
+def test_tu_choi_du_lieu_van_dong_phi_logic(payload):
+    from app.schemas import ManualActivityIn
+
+    with pytest.raises(ValidationError):
+        ManualActivityIn(**payload)
 
 
 def _db_up() -> bool:
@@ -39,6 +56,19 @@ def test_thieu_du_lieu_thi_tra_ve_0():
     assert calories_burned(met=None, weight_kg=70, minutes=30) == 0
     assert calories_burned(met=8.0, weight_kg=None, minutes=30) == 0
     assert calories_burned(met=8.0, weight_kg=70, minutes=0) == 0
+
+
+def test_gioi_han_kcal_nhap_tay_dua_tren_met_can_nang_va_thoi_gian():
+    expected, maximum = manual_calories_limit(met=3.5, weight_kg=70, minutes=1)
+    assert expected == pytest.approx(4.29, abs=0.1)
+    assert maximum < 30
+    assert 500 > maximum
+
+
+def test_thieu_can_nang_van_chan_kcal_vuot_nguong_theo_thoi_gian():
+    expected, maximum = manual_calories_limit(met=3.5, weight_kg=None, minutes=1)
+    assert expected == 0
+    assert maximum == 30
 
 
 # ---------- Tích hợp ----------
@@ -122,9 +152,26 @@ def test_nguoi_dung_tu_nhap_calo_thi_khong_tinh_lai(nguoi_dung):
     db, u = nguoi_dung
     ex = db.query(Exercise).first()
     ket_qua = them_van_dong(db, u, ManualActivityIn(
-        exercise_id=ex.id, duration_min=30, calories_burned=500,
+        exercise_id=ex.id, duration_min=30, calories_burned=200,
     ))
-    assert ket_qua.calories_burned == pytest.approx(500, abs=0.5)
+    assert ket_qua.calories_burned == pytest.approx(200, abs=0.5)
+
+
+@pytestmark_db
+def test_chan_kcal_thiet_bi_phi_logic_so_voi_thoi_gian(nguoi_dung):
+    from fastapi import HTTPException
+    from app.models import Exercise
+    from app.routers.tracking import them_van_dong
+    from app.schemas import ManualActivityIn
+
+    db, u = nguoi_dung
+    ex = db.query(Exercise).first()
+    with pytest.raises(HTTPException) as exc:
+        them_van_dong(db, u, ManualActivityIn(
+            exercise_id=ex.id, duration_min=1, calories_burned=500,
+        ))
+    assert exc.value.status_code == 422
+    assert "quá cao" in str(exc.value.detail)
 
 
 @pytestmark_db

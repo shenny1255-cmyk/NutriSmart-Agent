@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
-import { isValidFullName } from '../lib/validation.js';
+import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
+import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
+import CustomHealthTerms from '../components/CustomHealthTerms.jsx';
+import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { LogoMark } from '../components/Logo.jsx';
@@ -31,43 +33,88 @@ const GOALS = [
   { value: 'MEDICAL', label: 'Theo chỉ định y tế' },
 ];
 
+const INITIAL_FORM = {
+  email: '', password: '', confirm: '', full_name: '',
+  gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
+  activity_level: 3, goal: 'MAINTAIN',
+  condition_ids: [], allergen_ids: [],
+  custom_conditions: [], custom_allergens: [],
+};
+
 export default function Register() {
   const [step, setStep] = useState(1);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [emailStatus, setEmailStatus] = useState('idle');
+  const emailCheckId = useRef(0);
+  const [touched, setTouched] = useState({ full_name: false, email: false, password: false, confirm: false });
   const navigate = useNavigate();
 
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
   const [allergens, setAllergens] = useState(FALLBACK_ALLERGENS);
   // Quốc gia đã bỏ (mặc định Việt Nam)
 
-  const [form, setForm] = useState({
-    // Bước 1 — tài khoản
-    email: '', password: '', confirm: '', full_name: '',
-    // Bước 2 — hồ sơ sức khỏe
-    gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
-    activity_level: 3, goal: 'MAINTAIN',
-    condition_ids: [], allergen_ids: [],
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const toggle = (key, id) =>
-    setForm((f) => ({
-      ...f,
-      [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
-    }));
+  const set = (k, v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (k === 'email') {
+      emailCheckId.current += 1;
+      setEmailStatus('idle');
+    }
+    setErr(null);
+  };
+  const touch = (key) => setTouched((current) => ({ ...current, [key]: true }));
+  const fullNameValid = isValidFullName(form.full_name);
+  const emailValid = isEmail(form.email);
+  const passwordValid = form.password.length >= 8;
+  const confirmValid = form.confirm !== '' && form.confirm === form.password;
+  const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && emailStatus !== 'taken';
+  const heightNumber = Number(form.height_cm);
+  const weightNumber = Number(form.weight_kg);
+  const heightValid = form.height_cm !== '' && Number.isFinite(heightNumber) && heightNumber > 50 && heightNumber < 250;
+  const weightValid = form.weight_kg !== '' && Number.isFinite(weightNumber) && weightNumber >= 20 && weightNumber <= 300;
+  const metricsValid = heightValid && weightValid && areBodyMetricsPlausible(heightNumber, weightNumber);
+  const step2Valid = isValidBirthDate(form.birth_date) && metricsValid;
 
   useEffect(() => {
     api.conditions().then(setConditions).catch(() => { });
     api.allergens().then(setAllergens).catch(() => { });
   }, []);
 
-  function nextStep(e) {
+  async function checkEmail() {
+    if (!emailValid) return 'invalid';
+    const email = form.email.trim().toLowerCase();
+    const checkId = ++emailCheckId.current;
+    setEmailStatus('checking');
+    try {
+      const result = await api.checkEmail(email);
+      if (checkId !== emailCheckId.current) return 'stale';
+      setEmailStatus(result.available ? 'available' : 'taken');
+      return result.available ? 'available' : 'taken';
+    } catch {
+      if (checkId === emailCheckId.current) {
+        setEmailStatus('error');
+        setErr('Không kiểm tra được email. Vui lòng thử lại.');
+      }
+      return 'error';
+    }
+  }
+
+  async function nextStep(e) {
     e.preventDefault();
-    if (!isValidFullName(form.full_name)) return setErr('Họ và tên chưa hợp lệ. Chỉ nhập chữ cái và dấu phân cách tên.');
-    if (form.password.length < 8) return setErr('Mật khẩu tối thiểu 8 ký tự.');
-    if (form.password !== form.confirm) return setErr('Mật khẩu xác nhận không khớp.');
+    setTouched({ full_name: true, email: true, password: true, confirm: true });
+    if (!fullNameValid) return setErr('Họ và tên chưa hợp lệ.');
+    if (!emailValid) return setErr('Email chưa đúng định dạng.');
+    if (!passwordValid) return setErr('Mật khẩu tối thiểu 8 ký tự.');
+    if (!confirmValid) return setErr('Mật khẩu xác nhận không khớp.');
+    if (emailStatus !== 'available') {
+      const checked = await checkEmail();
+      if (checked !== 'available') {
+        if (checked === 'taken') setErr('Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.');
+        return;
+      }
+    }
     setErr(null);
     setStep(2);
   }
@@ -75,11 +122,19 @@ export default function Register() {
   async function submit(e) {
     e.preventDefault();
     setErr(null);
+    if (!isValidBirthDate(form.birth_date)) {
+      setErr('Ngày sinh không hợp lệ. Vui lòng chọn ngày từ lịch và không vượt quá hôm nay.');
+      return;
+    }
+    if (!metricsValid) {
+      setErr('Chiều cao hoặc cân nặng chưa hợp lệ. Vui lòng kiểm tra lại.');
+      return;
+    }
     setLoading(true);
 
     // Chuẩn hóa: input trả string, DB cần number
     const payload = {
-      email: form.email,
+      email: form.email.trim().toLowerCase(),
       password: form.password,
       full_name: form.full_name,
       profile: {
@@ -91,6 +146,8 @@ export default function Register() {
         goal: form.goal,
         condition_ids: form.condition_ids,
         allergen_ids: form.allergen_ids,
+        custom_conditions: form.custom_conditions,
+        custom_allergens: form.custom_allergens,
       },
     };
 
@@ -115,15 +172,15 @@ export default function Register() {
   }
 
   // BMI xem trước, tính ngay trên client
-  const bmi =
-    form.height_cm && form.weight_kg
-      ? (Number(form.weight_kg) / (Number(form.height_cm) / 100) ** 2).toFixed(1)
-      : null;
+  const bmi = metricsValid
+    ? bodyMetricsBmi(heightNumber, weightNumber).toFixed(1)
+    : null;
 
   return (
     <AuthLayout>
       <form
         onSubmit={step === 1 ? nextStep : submit}
+        autoComplete="off"
         className="mx-auto w-full max-w-lg rounded-md bg-paper-2 p-6 shadow-card sm:p-8"
       >
         <div className="mb-5 flex items-center gap-3">
@@ -148,43 +205,63 @@ export default function Register() {
 
         {step === 1 && (
           <div className="space-y-4">
-            <FieldGroup label="Họ và tên">
+            <FieldGroup label="Họ và tên" required>
               <TextInput
                 required
+                name="registration-full-name"
+                autoComplete="name"
                 maxLength={100}
                 value={form.full_name}
                 onChange={(e) => set('full_name', e.target.value)}
-                aria-invalid={form.full_name !== '' && !isValidFullName(form.full_name)}
-                className={`w-full ${form.full_name !== '' && !isValidFullName(form.full_name) ? 'outline outline-2 outline-danger' : ''}`}
+                onBlur={() => touch('full_name')}
+                aria-invalid={touched.full_name && !fullNameValid}
+                className={`w-full ${touched.full_name && !fullNameValid ? 'outline outline-2 outline-danger' : ''}`}
               />
-              {form.full_name !== '' && !isValidFullName(form.full_name) && (
+              {touched.full_name && !fullNameValid && (
                 <p className="mt-1 text-xs font-medium text-danger">
-                  Chỉ nhập chữ cái, khoảng trắng, dấu nháy hoặc gạch nối (2–100 ký tự).
+                  Nhập 2–100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
                 </p>
               )}
             </FieldGroup>
 
-            <FieldGroup label="Email">
-              <TextInput type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} className="w-full" />
-              {form.email && !isEmail(form.email) && (
-                <p className="mt-1 text-xs text-warning-strong">Email chưa đúng định dạng</p>
+            <FieldGroup label="Email" required>
+              <TextInput type="email" required name="registration-email" autoComplete="off"
+                value={form.email} onChange={(e) => set('email', e.target.value)}
+                onBlur={() => { touch('email'); if (emailValid) checkEmail(); }}
+                aria-invalid={(touched.email && !emailValid) || emailStatus === 'taken'}
+                className={`w-full ${(touched.email && !emailValid) || emailStatus === 'taken' ? 'outline outline-2 outline-danger' : ''}`} />
+              {touched.email && !emailValid && (
+                <p className="mt-1 text-xs font-medium text-danger">Email chưa đúng định dạng.</p>
+              )}
+              {emailValid && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
+              {emailValid && emailStatus === 'available' && (
+                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-accent-strong"><Check size={12} strokeWidth={3} />Email có thể sử dụng</p>
+              )}
+              {emailValid && emailStatus === 'taken' && (
+                <p className="mt-1 text-xs font-medium text-danger">Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.</p>
               )}
             </FieldGroup>
 
-            <FieldGroup label="Mật khẩu">
-              <PasswordInput required value={form.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />
-              <p className={`mt-1 flex items-center gap-1 text-xs ${form.password.length >= 8 ? 'text-accent-strong' : 'text-muted'}`}>
-                {form.password.length >= 8 && <Check size={12} strokeWidth={3} />}
-                {form.password.length >= 8 ? 'Đủ độ dài' : 'Tối thiểu 8 ký tự'}
+            <FieldGroup label="Mật khẩu" required>
+              <PasswordInput required name="registration-password" autoComplete="new-password"
+                value={form.password} onChange={(e) => set('password', e.target.value)} onBlur={() => touch('password')}
+                aria-invalid={touched.password && !passwordValid}
+                className={`${inputCls} ${touched.password && !passwordValid ? 'outline outline-2 outline-danger' : ''}`} />
+              <p className={`mt-1 flex items-center gap-1 text-xs ${passwordValid ? 'text-accent-strong' : touched.password ? 'text-danger' : 'text-muted'}`}>
+                {passwordValid && <Check size={12} strokeWidth={3} />}
+                Ít nhất 8 ký tự
               </p>
             </FieldGroup>
 
-            <FieldGroup label="Xác nhận mật khẩu">
-              <PasswordInput required value={form.confirm} onChange={(e) => set('confirm', e.target.value)} className={inputCls} />
-              {form.confirm && (
-                <p className={`mt-1 flex items-center gap-1 text-xs ${form.confirm === form.password ? 'text-accent-strong' : 'text-warning-strong'}`}>
-                  {form.confirm === form.password && <Check size={12} strokeWidth={3} />}
-                  {form.confirm === form.password ? 'Mật khẩu khớp' : 'Mật khẩu chưa khớp'}
+            <FieldGroup label="Xác nhận mật khẩu" required>
+              <PasswordInput required name="registration-password-confirm" autoComplete="new-password"
+                value={form.confirm} onChange={(e) => set('confirm', e.target.value)} onBlur={() => touch('confirm')}
+                aria-invalid={touched.confirm && !confirmValid}
+                className={`${inputCls} ${touched.confirm && !confirmValid ? 'outline outline-2 outline-danger' : ''}`} />
+              {(form.confirm || touched.confirm) && (
+                <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${confirmValid ? 'text-accent-strong' : 'text-danger'}`}>
+                  {confirmValid && <Check size={12} strokeWidth={3} />}
+                  {confirmValid ? 'Mật khẩu khớp' : 'Mật khẩu xác nhận không khớp.'}
                 </p>
               )}
             </FieldGroup>
@@ -210,22 +287,42 @@ export default function Register() {
                   max={MAX_BIRTH_DATE}
                   value={form.birth_date}
                   onChange={(e) => set('birth_date', e.target.value)}
-                  className="w-full"
+                  aria-invalid={form.birth_date !== '' && !isValidBirthDate(form.birth_date)}
+                  className={`w-full ${form.birth_date !== '' && !isValidBirthDate(form.birth_date) ? 'outline outline-2 outline-danger' : ''}`}
                 />
+                {form.birth_date !== '' && !isValidBirthDate(form.birth_date) && (
+                  <p className="mt-1 text-xs font-medium text-danger">
+                    Ngày sinh phải từ {MIN_BIRTH_DATE} đến {MAX_BIRTH_DATE}.
+                  </p>
+                )}
               </FieldGroup>
 
               <FieldGroup label="Chiều cao (cm)">
-                <TextInput type="number" min="50" max="250" step="0.1" required
-                  value={form.height_cm} onChange={(e) => set('height_cm', e.target.value)} className="w-full" />
+                <TextInput type="number" min="50.1" max="249.9" step="0.1" required
+                  value={form.height_cm} onChange={(e) => set('height_cm', e.target.value)}
+                  aria-invalid={form.height_cm !== '' && !heightValid}
+                  className={`w-full ${form.height_cm !== '' && !heightValid ? 'outline outline-2 outline-danger' : ''}`} />
+                {form.height_cm !== '' && !heightValid && (
+                  <p className="mt-1 text-xs font-medium text-danger">Chiều cao phải lớn hơn 50 cm và nhỏ hơn 250 cm.</p>
+                )}
               </FieldGroup>
 
               <FieldGroup label="Cân nặng (kg)">
                 <TextInput type="number" min="20" max="300" step="0.1" required
-                  value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)} className="w-full" />
+                  value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)}
+                  aria-invalid={form.weight_kg !== '' && !weightValid}
+                  className={`w-full ${form.weight_kg !== '' && !weightValid ? 'outline outline-2 outline-danger' : ''}`} />
+                {form.weight_kg !== '' && !weightValid && (
+                  <p className="mt-1 text-xs font-medium text-danger">Cân nặng phải từ 20 đến 300 kg.</p>
+                )}
               </FieldGroup>
-            </div>
+          </div>
 
-            {bmi && (
+          {heightValid && weightValid && !metricsValid && (
+            <Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10–80.</Alert>
+          )}
+
+          {bmi && (
               <p className="rounded-sm bg-accent-soft px-3 py-2 text-sm text-accent-strong">
                 BMI dự kiến: <b className="[font-variant-numeric:tabular-nums]">{bmi}</b>
               </p>
@@ -247,12 +344,18 @@ export default function Register() {
               </Select>
             </FieldGroup>
 
-            <FieldGroup label="Bệnh nền" hint="Chọn nhiều nếu có">
-              <CheckGroup items={conditions} selected={form.condition_ids} onToggle={(id) => toggle('condition_ids', id)} />
+            <FieldGroup label={`Bệnh nền${form.condition_ids.length + form.custom_conditions.length ? ` (${form.condition_ids.length + form.custom_conditions.length})` : ''}`}>
+              <CatalogMultiSelect kind="condition" items={conditions} selected={form.condition_ids}
+                onChange={(values) => set('condition_ids', values)} />
+              <CustomHealthTerms kind="condition" values={form.custom_conditions}
+                existingNames={conditions.map((item) => item.name)} onChange={(values) => set('custom_conditions', values)} />
             </FieldGroup>
 
-            <FieldGroup label="Dị ứng thực phẩm" hint="Chọn nhiều nếu có">
-              <CheckGroup items={allergens} selected={form.allergen_ids} onToggle={(id) => toggle('allergen_ids', id)} />
+            <FieldGroup label={`Dị ứng thực phẩm${form.allergen_ids.length + form.custom_allergens.length ? ` (${form.allergen_ids.length + form.custom_allergens.length})` : ''}`}>
+              <CatalogMultiSelect kind="allergen" items={allergens} selected={form.allergen_ids}
+                onChange={(values) => set('allergen_ids', values)} />
+              <CustomHealthTerms kind="allergen" values={form.custom_allergens}
+                existingNames={allergens.map((item) => item.name)} onChange={(values) => set('custom_allergens', values)} />
             </FieldGroup>
           </div>
         )}
@@ -265,8 +368,9 @@ export default function Register() {
               Quay lại
             </Btn>
           )}
-          <Btn type="submit" variant="primary" disabled={loading} className="flex-1">
-            {step === 1 ? 'Tiếp tục' : loading ? 'Đang tạo tài khoản…' : 'Hoàn tất đăng ký'}
+          <Btn type="submit" variant="primary"
+            disabled={loading || emailStatus === 'checking' || (step === 1 ? !step1Valid : !step2Valid)} className="flex-1">
+            {step === 1 ? emailStatus === 'checking' ? 'Đang kiểm tra email…' : 'Tiếp tục' : loading ? 'Đang tạo tài khoản…' : 'Hoàn tất đăng ký'}
           </Btn>
         </div>
 
@@ -283,43 +387,14 @@ export default function Register() {
     </AuthLayout>
   );
 }
-
-function FieldGroup({ label, hint, children }) {
+function FieldGroup({ label, hint, required, children }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-ink-2">{label}</label>
+      <label className="mb-1 block text-base font-medium text-ink-2">
+        {label}{required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
+      </label>
       {children}
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </div>
-  );
-}
-
-function CheckGroup({ items, selected, onToggle }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((it) => {
-        const on = selected.includes(it.id);
-        return (
-          <button
-            key={it.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onToggle(it.id)}
-            className={[
-              'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium',
-              'transition-[background-color,color,box-shadow,transform] duration-short ease-out',
-              'active:scale-95',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-              on
-                ? 'bg-accent-strong text-accent-ink shadow-whisper'
-                : 'bg-paper-2 text-ink-2 shadow-hairline hover:bg-accent-soft hover:text-accent-strong',
-            ].join(' ')}
-          >
-            {on && <Check size={12} strokeWidth={3} />}
-            {it.name}
-          </button>
-        );
-      })}
     </div>
   );
 }

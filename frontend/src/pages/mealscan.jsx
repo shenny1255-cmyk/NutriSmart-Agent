@@ -106,8 +106,8 @@ export default function MealScan() {
 
     try {
       setResult(await api.analyzeMeal(file));
-    } catch {
-      setResult({ error: 'Vision Service chưa sẵn sàng. Hãy đảm bảo backend đã kết nối.' });
+    } catch (error) {
+      setResult({ error: error.detail || 'Dịch vụ phân tích ảnh chưa sẵn sàng. Vui lòng thử lại sau.' });
     } finally {
       setLoading(false);
     }
@@ -271,7 +271,7 @@ export default function MealScan() {
       )}
 
       {/* Kết quả phân tích */}
-      {result && !result.error && (
+      {result && !result.error && result.is_food_image !== false && (
         <div className="glass-card space-y-5 rounded-2xl p-6">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-4">
             <div>
@@ -347,6 +347,24 @@ export default function MealScan() {
             {savedMsg && (
               <p className="mt-2 text-center text-xs font-semibold text-accent-strong">{savedMsg}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Ảnh không phải món ăn hoặc không đủ rõ để phân tích */}
+      {result?.is_food_image === false && (
+        <div className="glass-card rounded-xl border border-warning-strong/30 bg-warning-soft/90 p-5" role="alert">
+          <div className="flex gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-warning-strong">
+              <AlertTriangle size={21} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-ink">Không nhận diện được món ăn</h2>
+              <p className="mt-1.5 text-base leading-relaxed text-ink-2">
+                {result.rejection_reason || 'Ảnh này dường như không chứa món ăn hoặc món ăn không đủ rõ để phân tích.'}
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted">Hãy chụp món ăn đủ sáng, rõ nét và nằm ở giữa khung hình.</p>
+            </div>
           </div>
         </div>
       )}

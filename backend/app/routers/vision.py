@@ -36,8 +36,8 @@ async def analyze_meal_image(
     except Exception as e:
         logger.error(f"Lỗi phân tích hình ảnh món ăn: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Không thể phân tích ảnh: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Dịch vụ phân tích ảnh tạm thời không khả dụng. Vui lòng thử lại sau."
         )
 
 

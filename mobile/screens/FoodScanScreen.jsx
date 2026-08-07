@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChevronLeft, Flame, Utensils } from 'lucide-react-native';
+import { Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChevronLeft, Flame, Utensils, AlertTriangle } from 'lucide-react-native';
 import { Theme } from '../theme';
 
 export default function FoodScanScreen({ navigation, route }) {
@@ -111,7 +111,7 @@ export default function FoodScanScreen({ navigation, route }) {
 
   // 4. Lưu bữa ăn vào CSDL
   const handleSaveMeal = async () => {
-    if (!analysisResult) return;
+    if (!analysisResult || analysisResult.is_food_image === false) return;
 
     setSaving(true);
     try {
@@ -150,10 +150,11 @@ export default function FoodScanScreen({ navigation, route }) {
   };
 
   // Tính toán dinh dưỡng dựa trên Khẩu phần (Portion multiplier)
-  const calcKcal = analysisResult ? (analysisResult.calories_kcal * portion).toFixed(0) : 0;
-  const calcProtein = analysisResult ? (analysisResult.protein_g * portion).toFixed(1) : 0;
-  const calcCarbs = analysisResult ? (analysisResult.carb_g * portion).toFixed(1) : 0;
-  const calcFat = analysisResult ? (analysisResult.fat_g * portion).toFixed(1) : 0;
+  const hasFoodResult = analysisResult && analysisResult.is_food_image !== false;
+  const calcKcal = hasFoodResult ? (analysisResult.calories_kcal * portion).toFixed(0) : 0;
+  const calcProtein = hasFoodResult ? (analysisResult.protein_g * portion).toFixed(1) : 0;
+  const calcCarbs = hasFoodResult ? (analysisResult.carb_g * portion).toFixed(1) : 0;
+  const calcFat = hasFoodResult ? (analysisResult.fat_g * portion).toFixed(1) : 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -201,8 +202,24 @@ export default function FoodScanScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* Ảnh không phải món ăn hoặc không đủ rõ để phân tích */}
+        {analysisResult?.is_food_image === false && (
+          <View style={styles.rejectionCard} accessibilityRole="alert">
+            <View style={styles.rejectionIcon}>
+              <AlertTriangle size={22} color="#D97706" />
+            </View>
+            <View style={styles.rejectionContent}>
+              <Text style={styles.rejectionTitle}>Không nhận diện được món ăn</Text>
+              <Text style={styles.rejectionText}>
+                {analysisResult.rejection_reason || 'Ảnh này dường như không chứa món ăn hoặc món ăn không đủ rõ để phân tích.'}
+              </Text>
+              <Text style={styles.rejectionHint}>Hãy chụp món ăn đủ sáng, rõ nét và nằm ở giữa khung hình.</Text>
+            </View>
+          </View>
+        )}
+
         {/* Kết quả Phân tích Gemini Flash AI */}
-        {analysisResult && (
+        {hasFoodResult && (
           <View style={styles.resultCard}>
             <View style={styles.resultHeader}>
               <Sparkles size={20} color={Theme.colors.accentStrong} />
@@ -330,6 +347,18 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md,
     padding: 20, borderWidth: 1, borderColor: Theme.colors.border, marginBottom: 20,
   },
+  rejectionCard: {
+    flexDirection: 'row', backgroundColor: '#FEF3C7', borderRadius: Theme.radius.md,
+    padding: 18, borderWidth: 1, borderColor: '#F59E0B55', marginBottom: 20,
+  },
+  rejectionIcon: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFFFFFAA',
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  },
+  rejectionContent: { flex: 1 },
+  rejectionTitle: { fontSize: 17, fontWeight: '800', color: Theme.colors.text, marginBottom: 6 },
+  rejectionText: { fontSize: 15, lineHeight: 21, color: Theme.colors.textSecondary },
+  rejectionHint: { fontSize: 13, lineHeight: 19, color: Theme.colors.textMuted, marginTop: 7 },
   resultHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   resultHeaderTitle: { fontSize: 14, fontWeight: '700', color: Theme.colors.accentStrong, marginLeft: 6, flex: 1 },
   confidenceText: { fontSize: 11, color: Theme.colors.textMuted, backgroundColor: Theme.colors.cardSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },

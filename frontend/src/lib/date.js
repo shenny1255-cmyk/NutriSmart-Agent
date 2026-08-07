@@ -11,3 +11,9 @@ oldestBirthDate.setFullYear(today.getFullYear() - 120);
 
 export const MAX_BIRTH_DATE = toLocalDateInputValue(today);
 export const MIN_BIRTH_DATE = toLocalDateInputValue(oldestBirthDate);
+
+export function isValidBirthDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && value >= MIN_BIRTH_DATE
+    && value <= MAX_BIRTH_DATE;
+}

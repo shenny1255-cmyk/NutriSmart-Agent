@@ -125,6 +125,7 @@ export const api = {
   },
   logMeal: (payload) => request('/vision/log-meal', { method: 'POST', body: payload }),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
+  checkEmail: (email) => request('/auth/check-email', { method: 'POST', body: { email } }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   verifyEmail: (token) => request(`/auth/verify?token=${encodeURIComponent(token)}`),
   resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
@@ -137,9 +138,17 @@ export const api = {
   seedDemo: () => request('/demo/seed', { method: 'POST' }),
   // Admin
   adminUsers: (q = '') => request(`/admin/users${q ? `?q=${q}` : ''}`),
+  createAdminUser: (payload) => request('/admin/users', { method: 'POST', body: payload }),
   updateUserRole: (id, role) => request(`/admin/users/${id}/role`, { method: 'PATCH', body: { role } }),
   deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
-  auditLogs: () => request('/admin/audit'),
+  bulkDeleteUsers: (userIds) => request('/admin/users/bulk-delete', { method: 'DELETE', body: { user_ids: userIds } }),
+  auditLogs: (params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== '' && value != null) query.set(key, value);
+    });
+    return request(`/admin/audit?${query.toString()}`);
+  },
   // Danh mục tài liệu
   docCategories: () => request('/admin/doc-categories'),
   createDocCategory: (payload) => request('/admin/doc-categories', { method: 'POST', body: payload }),
