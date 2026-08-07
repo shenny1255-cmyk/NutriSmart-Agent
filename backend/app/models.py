@@ -61,6 +61,8 @@ class UserInfo(Base):
     activity_level: int | None = Column(SmallInteger)  # type: ignore
     goal: str           = Column(goal_enum, nullable=False, default="MAINTAIN")  # type: ignore
     daily_calorie_target: int | None = Column(Integer)  # type: ignore
+    custom_conditions = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
+    custom_allergens  = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

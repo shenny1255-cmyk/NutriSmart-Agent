@@ -11,7 +11,7 @@ from app.schemas import (
     DailySummaryOut, ActivityIn, TodayActivityOut,
     ManualMealIn, MealLogOut, ManualActivityIn, ActivityLogOut, WeightIn, WeightOut,
 )
-from app.services.calorie import calories_burned
+from app.services.calorie import calories_burned, manual_calories_limit
 
 logger = logging.getLogger(__name__)
 
@@ -229,10 +229,24 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
     if not bai_tap:
         raise HTTPException(404, "Không tìm thấy bài tập")
 
+    can_nang = user.info.weight_kg if user.info else None
+    kcal_du_kien, kcal_toi_da = manual_calories_limit(
+        float(bai_tap.met_value), float(can_nang) if can_nang else None, payload.duration_min  # type: ignore
+    )
     kcal = payload.calories_burned
     if kcal is None:
-        can_nang = user.info.weight_kg if user.info else None
-        kcal = calories_burned(float(bai_tap.met_value), float(can_nang) if can_nang else None, payload.duration_min)  # type: ignore
+        kcal = kcal_du_kien
+        if kcal <= 0:
+            raise HTTPException(
+                422,
+                "Không thể tự tính kcal. Vui lòng cập nhật cân nặng hoặc tự nhập kcal lớn hơn 0.",
+            )
+    elif kcal > kcal_toi_da:
+        du_kien = f" khoảng {round(kcal_du_kien)} kcal" if kcal_du_kien > 0 else ""
+        raise HTTPException(
+            422,
+            f"Kcal nhập vào quá cao so với bài tập và thời gian. Hệ thống ước tính{du_kien}.",
+        )
 
     started_at = payload.started_at
     ended_at = payload.ended_at

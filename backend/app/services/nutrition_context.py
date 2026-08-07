@@ -71,6 +71,11 @@ def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
         age = (date.today() - info.birth_date).days // 365 if info.birth_date else None
         conditions = [c.name for c in getattr(info, "conditions", [])]
         allergens = [a.name for a in getattr(info, "allergens", [])]
+        conditions.extend(getattr(info, "custom_conditions", []) or [])
+        allergens.extend(
+            item.get("name", "") if isinstance(item, dict) else str(item)
+            for item in (getattr(info, "custom_allergens", []) or [])
+        )
         ctx["profile"] = {
             "goal": info.goal,
             "gender": info.gender,

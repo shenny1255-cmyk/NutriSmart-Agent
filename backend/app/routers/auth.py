@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
 from app.models import User, UserInfo, ProfileCondition, ProfileAllergen
-from app.schemas import RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn
+from app.schemas import (
+    RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn,
+    EmailAvailabilityIn, EmailAvailabilityOut,
+    validate_body_metrics,
+)
 from app.security import (
     hash_password, verify_password, create_access_token,
     create_verification_token, decode_verification_token,
@@ -12,6 +16,12 @@ from app.services.calorie import daily_calorie_target
 from app.services.email import build_verify_link, send_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/check-email", response_model=EmailAvailabilityOut)
+def check_email_availability(payload: EmailAvailabilityIn, db: Session = Depends(get_db)):
+    exists = db.query(User).filter(User.email == payload.email).first()  # type: ignore
+    return EmailAvailabilityOut(available=exists is None)
 
 
 @router.post("/register", response_model=TokenOut, status_code=201)
@@ -51,6 +61,8 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             activity_level=p.activity_level,
             goal=p.goal,
             daily_calorie_target=target,
+            custom_conditions=p.custom_conditions,
+            custom_allergens=[item.model_dump() for item in p.custom_allergens],
             # KHÔNG set bmi — generated column
         )
         db.add(info)
@@ -136,6 +148,12 @@ def update_me(
     if payload.full_name is not None:
         info.full_name = payload.full_name
 
+    if payload.height_cm is not None or payload.weight_kg is not None:
+        next_height = payload.height_cm if payload.height_cm is not None else info.height_cm
+        next_weight = payload.weight_kg if payload.weight_kg is not None else info.weight_kg
+        if next_height is not None and next_weight is not None:
+            validate_body_metrics(float(next_height), float(next_weight))
+
     profile_fields = ["gender", "birth_date", "height_cm", "weight_kg",
                       "activity_level", "goal"]
     changed_profile = False
@@ -173,6 +191,11 @@ def update_me(
         ).delete()
         for aid in payload.allergen_ids:
             db.add(ProfileAllergen(user_id=user.id, allergen_id=aid))
+
+    if payload.custom_conditions is not None:
+        info.custom_conditions = payload.custom_conditions
+    if payload.custom_allergens is not None:
+        info.custom_allergens = [item.model_dump() for item in payload.custom_allergens]
 
     db.commit()
     db.refresh(user)

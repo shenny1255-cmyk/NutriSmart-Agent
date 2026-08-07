@@ -35,6 +35,23 @@ def calories_burned(met: float | None, weight_kg: float | None, minutes: int | N
     return round(float(met) * 3.5 * float(weight_kg) / 200 * int(minutes), 2)
 
 
+def manual_calories_limit(
+    met: float | None,
+    weight_kg: float | None,
+    minutes: int,
+) -> tuple[float, float]:
+    """Trả kcal dự kiến và trần rộng để kiểm tra số liệu nhập từ thiết bị.
+
+    Trần cho phép sai số lớn so với công thức MET nhưng không vượt quá 30 kcal/phút.
+    Khi thiếu cân nặng, giới hạn theo thời gian vẫn ngăn các giá trị phi thực tế rõ ràng.
+    """
+    expected = calories_burned(met, weight_kg, minutes)
+    time_limit = float(minutes * 30)
+    if expected <= 0:
+        return expected, time_limit
+    return expected, min(expected * 3 + 10, time_limit)
+
+
 def daily_calorie_target(
     gender: str, birth_date: date, height_cm: float,
     weight_kg: float, activity_level: int, goal: str,

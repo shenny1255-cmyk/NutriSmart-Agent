@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator, AfterValidator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator, AfterValidator, field_validator, model_validator
 
 
 def _normalize_email(v: str) -> str:
@@ -32,6 +32,13 @@ def _validate_birth_date(value: date) -> date:
 BirthDate = Annotated[date, AfterValidator(_validate_birth_date)]
 
 
+def validate_body_metrics(height_cm: float, weight_kg: float) -> None:
+    """Chặn tổ hợp số đo ngoài phạm vi hệ thống có thể tính dinh dưỡng an toàn."""
+    bmi = weight_kg / (height_cm / 100) ** 2
+    if not 10 <= bmi <= 80:
+        raise ValueError("Tổ hợp chiều cao và cân nặng không hợp lý (BMI phải từ 10 đến 80)")
+
+
 def _validate_full_name(value: str) -> str:
     """Chuẩn hóa và chỉ chấp nhận tên người gồm chữ cùng dấu phân cách thông dụng."""
     normalized = " ".join(value.strip().split())
@@ -39,7 +46,7 @@ def _validate_full_name(value: str) -> str:
         raise ValueError("Họ và tên phải có từ 2 đến 100 ký tự")
     parts = re.split(r"[ '\-’]", normalized)
     if any(not part or not all(char.isalpha() for char in part) for part in parts):
-        raise ValueError("Họ và tên chỉ được chứa chữ cái, khoảng trắng, dấu nháy hoặc gạch nối")
+        raise ValueError("Họ và tên không được chứa emoji hoặc ký tự đặc biệt")
     return normalized
 
 
@@ -55,11 +62,65 @@ def _validate_food_name(value: str) -> str:
         raise ValueError("Tên món phải có ít nhất 2 chữ cái")
     allowed_punctuation = " &/().,'’+-%"
     if any(not (char.isalpha() or char.isdigit() or char in allowed_punctuation) for char in normalized):
-        raise ValueError("Tên món chứa ký tự không hợp lệ")
+        raise ValueError("Tên món không được chứa emoji hoặc ký tự đặc biệt")
     return normalized
 
 
 FoodName = Annotated[str, AfterValidator(_validate_food_name)]
+
+
+def _validate_custom_health_term(value: str) -> str:
+    """Kiểm tra dữ liệu sức khỏe tự khai báo mà không giả vờ xác minh chẩn đoán."""
+    normalized = " ".join(value.strip().split())
+    if not 2 <= len(normalized) <= 80:
+        raise ValueError("Tên tự khai báo phải có từ 2 đến 80 ký tự")
+    letters = [char.casefold() for char in normalized if char.isalpha()]
+    if len(letters) < 2:
+        raise ValueError("Tên tự khai báo phải chứa ít nhất 2 chữ cái")
+    allowed_punctuation = " -'’()/&.,"
+    if any(not char.isalnum() and char not in allowed_punctuation for char in normalized):
+        raise ValueError("Tên tự khai báo không được chứa emoji hoặc ký tự đặc biệt")
+    if len(set(letters)) < 2:
+        raise ValueError("Tên tự khai báo có nội dung lặp không hợp lệ")
+    return normalized
+
+
+CustomHealthTerm = Annotated[str, AfterValidator(_validate_custom_health_term)]
+
+
+class CustomAllergenItem(BaseModel):
+    name: CustomHealthTerm
+    severity: Literal["UNKNOWN", "MILD", "MODERATE", "SEVERE"] = "UNKNOWN"
+
+
+def _normalize_custom_allergen(value):
+    # Tương thích dữ liệu chuỗi đã lưu trước khi bổ sung mức độ.
+    return {"name": value, "severity": "UNKNOWN"} if isinstance(value, str) else value
+
+
+CustomAllergen = Annotated[CustomAllergenItem, BeforeValidator(_normalize_custom_allergen)]
+
+
+def _unique_health_terms(values: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
+
+
+def _unique_custom_allergens(values: list[CustomAllergenItem]) -> list[CustomAllergenItem]:
+    unique: list[CustomAllergenItem] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.name.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
 
 
 # ---------- Register ----------
@@ -72,6 +133,23 @@ class ProfileIn(BaseModel):
     goal: Literal["LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL"]
     condition_ids: list[int] = []
     allergen_ids: list[int] = []
+    custom_conditions: list[CustomHealthTerm] = Field(default_factory=list, max_length=10)
+    custom_allergens: list[CustomAllergen] = Field(default_factory=list, max_length=10)
+
+    @field_validator("custom_conditions")
+    @classmethod
+    def unique_custom_terms(cls, values: list[str]) -> list[str]:
+        return _unique_health_terms(values)
+
+    @field_validator("custom_allergens")
+    @classmethod
+    def unique_custom_allergens(cls, values: list[CustomAllergenItem]) -> list[CustomAllergenItem]:
+        return _unique_custom_allergens(values)
+
+    @model_validator(mode="after")
+    def validate_metrics(self):
+        validate_body_metrics(self.height_cm, self.weight_kg)
+        return self
 
 
 class RegisterIn(BaseModel):
@@ -84,6 +162,14 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: NormalizedEmail
     password: str
+
+
+class EmailAvailabilityIn(BaseModel):
+    email: NormalizedEmail
+
+
+class EmailAvailabilityOut(BaseModel):
+    available: bool
 
 
 class TokenOut(BaseModel):
@@ -144,6 +230,8 @@ class ProfileOut(BaseModel):
     daily_calorie_target: int | None = None
     conditions: list[ItemOut] = []
     allergens: list[ItemOut] = []
+    custom_conditions: list[str] = []
+    custom_allergens: list[CustomAllergenItem] = []
 
 
 class MeOut(UserOut):
@@ -163,6 +251,24 @@ class UserProfileUpdateIn(BaseModel):
     goal: Literal["LOSE_WEIGHT", "MAINTAIN", "GAIN_MUSCLE", "MEDICAL"] | None = None
     condition_ids: list[int] | None = None
     allergen_ids: list[int] | None = None
+    custom_conditions: list[CustomHealthTerm] | None = Field(default=None, max_length=10)
+    custom_allergens: list[CustomAllergen] | None = Field(default=None, max_length=10)
+
+    @field_validator("custom_conditions")
+    @classmethod
+    def unique_custom_terms(cls, values: list[str] | None) -> list[str] | None:
+        return _unique_health_terms(values) if values is not None else None
+
+    @field_validator("custom_allergens")
+    @classmethod
+    def unique_custom_allergens(cls, values: list[CustomAllergenItem] | None) -> list[CustomAllergenItem] | None:
+        return _unique_custom_allergens(values) if values is not None else None
+
+    @model_validator(mode="after")
+    def validate_metrics(self):
+        if self.height_cm is not None and self.weight_kg is not None:
+            validate_body_metrics(self.height_cm, self.weight_kg)
+        return self
 
 
 # ---------- Check-in tiến độ 14 ngày ----------
@@ -299,7 +405,7 @@ class ManualActivityIn(BaseModel):
     """Ghi buổi tập tay. Bỏ trống calories_burned → tự tính theo MET × cân nặng × phút."""
     exercise_id: int
     duration_min: int = Field(ge=1, le=600)
-    calories_burned: float | None = Field(default=None, ge=0)
+    calories_burned: float | None = Field(default=None, ge=1, le=5000)
     steps: int = Field(default=0, ge=0)
     started_at: datetime | None = None
     ended_at: datetime | None = None
@@ -345,10 +451,50 @@ class UpdateRoleIn(BaseModel):
     role: Literal["ADMIN", "EXPERT", "USER"]
 
 
+class AdminCreateUserIn(BaseModel):
+    full_name: FullName
+    email: NormalizedEmail
+    password: str = Field(min_length=8, max_length=128)
+    role: Literal["ADMIN", "EXPERT", "USER"]
+
+    @field_validator("email")
+    @classmethod
+    def require_gmail(cls, value: EmailStr) -> EmailStr:
+        if not str(value).lower().endswith("@gmail.com"):
+            raise ValueError("Tài khoản do admin tạo phải dùng địa chỉ @gmail.com")
+        return value
+
+
+class BulkDeleteUsersIn(BaseModel):
+    user_ids: list[UUID] = Field(min_length=1, max_length=100)
+
+    @field_validator("user_ids")
+    @classmethod
+    def unique_user_ids(cls, value: list[UUID]) -> list[UUID]:
+        return list(dict.fromkeys(value))
+
+
+class BulkDeleteUsersOut(BaseModel):
+    deleted_count: int
+
+
 # ---------- Danh mục (tài liệu / thuốc) ----------
 class CategoryIn(BaseModel):
-    name: str = Field(min_length=1, max_length=150)
+    name: str = Field(min_length=2, max_length=100)
     parent_id: int | None = None      # chỉ dùng cho danh mục tài liệu
+
+    @field_validator("name")
+    @classmethod
+    def validate_category_name(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if len(normalized) < 2 or len(normalized) > 100:
+            raise ValueError("Tên danh mục phải có từ 2 đến 100 ký tự")
+        if not any(char.isalpha() for char in normalized):
+            raise ValueError("Tên danh mục phải chứa chữ cái")
+        allowed_punctuation = " &/().,'’+%-"
+        if any(not char.isalnum() and char not in allowed_punctuation for char in normalized):
+            raise ValueError("Tên danh mục không được chứa emoji hoặc ký tự đặc biệt")
+        return normalized
 
 
 class DocCategoryOut(BaseModel):
@@ -395,13 +541,26 @@ class CrawlPresetIn(BaseModel):
 
 # ---------- Audit ----------
 class AuditOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
     id: int
     actor_id: UUID | None
+    actor_name: str | None = None
+    actor_email: str | None = None
     action: str
     entity: str
     entity_id: str | None
+    target_label: str | None = None
+    description: str
+    before_data: dict | None = None
+    after_data: dict | None = None
+    ip_address: str | None = None
     created_at: datetime
+
+
+class AuditListOut(BaseModel):
+    items: list[AuditOut]
+    total: int
+    page: int
+    page_size: int
 
 
 # ---------- Chat (Trợ lý AI) ----------
@@ -432,17 +591,20 @@ class ChatReplyOut(BaseModel):
 
 # ---------- Vision & Meal Logging ----------
 class MealAnalyzeOut(BaseModel):
-    food_name: str
-    calories_kcal: float
-    protein_g: float
-    carb_g: float
-    fat_g: float
-    description: str
-    confidence: float
+    is_food_image: bool
+    food_probability: float = Field(ge=0, le=1)
+    rejection_reason: str | None = None
+    food_name: FoodName | None = None
+    calories_kcal: float | None = None
+    protein_g: float | None = None
+    carb_g: float | None = None
+    fat_g: float | None = None
+    description: str | None = None
+    confidence: float = Field(default=0, ge=0, le=1)
 
 
 class MealLogIn(BaseModel):
-    food_name: str
+    food_name: FoodName
     calories_kcal: float = Field(ge=0)
     protein_g: float = Field(default=0.0)
     carb_g: float = Field(default=0.0)
