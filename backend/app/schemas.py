@@ -165,6 +165,71 @@ class UserProfileUpdateIn(BaseModel):
     allergen_ids: list[int] | None = None
 
 
+# ---------- Check-in tiến độ 14 ngày ----------
+class CheckinSubmitIn(BaseModel):
+    actual_weight_kg: float = Field(ge=20, le=300, allow_inf_nan=False)
+    actual_waist_cm: float | None = Field(default=None, ge=30, le=250, allow_inf_nan=False)
+    actual_activity_level: int = Field(ge=1, le=5)
+    adherence_pct: int = Field(ge=0, le=100)
+    energy_level: int = Field(ge=1, le=5)
+    hunger_level: int = Field(ge=1, le=5)
+    sleep_quality: int = Field(ge=1, le=5)
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+class CheckinDecisionIn(BaseModel):
+    action: Literal["CONTINUE", "APPLY_ADJUSTMENT"]
+
+
+class PlanCheckinOut(BaseModel):
+    id: UUID
+    plan_id: UUID
+    period_number: int
+    start_date: date
+    period_end: date
+    due_date: date
+    grace_until: date
+    display_status: str
+    status: str
+    baseline_weight_kg: float
+    expected_weight_min_kg: float
+    expected_weight_max_kg: float
+    target_kcal_snapshot: int
+    goal_snapshot: str
+    actual_weight_kg: float | None = None
+    actual_waist_cm: float | None = None
+    actual_activity_level: int | None = None
+    adherence_pct: int | None = None
+    energy_level: int | None = None
+    hunger_level: int | None = None
+    sleep_quality: int | None = None
+    notes: str | None = None
+    meal_log_days: int | None = None
+    avg_kcal_intake: float | None = None
+    weight_change_kg: float | None = None
+    data_quality_result: str | None = None
+    adherence_result: str | None = None
+    outcome_result: str | None = None
+    safety_flags: list[str] = Field(default_factory=list)
+    recommendation: str | None = None
+    recommendation_reason: str | None = None
+    proposed_kcal_target: int | None = None
+    ai_feedback: str | None = None
+    feedback_status: str
+    decision: str | None = None
+    adjusted_plan_id: UUID | None = None
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    type: str
+    title: str
+    body: str | None = None
+    is_read: bool
+    created_at: datetime
+
+
 # ---------- Tracking ----------
 class DailySummaryOut(BaseModel):
     day: date

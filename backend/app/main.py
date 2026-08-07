@@ -7,20 +7,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.config import settings
-from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision
-from app.services import plan_evaluator
+from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision, notifications
+from app.services import plan_checkin
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Bật job nền đánh giá lộ trình 7 ngày (tắt khi PLAN_EVAL_INTERVAL_MINUTES = 0)."""
+    """Bật job nền reconcile check-in và sinh phản hồi AI không đồng bộ."""
     task = None
-    if settings.PLAN_EVAL_INTERVAL_MINUTES > 0:
-        task = asyncio.create_task(plan_evaluator.scheduler_loop())
-        logger.info("Đã bật job đánh giá lộ trình mỗi %s phút",
-                    settings.PLAN_EVAL_INTERVAL_MINUTES)
+    if settings.PLAN_CHECKIN_INTERVAL_MINUTES > 0:
+        task = asyncio.create_task(plan_checkin.scheduler_loop())
+        logger.info("Đã bật job check-in mỗi %s phút",
+                    settings.PLAN_CHECKIN_INTERVAL_MINUTES)
     try:
         yield
     finally:
@@ -48,6 +48,7 @@ app.include_router(demo.router,     prefix=API)
 app.include_router(admin.router,    prefix=API)
 app.include_router(expert.router,   prefix=API)
 app.include_router(vision.router,   prefix=API)
+app.include_router(notifications.router, prefix=API)
 
 
 @app.get("/", include_in_schema=False)

@@ -135,6 +135,7 @@ class NutritionPlan(Base):
     __tablename__ = "nutrition_plans"
     id: uuid.UUID     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id"))
     version           = Column(Integer, nullable=False, default=1)
     start_date: date  = Column(Date, nullable=False)  # type: ignore
     end_date: date    = Column(Date, nullable=False)  # type: ignore
@@ -171,6 +172,70 @@ class BodyMetricHistory(Base):
     bmi: float | None = Column(Numeric(5, 2))  # type: ignore
 
 
+class PlanCheckinSeries(Base):
+    """Chuỗi các kỳ check-in liên tục theo cùng một mục tiêu."""
+    __tablename__ = "plan_checkin_series"
+    id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    user_id       = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    goal: str     = Column(goal_enum, nullable=False)  # type: ignore
+    status: str   = Column(String(20), nullable=False, default="ACTIVE")  # type: ignore
+    started_at: date = Column(Date, nullable=False)  # type: ignore
+    closed_at: date | None = Column(Date)  # type: ignore
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PlanCheckin(Base):
+    """Snapshot, dữ liệu thực tế và kết quả một kỳ coaching 14 ngày."""
+    __tablename__ = "plan_checkins"
+    id: uuid.UUID             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    series_id                 = Column(UUID(as_uuid=True), ForeignKey("plan_checkin_series.id", ondelete="CASCADE"), nullable=False)
+    user_id                   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    plan_id                   = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id", ondelete="CASCADE"), nullable=False)
+    adjusted_plan_id          = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id", ondelete="SET NULL"))
+    previous_checkin_id       = Column(UUID(as_uuid=True), ForeignKey("plan_checkins.id", ondelete="SET NULL"))
+    period_number: int        = Column(Integer, nullable=False)  # type: ignore
+    start_date: date          = Column(Date, nullable=False)  # type: ignore
+    period_end: date          = Column(Date, nullable=False)  # type: ignore
+    due_date: date            = Column(Date, nullable=False)  # type: ignore
+    grace_until: date         = Column(Date, nullable=False)  # type: ignore
+    baseline_weight_kg: float = Column(Numeric(5, 2), nullable=False)  # type: ignore
+    baseline_waist_cm: float | None = Column(Numeric(5, 2))  # type: ignore
+    goal_snapshot: str        = Column(goal_enum, nullable=False)  # type: ignore
+    target_kcal_snapshot: int = Column(Integer, nullable=False)  # type: ignore
+    activity_target_snapshot: int | None = Column(SmallInteger)  # type: ignore
+    expected_weight_min_kg: float = Column(Numeric(5, 2), nullable=False)  # type: ignore
+    expected_weight_max_kg: float = Column(Numeric(5, 2), nullable=False)  # type: ignore
+    prediction_rule_version: str = Column(String(30), nullable=False)  # type: ignore
+    actual_weight_kg: float | None = Column(Numeric(5, 2))  # type: ignore
+    actual_waist_cm: float | None = Column(Numeric(5, 2))  # type: ignore
+    actual_activity_level: int | None = Column(SmallInteger)  # type: ignore
+    adherence_pct: int | None = Column(SmallInteger)  # type: ignore
+    energy_level: int | None = Column(SmallInteger)  # type: ignore
+    hunger_level: int | None = Column(SmallInteger)  # type: ignore
+    sleep_quality: int | None = Column(SmallInteger)  # type: ignore
+    notes: str | None         = Column(String(1000))  # type: ignore
+    meal_log_days: int | None = Column(SmallInteger)  # type: ignore
+    avg_kcal_intake: float | None = Column(Numeric(8, 2))  # type: ignore
+    weight_change_kg: float | None = Column(Numeric(5, 2))  # type: ignore
+    data_quality_result: str | None = Column(String(30))  # type: ignore
+    adherence_result: str | None = Column(String(20))  # type: ignore
+    outcome_result: str | None = Column(String(30))  # type: ignore
+    safety_flags             = Column(JSONB, nullable=False, default=list)
+    recommendation: str | None = Column(String(30))  # type: ignore
+    recommendation_reason: str | None = Column(Text)  # type: ignore
+    proposed_kcal_target: int | None = Column(Integer)  # type: ignore
+    ai_feedback: str | None = Column(Text)  # type: ignore
+    feedback_status: str    = Column(String(20), nullable=False, default="NOT_REQUESTED")  # type: ignore
+    status: str             = Column(String(20), nullable=False, default="OPEN")  # type: ignore
+    decision: str | None    = Column(String(30))  # type: ignore
+    submitted_at            = Column(DateTime(timezone=True))
+    completed_at            = Column(DateTime(timezone=True))
+    decision_at             = Column(DateTime(timezone=True))
+    adjustment_applied_at   = Column(DateTime(timezone=True))
+    created_at              = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at              = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class Notification(Base):
     """Thông báo hệ thống gửi tới người dùng."""
     __tablename__ = "notifications"
@@ -179,6 +244,7 @@ class Notification(Base):
     type       = Column(String(50), nullable=False)
     title      = Column(String(200), nullable=False)
     body       = Column(Text)
+    dedupe_key = Column(String(150))
     is_read: bool = Column(Boolean, nullable=False, default=False)  # type: ignore
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -334,4 +400,4 @@ class MealLog(Base):
     calories_kcal: float = Column(Numeric(7, 2), nullable=False)  # type: ignore
     logged_at          = Column(DateTime(timezone=True), server_default=func.now())
     log_date: date     = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
-
+

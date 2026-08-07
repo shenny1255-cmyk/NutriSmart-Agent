@@ -325,7 +325,7 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
     """Cập nhật cân nặng hiện tại + ghi mốc lịch sử (mỗi ngày 1 bản ghi).
 
     Mục tiêu calo KHÔNG đổi ở đây: nó do lộ trình quản lý và được hiệu chỉnh
-    sau mỗi chu kỳ đánh giá 7 ngày (xem services/plan_evaluator.py).
+    sau mỗi chu kỳ check-in 14 ngày (xem services/plan_checkin.py).
     """
     if not user.info:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
