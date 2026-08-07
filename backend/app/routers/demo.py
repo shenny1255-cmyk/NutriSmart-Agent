@@ -11,6 +11,7 @@ from app.models import (
 )
 from app.security import hash_password, create_access_token
 from app.services.calorie import daily_calorie_target
+from app.services import plan_checkin
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -179,7 +180,7 @@ def seed_demo(db: Session = Depends(get_db)):
             "w": round(float(profile_args["weight_kg"]) + d * 0.1, 2),  # type: ignore
         })
 
-    # 7. Một lộ trình đang active
+    # 7. Một lộ trình đang active và đã đến hạn check-in 14 ngày
     plan_content = {
         "days": [
             {
@@ -196,8 +197,8 @@ def seed_demo(db: Session = Depends(get_db)):
     plan = NutritionPlan(
         user_id=user.id,
         version=1,
-        start_date=date.today(),
-        end_date=date.today() + timedelta(days=7),
+        start_date=date.today() - timedelta(days=14),
+        end_date=date.today() - timedelta(days=1),
         daily_kcal_target=target,
         goal="LOSE_WEIGHT",
         content=plan_content,
@@ -205,6 +206,8 @@ def seed_demo(db: Session = Depends(get_db)):
         status="ACTIVE",
     )
     db.add(plan)
+    db.flush()
+    plan_checkin.start_new_series(db, user, plan, today=date.today() - timedelta(days=14))
 
     # Vài tài liệu chờ duyệt để demo màn Expert (kèm raw_text để test luồng Chunking & Embedding)
     sample_docs = [
@@ -236,5 +239,5 @@ def seed_demo(db: Session = Depends(get_db)):
     return {
         "access_token": create_access_token(str(user.id)),
         "email": DEMO_EMAIL,
-        "message": "Đã tạo tài khoản demo kèm dữ liệu mẫu 7 ngày.",
+        "message": "Đã tạo tài khoản demo kèm dữ liệu và kỳ check-in 14 ngày đến hạn.",
     }

@@ -1,7 +1,7 @@
 """Sinh lộ trình dinh dưỡng bằng LLM (gemma3 qua Ollama).
 
-Tách khỏi router để job đánh giá 7 ngày (plan_evaluator) dùng lại được cùng một
-đường sinh thực đơn: profile + bệnh nền + dị ứng + calo mục tiêu.
+Tách khỏi router để luồng check-in 14 ngày dùng lại cùng một đường sinh thực đơn:
+profile + bệnh nền + dị ứng + calo mục tiêu.
 """
 import json
 import logging
@@ -17,6 +17,7 @@ from app.services.nutrition_context import gather_context
 logger = logging.getLogger(__name__)
 
 PLAN_DAYS = 7
+PLAN_VALID_DAYS = 14
 
 
 def build_prompt(profile_data: dict, target: int, note: str | None = None) -> str:
@@ -178,7 +179,7 @@ def create_plan(
         user_id=user.id,
         version=(int(old.version) + 1) if old else 1,  # type: ignore
         start_date=date.today(),
-        end_date=date.today() + timedelta(days=PLAN_DAYS),
+        end_date=date.today() + timedelta(days=PLAN_VALID_DAYS - 1),
         daily_kcal_target=target,
         goal=info.goal if info else "MAINTAIN",
         content=content,

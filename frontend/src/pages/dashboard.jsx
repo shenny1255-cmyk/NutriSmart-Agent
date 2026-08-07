@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [activity, setActivity] = useState({ steps: 0, calories_burned: 0 });
   const [syncStatus, setSyncStatus] = useState(null); // null | 'ok' | 'error'
   const [showBell, setShowBell] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const nextMeal = getNextMealSuggestion();
 
@@ -50,6 +51,10 @@ export default function Dashboard() {
       .then((res) => setActivity(res))
       .catch(() => {}); // Không ảnh hưởng nếu chưa có data Mobile
   }, [syncStatus]); // re-fetch mỗi khi sync thành công
+
+  useEffect(() => {
+    api.notifications().then(setNotifications).catch(() => setNotifications([]));
+  }, []);
 
   const t = useTokens([
     '--color-accent', '--color-warning', '--color-warning-strong', '--color-rule-2',
@@ -94,14 +99,35 @@ export default function Dashboard() {
             aria-label="Thông báo"
           >
             <Bell size={20} strokeWidth={2} />
-            {/* Chấm đỏ thông báo chưa đọc */}
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-danger" />
+            {notifications.some((item) => !item.is_read) && (
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-danger" />
+            )}
           </button>
           {showBell && (
             <div className="absolute right-0 top-12 z-dropdown w-72 glass-card rounded-xl p-4 shadow-card">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Thông báo</p>
-              <p className="text-sm text-ink-2">🎯 Bạn chưa ghi nhật ký bữa trưa hôm nay!</p>
-              <p className="mt-2 text-sm text-ink-2">💧 Nhớ uống đủ 2 lít nước mỗi ngày.</p>
+              {notifications.length === 0 ? (
+                <p className="text-sm text-muted">Chưa có thông báo mới.</p>
+              ) : (
+                <div className="max-h-72 space-y-1 overflow-y-auto">
+                  {notifications.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={async () => {
+                        if (!item.is_read) {
+                          await api.markNotificationRead(item.id).catch(() => null);
+                          setNotifications((rows) => rows.map((row) => row.id === item.id ? { ...row, is_read: true } : row));
+                        }
+                      }}
+                      className={`w-full rounded-md p-2 text-left hover:bg-paper-3 ${item.is_read ? 'opacity-70' : 'bg-accent-soft/50'}`}
+                    >
+                      <span className="block text-sm font-medium text-ink">{item.title}</span>
+                      {item.body && <span className="mt-0.5 block text-xs text-ink-2">{item.body}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

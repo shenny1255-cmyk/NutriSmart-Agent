@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
+    APP_ENV: str = "development"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
@@ -19,9 +20,12 @@ class Settings(BaseSettings):
     # Sinh lộ trình 7 ngày bằng LLM — JSON dài, máy yếu có thể mất 3–5 phút
     PLAN_LLM_TIMEOUT_SECONDS: float = 420.0
 
-    # Job đánh giá lộ trình 7 ngày — 0 phút = tắt job nền (vẫn chạy tay qua API)
-    PLAN_EVAL_INTERVAL_MINUTES: int = 360
-    PLAN_EVAL_DELAY_SECONDS: int = 60      # hoãn lần quét đầu để backend khởi động xong
+    # Job check-in 14 ngày: reconcile kỳ quá hạn và sinh feedback đang chờ.
+    PLAN_CHECKIN_INTERVAL_MINUTES: int = 30
+    PLAN_CHECKIN_DELAY_SECONDS: int = 60
+    # Tương thích code cũ; job đánh giá 7 ngày đã bị vô hiệu hóa.
+    PLAN_EVAL_INTERVAL_MINUTES: int = 0
+    PLAN_EVAL_DELAY_SECONDS: int = 60
 
     # Xác minh email — SMTP (để trống SMTP_HOST → ghi link ra console thay vì gửi thật)
     SMTP_HOST: str = ""
