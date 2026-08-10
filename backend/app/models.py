@@ -403,3 +403,17 @@ class MealLog(Base):
     logged_at          = Column(DateTime(timezone=True), server_default=func.now())
     log_date: date     = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
 
+
+class CrawlSource(Base):
+    """Nguồn cào dữ liệu y khoa tự động."""
+    __tablename__ = "crawl_sources"
+    id: uuid.UUID   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    name: str       = Column(String(255), nullable=False)  # type: ignore
+    source_key: str = Column(String(100), unique=True, nullable=False)  # type: ignore
+    domain: str     = Column(String(255), nullable=False)  # type: ignore
+    base_urls       = Column(JSONB, nullable=False, default=list)
+    is_active: bool = Column(Boolean, nullable=False, default=True)  # type: ignore
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+

@@ -156,9 +156,13 @@ export const api = {
   deleteDocCategory: (id) => request(`/admin/doc-categories/${id}`, { method: 'DELETE' }),
   // Expert
   pendingDocs: () => request('/expert/documents/pending'),
+  previewDoc: (id) => request(`/expert/documents/${id}/preview`),
   reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),
   crawlDocs: (urls) => request('/expert/documents/crawl', { method: 'POST', body: { urls } }),
   crawlPresetDocs: (source = 'moh', limit = 10) => request('/expert/documents/crawl-preset', { method: 'POST', body: { source, limit } }),
+  listCrawlSources: () => request('/expert/crawl-sources'),
+  createCrawlSource: (payload) => request('/expert/crawl-sources', { method: 'POST', body: payload }),
+  deleteCrawlSource: (id) => request(`/expert/crawl-sources/${id}`, { method: 'DELETE' }),
   resetDocs: () => request('/expert/documents/reset', { method: 'POST' }),
   uploadDoc: ({ title, category_id, raw_text, file }) => {
     const fd = new FormData();
@@ -168,13 +172,10 @@ export const api = {
     if (file) fd.append('file', file);
     return request('/expert/documents/upload', { method: 'POST', body: fd, isForm: true });
   },
-
-
-
-  // lấy role người dùng hiện tại (đã có /auth/me)
   me: () => request('/auth/me'),
-  // Cập nhật thông tin cá nhân + hồ sơ sức khỏe
   updateProfile: (payload) => request('/auth/me', { method: 'PUT', body: payload }),
+
+
 
   // Activity từ Mobile (bước chân, calo tiêu hao)
   todayActivity: () => request('/tracking/today-activity'),

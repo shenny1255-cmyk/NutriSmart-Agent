@@ -513,8 +513,10 @@ class DocumentOut(BaseModel):
     title: str
     source_url: str | None
     source_name: str | None
+    raw_text: str | None = None
     status: str
     created_at: datetime
+
 
 
 class DocumentReviewIn(BaseModel):
@@ -535,6 +537,41 @@ class CrawlPresetIn(BaseModel):
     # "who" là bí danh cũ của "vinmec", giữ để giao diện cũ không vỡ
     source: Literal["moh", "vinmec", "who", "all"] = "moh"
     limit: int = Field(default=10, ge=1, le=50)
+
+
+class DocPreviewChunkOut(BaseModel):
+    chunk_index: int
+    content: str
+    token_count: int
+
+
+class DocPreviewOut(BaseModel):
+    id: UUID
+    title: str
+    source_name: str | None = None
+    source_url: str | None = None
+    status: str
+    raw_text: str
+    estimated_chunks: list[DocPreviewChunkOut]
+
+
+class CrawlSourceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    source_key: str
+    domain: str
+    base_urls: list[str]
+    is_active: bool
+    created_at: datetime
+
+
+class CrawlSourceCreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    source_key: str = Field(min_length=2, max_length=100)
+    domain: str = Field(min_length=3, max_length=255)
+    base_urls: list[str] = []
+
 
 
 
