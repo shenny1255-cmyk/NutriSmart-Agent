@@ -1,9 +1,10 @@
-"""Dịch vụ cắt nhỏ văn bản (Chunking) và tạo ma trận số (Embedding) lưu vào DB.
+"""Dịch vụ cắt nhỏ văn bản ngữ nghĩa (Semantic Chunking) và tạo vector embedding cho RAG.
 
 Khi Chuyên gia duyệt (APPROVE) một tài liệu, luồng này sẽ được gọi bất đồng bộ.
 """
 
 import logging
+import re
 import threading
 
 from app.database import SessionLocal
@@ -12,65 +13,98 @@ from app.services.ollama_client import get_embedding, OllamaError
 
 logger = logging.getLogger(__name__)
 
-# Duyệt hàng loạt tài liệu sẽ đẻ ra ngần ấy background task chạy song song. Trước đây
-# chúng vừa làm Ollama timeout (chỉ phục vụ tuần tự) vừa cạn connection pool của
-# SQLAlchemy (5 + 10), khiến chunk bị lưu với embedding = NULL mà không ai biết.
-# Khóa này ép index từng tài liệu một.
 _khoa_index = threading.Lock()
-
-# Một chunk 800 từ mất ~22s để bge-m3 sinh vector trên máy này, nên mặc định 60s của
-# get_embedding quá sát — chỉ cần hai yêu cầu chồng nhau là timeout.
 EMBEDDING_TIMEOUT_SECONDS = 300.0
 
 
-def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 100) -> list[str]:
-    """Cắt văn bản thô thành danh sách các đoạn (chunks) dựa trên số lượng token (từ).
-    
-    Đảm bảo kích thước mỗi chunk nằm trong khoảng [500, 800] token nếu văn bản đủ dài,
-    và độ chồng lặp là 100 token.
+def split_text(
+    text: str,
+    chunk_size: int = 800,
+    chunk_overlap: int = 100,
+    title: str | None = None,
+    source_name: str | None = None,
+) -> list[str]:
+    """Cắt văn bản thô thành danh sách các đoạn (chunks) dựa trên phân đoạn ngữ nghĩa (Semantic Chunking).
+
+    Ưu tiên chia theo đoạn văn (\\n\\n), tiêu đề (H2, H3) và câu thay vì cắt từ thô ở giữa câu.
+    Bổ sung tiêu đề & nguồn tài liệu vào đầu mỗi chunk nếu có.
     """
-    if not text:
+    if not text or not text.strip():
         return []
-    
-    # Tách từ bằng khoảng trắng (coi mỗi từ là 1 token)
-    tokens = text.split()
-    if not tokens:
-        return []
-        
-    num_tokens = len(tokens)
-    
-    # Nếu tài liệu ngắn hơn hoặc bằng chunk_size, trả về nguyên văn bản
-    if num_tokens <= chunk_size:
-        return [text.strip()]
-        
+
+    context_header = ""
+    if title:
+        source_str = f" | Nguồn: {source_name}" if source_name else ""
+        context_header = f"[Tài liệu: {title}{source_str}]\n\n"
+
+    # Tách đoạn văn dựa trên dải xuống dòng kép hoặc tiêu đề markdown (##, ###)
+    raw_paragraphs = re.split(r"(\n\s*\n|(?=^#{1,3}\s+))", text, flags=re.MULTILINE)
+    paragraphs = [p.strip() for p in raw_paragraphs if p and p.strip()]
+
+    if not paragraphs:
+        tokens = text.split()
+        if not tokens:
+            return []
+        chunks = [" ".join(tokens[i:i + chunk_size]) for i in range(0, len(tokens), chunk_size - chunk_overlap)]
+        return [f"{context_header}{c}" if context_header else c for c in chunks]
+
     chunks = []
-    start = 0
-    while start < num_tokens:
-        # Nếu là chunk cuối và số lượng token còn lại ít hơn 500,
-        # và tổng số token của tài liệu lớn hơn hoặc bằng 500,
-        # ta lùi start về để chunk cuối có độ dài ít nhất 500 tokens.
-        if start > 0 and (num_tokens - start) < 500:
-            start = max(0, num_tokens - chunk_size)
+    current_tokens = []
+    current_count = 0
+
+    for p in paragraphs:
+        p_tokens = p.split()
+        p_len = len(p_tokens)
+
+        # Nếu 1 paragraph quá dài, cắt nhỏ theo câu hoặc theo từ
+        if p_len > chunk_size:
+            if current_tokens:
+                chunk_str = " ".join(current_tokens)
+                chunks.append(f"{context_header}{chunk_str}" if context_header else chunk_str)
+                current_tokens = []
+                current_count = 0
+
+            # Cắt p thành các câu
+            sentences = re.split(r"(?<=[.!?])\s+", p)
+            s_tokens_acc = []
+            s_count = 0
+            for s in sentences:
+                st = s.split()
+                if s_count + len(st) <= chunk_size:
+                    s_tokens_acc.extend(st)
+                    s_count += len(st)
+                else:
+                    if s_tokens_acc:
+                        chunk_str = " ".join(s_tokens_acc)
+                        chunks.append(f"{context_header}{chunk_str}" if context_header else chunk_str)
+                    s_tokens_acc = st
+                    s_count = len(st)
+            if s_tokens_acc:
+                chunk_str = " ".join(s_tokens_acc)
+                chunks.append(f"{context_header}{chunk_str}" if context_header else chunk_str)
+            continue
+
+        if current_count + p_len <= chunk_size:
+            current_tokens.extend(p_tokens)
+            current_count += p_len
+        else:
+            chunk_str = " ".join(current_tokens)
+            chunks.append(f"{context_header}{chunk_str}" if context_header else chunk_str)
             
-        end = min(start + chunk_size, num_tokens)
-        chunk_tokens = tokens[start:end]
-        chunks.append(" ".join(chunk_tokens))
-        
-        if end >= num_tokens:
-            break
-            
-        start += (chunk_size - chunk_overlap)
-        
+            # Xử lý overlap: giữ lại 1 phần token cuối làm overlap
+            overlap_tokens = current_tokens[-chunk_overlap:] if chunk_overlap < current_count else []
+            current_tokens = overlap_tokens + p_tokens
+            current_count = len(current_tokens)
+
+    if current_tokens:
+        chunk_str = " ".join(current_tokens)
+        chunks.append(f"{context_header}{chunk_str}" if context_header else chunk_str)
+
     return chunks
 
 
 def run_indexing_pipeline(doc_id: str):
-    """Pipeline chính: Tải tài liệu, cắt chunk, sinh vector embedding và lưu DB.
-
-    Hàm này chạy độc lập dưới dạng Background Task với SessionLocal riêng.
-    Các tài liệu được index tuần tự (xem _khoa_index) — mở connection DB sau khi
-    giành được khóa để không giữ chỗ trong pool trong lúc xếp hàng chờ.
-    """
+    """Pipeline chính: Tải tài liệu, cắt chunk ngữ nghĩa, sinh vector embedding và lưu DB."""
     with _khoa_index:
         _index_mot_tai_lieu(doc_id)
 
@@ -87,12 +121,11 @@ def _index_mot_tai_lieu(doc_id: str):
             logger.warning(f"[RAG Indexer] Tài liệu {doc_id} ('{doc.title}') có raw_text rỗng, bỏ qua chunking.")
             return
 
-        # Xóa các chunk cũ của tài liệu này để đảm bảo tính Idempotent (không bị trùng lặp khi duyệt lại)
         db.query(DocChunk).filter(DocChunk.document_id == doc.id).delete()  # type: ignore
         db.flush()
 
-        text_chunks = split_text(doc.raw_text)
-        logger.info(f"[RAG Indexer] Đã cắt tài liệu {doc_id} thành {len(text_chunks)} chunks.")
+        text_chunks = split_text(doc.raw_text, title=doc.title, source_name=doc.source_name)
+        logger.info(f"[RAG Indexer] Đã cắt tài liệu {doc_id} thành {len(text_chunks)} semantic chunks.")
 
         chunks_to_insert = []
         for idx, chunk_content in enumerate(text_chunks):
@@ -118,8 +151,6 @@ def _index_mot_tai_lieu(doc_id: str):
 
         thieu_vector = sum(1 for c in chunks_to_insert if c.embedding is None)
         if thieu_vector:
-            # Chunk không có vector thì tìm kiếm ngữ nghĩa không bao giờ thấy → tài liệu
-            # coi như chưa vào RAG dù trạng thái là APPROVED. Duyệt lại để index lại.
             logger.error(
                 f"[RAG Indexer] Tài liệu {doc_id} có {thieu_vector}/{len(chunks_to_insert)} "
                 "chunk KHÔNG có embedding (Ollama lỗi). Hãy kiểm tra Ollama rồi duyệt lại tài liệu."
