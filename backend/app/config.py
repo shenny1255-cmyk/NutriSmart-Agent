@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Trợ lý AI — Ollama chạy local
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "gemma3"
+    OLLAMA_CHAT_MODEL: str = "gemma3:1b"
     OLLAMA_EMBEDDING_MODEL: str = "bge-m3"
     OLLAMA_KEEP_ALIVE: str = "30m"
 

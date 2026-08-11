@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   RefreshCw, Sparkles, Footprints, Sunrise, Sun, Moon, Cookie, UtensilsCrossed, Check,
   ClipboardCheck, History, CalendarClock, ShieldAlert, CheckCircle2,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+
+const PLAN_JOB_KEY = 'nutrismart_plan_job';
 
 // Icon theo loại bữa — fallback UtensilsCrossed cho type lạ từ backend
 const MEAL_ICONS = [
@@ -24,10 +26,17 @@ export default function Plan() {
   // Trạng thái hoàn thành — UI-only (api.js chưa có endpoint lưu), key: "day-mealIdx" / "day-ex"
   const [done, setDone] = useState({});
   const [checkinHistory, setCheckinHistory] = useState([]);
+  const generationRun = useRef(0);
 
   useEffect(() => {
     fetchPlan();
     fetchCheckinHistory();
+    const runId = ++generationRun.current;
+    const jobId = window.localStorage.getItem(PLAN_JOB_KEY);
+    if (jobId) waitForPlan(jobId, runId);
+    return () => {
+      if (generationRun.current === runId) generationRun.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -46,19 +55,53 @@ export default function Plan() {
     api.checkinHistory().then(setCheckinHistory).catch(() => setCheckinHistory([]));
   };
 
-  const handleGeneratePlan = async () => {
+  const waitForPlan = async (jobId, runId) => {
     setIsGenerating(true);
-    setErr(null);
     try {
-      const newPlan = await api.generatePlan();
+      let status = { status: 'QUEUED', job_id: jobId };
+      while (status.status === 'QUEUED' || status.status === 'RUNNING') {
+        await new Promise((resolve) => window.setTimeout(resolve, 3000));
+        if (generationRun.current !== runId) return;
+        status = await api.generatePlanStatus(jobId);
+      }
+      if (generationRun.current !== runId) return;
+      if (status.status === 'FAILED') {
+        window.localStorage.removeItem(PLAN_JOB_KEY);
+        throw new Error(status.error);
+      }
+      if (status.status !== 'DONE') {
+        window.localStorage.removeItem(PLAN_JOB_KEY);
+        throw new Error('Trạng thái tạo lộ trình không hợp lệ');
+      }
+      const newPlan = await api.activePlan();
+      if (generationRun.current !== runId) return;
+      window.localStorage.removeItem(PLAN_JOB_KEY);
       setPlan(newPlan);
       setActiveDay(0);
       setDone({});
-      fetchPlan();
+      setErr(null);
     } catch (e) {
+      if (generationRun.current !== runId) return;
+      if (e.status === 404) window.localStorage.removeItem(PLAN_JOB_KEY);
       setErr('Có lỗi khi tạo lộ trình: ' + e.message);
     } finally {
-      setIsGenerating(false);
+      if (generationRun.current === runId) setIsGenerating(false);
+    }
+  };
+
+  const handleGeneratePlan = async () => {
+    const runId = ++generationRun.current;
+    setErr(null);
+    setIsGenerating(true);
+    try {
+      const job = await api.generatePlan();
+      window.localStorage.setItem(PLAN_JOB_KEY, job.job_id);
+      await waitForPlan(job.job_id, runId);
+    } catch (e) {
+      if (generationRun.current === runId) {
+        setErr('Có lỗi khi xếp tác vụ tạo lộ trình: ' + e.message);
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -675,7 +718,7 @@ function GenerateButton({ primary, loading, onClick, children }) {
       {loading ? (
         <>
           <RefreshCw size={16} className="animate-spin" />
-          AI đang tạo lộ trình (1–5 phút)…
+          AI đang tạo lộ trình, bạn có thể chờ hoặc quay lại sau…
         </>
       ) : (
         <>

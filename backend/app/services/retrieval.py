@@ -10,6 +10,7 @@ tri thức rỗng thì trả về danh sách rỗng, chat vẫn trả lời dự
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -55,11 +56,40 @@ _SEARCH_SQL = text("""
     LIMIT :k
 """)
 
+_HAS_SEARCHABLE_CHUNKS_SQL = text("""
+    SELECT EXISTS (
+        SELECT 1
+        FROM doc_chunks c
+        JOIN documents d ON d.id = c.document_id
+        WHERE c.embedding IS NOT NULL
+          AND d.status = 'APPROVED'
+          AND d.deleted_at IS NULL
+    )
+""")
+
+
+def _has_searchable_chunks(db: Session) -> bool | None:
+    """Kiểm tra nhanh kho RAG; None nghĩa là không kiểm tra được."""
+    try:
+        return bool(db.execute(_HAS_SEARCHABLE_CHUNKS_SQL).scalar())
+    except Exception as e:  # noqa: BLE001 — RAG không được làm hỏng chat
+        log.warning("[RAG] Không kiểm tra được kho tài liệu (%s) — tiếp tục truy hồi", e)
+        return None
+
+
+@lru_cache(maxsize=128)
+def _query_embedding(query: str) -> list[float]:
+    """Tái sử dụng embedding của câu hỏi lặp lại trong cùng process."""
+    return get_embedding(query)
+
 
 def search_chunks(db: Session, query: str, k: int = 5) -> list[Hit]:
     """Trả về tối đa k đoạn liên quan nhất tới `query`, đã lọc theo ngưỡng MIN_SCORE."""
+    if _has_searchable_chunks(db) is False:
+        return []
+
     try:
-        qvec = get_embedding(query)
+        qvec = _query_embedding(query)
     except OllamaError as e:
         log.warning("[RAG] Không tạo được embedding cho câu hỏi (%s) — bỏ qua truy hồi", e)
         return []

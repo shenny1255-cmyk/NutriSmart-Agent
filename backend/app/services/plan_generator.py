@@ -84,6 +84,7 @@ def _llm_days(prompt: str, timeout: float | None = None) -> list | None:
         content = json.loads(_strip_fence(
             ollama_client.chat(
                 [{"role": "user", "content": prompt}],
+                model=settings.OLLAMA_MODEL,
                 timeout=timeout or settings.PLAN_LLM_TIMEOUT_SECONDS,
                 # JSON 7 ngày dài hơn nhiều so với 1 câu trả lời chat → nới cửa sổ sinh,
                 # temperature thấp cho JSON ổn định

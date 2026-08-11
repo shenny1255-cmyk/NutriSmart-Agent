@@ -6,12 +6,29 @@ trọn câu trả lời trong một response JSON.
 """
 
 import httpx
+import logging
 
 from app.config import settings
+
+log = logging.getLogger("nutrismart.ollama")
 
 
 class OllamaError(Exception):
     """Không gọi được model (server tắt, timeout, hoặc trả về rỗng)."""
+
+
+def warmup(*, model: str | None = None, timeout: float = 90.0) -> None:
+    """Nạp model vào RAM trước request đầu tiên; lỗi không chặn ứng dụng khởi động."""
+    try:
+        chat(
+            [{"role": "user", "content": "Trả lời đúng một từ: sẵn sàng."}],
+            model=model or settings.OLLAMA_CHAT_MODEL,
+            timeout=timeout,
+            options={"num_predict": 1, "temperature": 0},
+        )
+        log.info("Đã warm-up Ollama model %s", model or settings.OLLAMA_CHAT_MODEL)
+    except Exception as e:  # noqa: BLE001 — warm-up tùy chọn không được làm hỏng startup
+        log.warning("Không warm-up được Ollama model: %s", e)
 
 
 def chat(
@@ -37,7 +54,7 @@ def chat(
         "keep_alive": settings.OLLAMA_KEEP_ALIVE,
         "options": {
             "num_ctx": 2048,
-            "num_predict": 350,
+            "num_predict": 250,
             "temperature": 0.6,
             **(options or {}),
         },
@@ -74,7 +91,7 @@ def chat_stream(
         "keep_alive": settings.OLLAMA_KEEP_ALIVE,
         "options": {
             "num_ctx": 2048,
-            "num_predict": 350,
+            "num_predict": 250,
             "temperature": 0.6,
         },
     }
@@ -122,4 +139,3 @@ def get_embedding(
     if not embedding or not isinstance(embedding, list):
         raise OllamaError("Ollama Embeddings trả về kết quả rỗng hoặc không đúng định dạng")
     return embedding
-

@@ -8,7 +8,7 @@ from app.deps import get_db, get_current_user, require_role
 from app.config import settings
 from app.models import User, NutritionPlan, PlanCheckin, PlanEvaluation
 from app.schemas import CheckinDecisionIn, CheckinSubmitIn, PlanCheckinOut
-from app.services import plan_checkin, plan_evaluator, plan_generator
+from app.services import plan_checkin, plan_evaluator, plan_generator, plan_jobs
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
@@ -41,7 +41,7 @@ def active_plan(
     return res
 
 
-@router.post("/generate")
+@router.post("/generate", status_code=202)
 def generate_plan(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -50,16 +50,24 @@ def generate_plan(
     if not user.info:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
-    try:
-        plan = plan_generator.create_plan(db, user)
-        db.flush()
-        plan_checkin.start_new_series(db, user, plan)
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(400, str(exc)) from exc
-    db.refresh(plan)
-    return plan_generator.plan_to_dict(plan, user)
+    job = plan_jobs.enqueue(user.id)
+    return {"job_id": job.id, "status": job.status}
+
+
+@router.get("/generate/{job_id}")
+def generate_plan_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+):
+    job = plan_jobs.get(job_id, user.id)
+    if not job:
+        raise HTTPException(404, "Không tìm thấy tác vụ sinh lộ trình")
+    if job.status == "DONE":
+        return {"job_id": job.id, "status": job.status, "plan_id": job.plan_id}
+    if job.status == "FAILED":
+        return {"job_id": job.id, "status": job.status,
+                "error": job.error or "Không thể tạo lộ trình"}
+    return {"job_id": job.id, "status": job.status}
 
 
 @router.post("/evaluate", include_in_schema=False)

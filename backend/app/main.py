@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from app.config import settings
 from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision, notifications
 from app.services import plan_checkin
+from app.services import ollama_client
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,14 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     """Bật job nền reconcile check-in và sinh phản hồi AI không đồng bộ."""
     task = None
+    warmup_task = asyncio.create_task(
+        asyncio.to_thread(
+            ollama_client.warmup,
+            model=settings.OLLAMA_CHAT_MODEL,
+            timeout=90.0,
+        )
+    )
+    logger.info("Đã bắt đầu warm-up Ollama model chat ở tác vụ nền")
     if settings.PLAN_CHECKIN_INTERVAL_MINUTES > 0:
         task = asyncio.create_task(plan_checkin.scheduler_loop())
         logger.info("Đã bật job check-in mỗi %s phút",
@@ -26,6 +35,8 @@ async def lifespan(_: FastAPI):
     finally:
         if task:
             task.cancel()
+        if not warmup_task.done():
+            warmup_task.cancel()
 
 
 app = FastAPI(title="NutriSmart Agent API", version="0.1.0", lifespan=lifespan)

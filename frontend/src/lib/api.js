@@ -51,6 +51,7 @@ export const api = {
   dailySummary: (days = 7) => request(`/tracking/summary?days=${days}`),
   activePlan: () => request('/plans/active'),
   generatePlan: () => request('/plans/generate', { method: 'POST' }),
+  generatePlanStatus: (jobId) => request(`/plans/generate/${jobId}`),
   activeCheckin: () => request('/plans/active/checkin'),
   checkinHistory: (limit = 10) => request(`/plans/checkins/history?limit=${limit}`),
   simulateCheckinDue: () => request('/plans/checkins/current/simulate-due', { method: 'POST' }),

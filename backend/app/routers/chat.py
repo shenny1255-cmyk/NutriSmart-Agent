@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.deps import get_db, get_current_user
 from app.models import User, ChatSession, ChatMessage
 from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
@@ -15,6 +16,16 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 HISTORY_LIMIT = 10   # số lượt gần nhất đưa lại cho model
 TOP_K = 3            # số đoạn tài liệu đưa vào ngữ cảnh (rút gọn để tăng tốc)
+
+
+def _chat(messages: list[dict]) -> str:
+    """Chat thường dùng model nhẹ để giảm thời gian phản hồi."""
+    return ollama_client.chat(messages, model=settings.OLLAMA_CHAT_MODEL)
+
+
+def _chat_stream(messages: list[dict]):
+    """Chat streaming dùng cùng model nhẹ với endpoint thường."""
+    return ollama_client.chat_stream(messages, model=settings.OLLAMA_CHAT_MODEL)
 
 
 def _get_or_create_session(db: Session, user: User) -> ChatSession:
@@ -102,6 +113,7 @@ def send_message(
 
     # Truy hồi tri thức (RAG). Không có tài liệu liên quan → hits rỗng, vẫn trả lời
     # dựa trên hồ sơ người dùng như trước.
+    ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
 
     rag_block = retrieval.render_context_block(hits)
@@ -122,7 +134,7 @@ def send_message(
     messages += [{"role": m.role, "content": m.content} for m in recent]
 
     try:
-        reply = ollama_client.chat(messages)
+        reply = _chat(messages)
     except ollama_client.OllamaError:
         raise HTTPException(
             503, "Trợ lý AI tạm thời không phản hồi được, vui lòng thử lại sau ít phút."
@@ -162,6 +174,7 @@ def stream_message(
     db.commit()
 
     # 2. Truy hồi RAG & xây dựng System Prompt
+    ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
     rag_block = retrieval.render_context_block(hits)
     system_prompt = render_system_prompt(ctx) + rag_block
@@ -181,7 +194,7 @@ def stream_message(
     def event_generator():
         full_reply = []
         try:
-            for token in ollama_client.chat_stream(messages):
+            for token in _chat_stream(messages):
                 full_reply.append(token)
                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
         except Exception as e:
