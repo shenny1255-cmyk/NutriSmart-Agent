@@ -165,7 +165,7 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
     plan = NutritionPlan(
         user_id=user.id, version=1, start_date=date.today() - timedelta(days=14),
         end_date=date.today(), daily_kcal_target=2000, goal="MAINTAIN",
-        content={"days": []}, generated_by="test", status="ACTIVE",
+        content={"days": []}, status="ACTIVE",
     )
     db.add(plan)
     db.flush()
@@ -254,7 +254,7 @@ def test_adjustment_lap_chi_tao_mot_plan_version(monkeypatch):
     plan = NutritionPlan(
         user_id=user.id, version=1, start_date=date.today() - timedelta(days=14),
         end_date=date.today(), daily_kcal_target=2000, goal="LOSE_WEIGHT",
-        content={"days": []}, generated_by="test", status="ACTIVE",
+        content={"days": []}, status="ACTIVE",
     )
     db.add(plan)
     db.flush()

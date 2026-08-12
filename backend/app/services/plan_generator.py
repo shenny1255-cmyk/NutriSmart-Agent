@@ -117,15 +117,15 @@ def fallback_content(target: int) -> dict:
     }
 
 
-def generate_content(db: Session, user: User, target: int, note: str | None = None) -> tuple[dict, str]:
-    """Trả về (content JSON, tên nguồn sinh) — có fallback khi LLM lỗi."""
+def generate_content(db: Session, user: User, target: int, note: str | None = None) -> dict:
+    """Trả về content JSON — có fallback khi LLM lỗi."""
     ctx = gather_context(db, user)
     profile_data = ctx.get("profile") or {}
 
     days = _llm_days(build_prompt(profile_data, target, note))
     if days is None:
-        return fallback_content(target), "fallback-template"
-    return {"days": days}, f"ai-{settings.OLLAMA_MODEL}"
+        return fallback_content(target)
+    return {"days": days}
 
 
 def record_weight_snapshot(db: Session, user: User) -> None:
@@ -165,7 +165,7 @@ def create_plan(
     if target is None:
         target = int((info.daily_calorie_target if info else None) or 2000)
 
-    content, generated_by = generate_content(db, user, target, note)
+    content = generate_content(db, user, target, note)
 
     old = (
         db.query(NutritionPlan)
@@ -184,7 +184,6 @@ def create_plan(
         daily_kcal_target=target,
         goal=info.goal if info else "MAINTAIN",
         content=content,
-        generated_by=generated_by,
         status="ACTIVE",
     )
     db.add(plan)
@@ -203,6 +202,5 @@ def plan_to_dict(plan: NutritionPlan, user: User) -> dict:
         "daily_kcal_target": plan.daily_kcal_target,
         "content": plan.content,
         "status": plan.status,
-        "generated_by": plan.generated_by,
         "bmi": user.info.bmi if user.info else None,
     }

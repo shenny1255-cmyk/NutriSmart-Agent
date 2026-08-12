@@ -29,6 +29,13 @@ function getNextMealSuggestion() {
   return { meal: 'Bữa tối', suggestion: 'Cá hồi áp chảo rau củ', emoji: '🐟' };
 }
 
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState(MOCK);
   const [offline, setOffline] = useState(false);
@@ -36,14 +43,38 @@ export default function Dashboard() {
   const [syncStatus, setSyncStatus] = useState(null); // null | 'ok' | 'error'
   const [showBell, setShowBell] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [currentDate, setCurrentDate] = useState(getLocalDateString());
 
   const nextMeal = getNextMealSuggestion();
 
-  useEffect(() => {
+  const fetchSummary = () => {
     api.dailySummary(7)
       .then(setData)
       .catch(() => setOffline(true));   // backend chưa chạy → giữ MOCK
+  };
+
+  useEffect(() => {
+    fetchSummary();
   }, []);
+
+  // Tự động kiểm tra sang ngày mới (0h đêm) hoặc khi chuyển lại tab web -> reset/cập nhật dữ liệu hôm nay
+  useEffect(() => {
+    const checkDateChange = () => {
+      const newToday = getLocalDateString();
+      if (newToday !== currentDate) {
+        setCurrentDate(newToday);
+        fetchSummary();
+        api.todayActivity().then(setActivity).catch(() => {});
+      }
+    };
+
+    const interval = setInterval(checkDateChange, 15000); // kiểm tra mỗi 15 giây
+    window.addEventListener('focus', checkDateChange);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkDateChange);
+    };
+  }, [currentDate]);
 
   // Lấy dữ liệu vận động hôm nay từ Mobile (đã sync lên backend)
   useEffect(() => {
@@ -61,7 +92,18 @@ export default function Dashboard() {
     '--color-muted', '--color-paper-2', '--color-rule', '--color-ink',
   ]);
 
-  const today = data.at(-1) ?? {};
+  const todayStr = getLocalDateString();
+  const todayRecord = data.find((d) => {
+    const dayStr = typeof d.day === 'string' ? d.day : String(d.day ?? '');
+    return dayStr === todayStr;
+  });
+
+  const today = todayRecord ?? {
+    day: todayStr,
+    daily_calorie_target: data.at(-1)?.daily_calorie_target ?? 2000,
+    kcal_intake: 0,
+    kcal_burned: 0,
+  };
   const target = today.daily_calorie_target ?? 2000;
   // Sử dụng kcal_burned từ activity (Mobile sync) hoặc từ backend summary
   const burnedKcal = activity.calories_burned || today.kcal_burned || 0;

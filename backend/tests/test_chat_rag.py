@@ -32,8 +32,7 @@ client = TestClient(app)
 
 @pytest.fixture
 def auth_headers(user_test):
-    countries = client.get("/api/v1/catalog/countries").json()
-    cc = countries[0]["code"] if countries else "VN"
+    cc = "VN"
     email = f"rag_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email,

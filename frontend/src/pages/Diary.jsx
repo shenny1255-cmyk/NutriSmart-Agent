@@ -15,7 +15,10 @@ const MEAL_TYPES = [
 ];
 const MEAL_LABEL = Object.fromEntries(MEAL_TYPES);
 
-const homNay = () => new Date().toISOString().slice(0, 10);
+const homNay = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Recharts vẽ SVG nên không nhận var() — đọc token 1 lần từ :root như Dashboard
 function useTokens(names) {

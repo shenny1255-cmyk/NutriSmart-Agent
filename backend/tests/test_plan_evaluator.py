@@ -131,7 +131,6 @@ def user_co_plan_qua_han():
         daily_kcal_target=2000,
         goal="LOSE_WEIGHT",
         content={"days": []},
-        generated_by="test",
         status="ACTIVE",
     )
     db.add(plan)

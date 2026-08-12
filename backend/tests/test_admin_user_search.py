@@ -32,8 +32,7 @@ def ba_nguoi_dung():
         ("Lê Minh Quang", f"quang-{hau_to}@test.local"),
     ]
     for ten, email in ho_so:
-        db.add(User(email=email, password_hash="x", full_name=ten,
-                    country_code="VN", role="USER"))
+        db.add(User(email=email, password_hash="x", full_name=ten, role="USER"))
     db.commit()
 
     yield db, hau_to
@@ -92,5 +91,6 @@ def test_email_domain_la_van_serialize_duoc():
         "role":       "ADMIN",
         "is_active":  True,
         "created_at": _dt.datetime.now(_dt.timezone.utc),
+        "updated_at": _dt.datetime.now(_dt.timezone.utc),
     })
     assert out.email == "cat-818813fe@test.local"

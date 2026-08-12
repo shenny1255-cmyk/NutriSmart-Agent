@@ -299,7 +299,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
   const canSimulate = localStorage.getItem('role') === 'ADMIN';
   const draftKey = checkin ? `nutrismart_checkin_draft_${checkin.id}` : null;
   const [form, setForm] = useState({
-    actual_weight_kg: '', actual_waist_cm: '', actual_activity_level: 3,
+    actual_weight_kg: '', actual_activity_level: 3,
     adherence_pct: 70, energy_level: 3, hunger_level: 3, sleep_quality: 3, notes: '',
   });
 
@@ -313,7 +313,6 @@ function CheckinPanel({ checkin, onChanged, onError }) {
       else if (checkin.actual_weight_kg != null) setForm((current) => ({
         ...current,
         actual_weight_kg: String(checkin.actual_weight_kg),
-        actual_waist_cm: checkin.actual_waist_cm == null ? '' : String(checkin.actual_waist_cm),
         actual_activity_level: checkin.actual_activity_level ?? 3,
         adherence_pct: adherenceValue(checkin.adherence_pct ?? 70),
         energy_level: checkin.energy_level ?? 3,
@@ -333,12 +332,10 @@ function CheckinPanel({ checkin, onChanged, onError }) {
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const weight = Number(form.actual_weight_kg);
-  const waist = Number(form.actual_waist_cm);
   const weightValid = form.actual_weight_kg !== '' && weight >= 20 && weight <= 300;
   const weightChangeValid = !weightValid
     || Math.abs(weight - Number(checkin.baseline_weight_kg)) / Number(checkin.baseline_weight_kg) <= 0.20;
-  const waistValid = form.actual_waist_cm === '' || (waist >= 30 && waist <= 250);
-  const canSubmit = weightValid && weightChangeValid && waistValid && form.notes.length <= 1000;
+  const canSubmit = weightValid && weightChangeValid && form.notes.length <= 1000;
   const isDue = checkin.display_status === 'DUE';
   const daysLeft = Math.max(0, Math.ceil(
     (new Date(`${checkin.due_date}T00:00:00`) - new Date()) / 86400000,
@@ -353,7 +350,6 @@ function CheckinPanel({ checkin, onChanged, onError }) {
     try {
       await api.submitCheckin(checkin.id, {
         actual_weight_kg: weight,
-        actual_waist_cm: form.actual_waist_cm === '' ? null : waist,
         actual_activity_level: Number(form.actual_activity_level),
         adherence_pct: Number(form.adherence_pct),
         energy_level: Number(form.energy_level),
@@ -458,11 +454,6 @@ function CheckinPanel({ checkin, onChanged, onError }) {
               <input type="number" min="20" max="300" step="0.1" required value={form.actual_weight_kg}
                 onChange={(e) => set('actual_weight_kg', e.target.value)}
                 className={`min-h-11 rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus ${form.actual_weight_kg !== '' && !weightValid ? 'outline outline-2 outline-danger' : ''}`} />
-            </CheckinField>
-            <CheckinField label="Vòng eo (cm) · không bắt buộc" error={!waistValid ? 'Nhập từ 30 đến 250 cm' : null}>
-              <input type="number" min="30" max="250" step="0.1" value={form.actual_waist_cm}
-                onChange={(e) => set('actual_waist_cm', e.target.value)}
-                className={`min-h-11 rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus ${!waistValid ? 'outline outline-2 outline-danger' : ''}`} />
             </CheckinField>
             <CheckinField label="Mức vận động thực tế">
               <select value={form.actual_activity_level} onChange={(e) => set('actual_activity_level', e.target.value)} className="min-h-11 rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus">

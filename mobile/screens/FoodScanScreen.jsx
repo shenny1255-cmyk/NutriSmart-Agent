@@ -10,8 +10,8 @@ import { Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChevronLeft, Flame,
 import { Theme } from '../theme';
 
 export default function FoodScanScreen({ navigation, route }) {
-  let rawIp = route?.params?.backendIp ?? '10.120.56.85';
-  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.120.56.85';
+  let rawIp = route?.params?.backendIp ?? '10.251.3.81';
+  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.251.3.81';
   const backendIp = rawIp.trim();
 
   const [imageUri, setImageUri] = useState(null);

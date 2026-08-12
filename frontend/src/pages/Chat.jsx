@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink, Trash2 } from 'lucide-react';
+import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink, Trash2, Sparkles } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Modal, Btn } from '../components/ui.jsx';
+
+const QUICK_PROMPTS = [
+  'Gợi ý thực đơn giảm cân hôm nay cho tôi',
+  'Chế độ ăn phù hợp cho người cao huyết áp',
+  'Thịt bò và sữa có tốt cho người tăng huyết áp không?',
+  'Mẹo uống đủ 2 lít nước mỗi ngày',
+];
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);   // { role, content, citations? }
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const endRef = useRef(null);
 
   // Tải lịch sử trò chuyện khi mở trang
@@ -16,9 +25,9 @@ export default function Chat() {
       .then((rows) => setMessages(rows.map((m) => ({
         role: m.role,
         content: m.content,
-        citations: m.citations,   // nếu backend trả kèm nguồn trích dẫn
+        citations: m.citations,
       }))))
-      .catch(() => { });   // chưa có lịch sử / backend chưa chạy → để trống
+      .catch(() => { });
   }, []);
 
   // Tự cuộn xuống tin nhắn mới nhất
@@ -26,23 +35,21 @@ export default function Chat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
-  async function send(e) {
-    e?.preventDefault();
-    const text = input.trim();
-    if (!text || sending) return;
+  async function sendPrompt(text) {
+    const promptText = (text || input).trim();
+    if (!promptText || sending) return;
 
     setError(null);
     setInput('');
 
-    // Thêm câu hỏi của user và 1 bong bóng assistant rỗng để nhận stream
     setMessages((m) => [
       ...m,
-      { role: 'user', content: text },
+      { role: 'user', content: promptText },
       { role: 'assistant', content: '', citations: [] },
     ]);
     setSending(true);
 
-    await api.streamChat(text, {
+    await api.streamChat(promptText, {
       onToken: (token) => {
         setMessages((m) => {
           const next = [...m];
@@ -77,8 +84,10 @@ export default function Chat() {
     });
   }
 
-  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
-  const [clearing, setClearing] = useState(false);
+  function send(e) {
+    e?.preventDefault();
+    sendPrompt(input);
+  }
 
   async function confirmClearHistory() {
     setClearing(true);
@@ -94,10 +103,10 @@ export default function Chat() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] max-w-3xl flex-col md:h-[calc(100vh-4rem)]">
-      <header className="mb-4 flex items-center justify-between">
+    <div className="mx-auto flex h-[calc(100dvh-7.5rem)] max-w-3xl flex-col md:h-[calc(100vh-5rem)]">
+      <header className="mb-3 flex shrink-0 items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Trợ lý AI</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Trợ lý AI</h1>
           <p className="text-sm text-muted">
             Tư vấn dinh dưỡng cá nhân hóa dựa trên hồ sơ và lộ trình của bạn.
           </p>
@@ -105,7 +114,7 @@ export default function Chat() {
         {messages.length > 0 && (
           <button
             onClick={() => setConfirmClearOpen(true)}
-            className="flex items-center gap-1.5 rounded-md bg-paper-3 px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger-soft transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-danger-soft bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft transition-colors shadow-whisper"
             title="Xóa lịch sử chat"
           >
             <Trash2 size={14} />
@@ -114,70 +123,86 @@ export default function Chat() {
         )}
       </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto rounded-md bg-paper-2 p-4 shadow-hairline md:p-5">
-        {messages.length === 0 && !sending && (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-              <Bot size={26} />
-            </span>
-            <p className="text-sm font-medium text-ink-2">Hãy hỏi tôi bất cứ điều gì về ăn uống của bạn.</p>
-            <p className="mt-1 text-xs text-muted">Ví dụ: “Tối nay tôi nên ăn gì?”</p>
-          </div>
-        )}
+      {/* Khung chứa tin nhắn với Viền Gradient Glassmorphic Sang trọng (Luxurious Aura Ring) */}
+      <div className="relative flex-1 min-h-0 rounded-3xl p-[1.5px] bg-gradient-to-b from-accent-strong/40 via-emerald-500/20 to-accent-soft/40 shadow-[0_20px_50px_rgba(16,185,129,0.1),0_4px_20px_rgba(0,0,0,0.05)]">
+        <div className="flex h-full flex-col space-y-4 overflow-y-auto rounded-[22.5px] bg-white/95 p-5 pt-6 backdrop-blur-xl md:p-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/15 hover:[&::-webkit-scrollbar-thumb]:bg-black/30">
+          {messages.length === 0 && !sending && (
+            <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+              <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-soft to-emerald-100 text-accent-strong shadow-whisper border border-accent/20">
+                <Bot size={32} />
+              </span>
+              <h2 className="font-display text-lg font-bold text-ink">Xin chào! Tôi có thể giúp gì cho dinh dưỡng của bạn?</h2>
+              <p className="mt-1 max-w-md text-xs text-muted">
+                Bấm chọn nhanh câu hỏi gợi ý bên dưới hoặc tự nhập thắc mắc của bạn để bắt đầu.
+              </p>
 
-        {messages.map((m, i) => {
-          const isWaitingFirstToken = sending && i === messages.length - 1 && m.role === 'assistant' && !m.content;
-          if (isWaitingFirstToken) {
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-                  <Bot size={16} />
-                </span>
-                <span className="flex items-center gap-1 rounded-md bg-paper-3 px-4 py-3" aria-label="Đang soạn câu trả lời">
-                  <Dot delay="0ms" /><Dot delay="150ms" /><Dot delay="300ms" />
-                </span>
+              {/* Quick Suggestion Chips nổi bật sắc nét */}
+              <div className="mt-6 flex flex-wrap justify-center gap-2.5 max-w-xl">
+                {QUICK_PROMPTS.map((prompt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => sendPrompt(prompt)}
+                    className="flex items-center gap-2 rounded-xl border border-accent/30 bg-white/90 px-4 py-2.5 text-xs font-semibold text-accent-strong shadow-whisper transition-all duration-short hover:scale-[1.02] hover:bg-accent-soft/80 hover:border-accent-strong hover:shadow-card active:scale-100"
+                  >
+                    <Sparkles size={14} className="shrink-0 text-accent-strong" />
+                    {prompt}
+                  </button>
+                ))}
               </div>
-            );
-          }
-          if (m.role === 'assistant' && !m.content) return null;
-          return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />;
-        })}
+            </div>
+          )}
 
-        <div ref={endRef} />
+          {messages.map((m, i) => {
+            const isWaitingFirstToken = sending && i === messages.length - 1 && m.role === 'assistant' && !m.content;
+            if (isWaitingFirstToken) {
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-strong border border-accent/20">
+                    <Bot size={16} />
+                  </span>
+                  <span className="flex items-center gap-1 rounded-2xl bg-paper-2 px-4 py-3 shadow-whisper border border-black/5" aria-label="Đang soạn câu trả lời">
+                    <Dot delay="0ms" /><Dot delay="150ms" /><Dot delay="300ms" />
+                  </span>
+                </div>
+              );
+            }
+            if (m.role === 'assistant' && !m.content) return null;
+            return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />;
+          })}
+
+          <div ref={endRef} />
+        </div>
       </div>
 
       {error && (
-        <p className="mt-2 rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
+        <p className="mt-2 rounded-lg bg-danger-soft px-3.5 py-2 text-xs font-medium text-danger">{error}</p>
       )}
 
-      <form onSubmit={send} className="mt-4 flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Nhập câu hỏi của bạn…"
-          disabled={sending}
-          className={[
-            'min-h-11 min-w-0 flex-1 rounded-sm bg-paper-2 px-4 py-2 text-sm text-ink shadow-hairline',
-            'placeholder:text-muted transition-[box-shadow,background-color] duration-short ease-out',
-            'hover:bg-paper-3 focus:bg-paper-2',
-            'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus',
-            'disabled:cursor-not-allowed disabled:opacity-60',
-          ].join(' ')}
-        />
-        <button
-          type="submit"
-          disabled={sending || !input.trim()}
-          className={[
-            'flex min-h-11 items-center gap-2 rounded-sm bg-accent-strong px-4 py-2 text-sm font-medium text-accent-ink shadow-whisper',
-            'transition-[background-color,transform,box-shadow,opacity] duration-short ease-out',
-            'hover:-translate-y-px hover:shadow-card active:translate-y-0 active:shadow-whisper',
-            'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
-            'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-whisper',
-          ].join(' ')}
-        >
-          <Send size={16} />
-          <span className="hidden sm:inline">Gửi</span>
-        </button>
+      {/* Input controls hợp nhất với Viền Gradient Sang trọng */}
+      <form onSubmit={send} className="mt-3.5 flex items-center gap-2 rounded-2xl p-[1.5px] bg-gradient-to-r from-accent-strong/40 via-emerald-400/25 to-accent-strong/40 shadow-card shrink-0">
+        <div className="flex w-full items-center gap-2 rounded-[14px] bg-white/95 p-1.5 pl-4 backdrop-blur-md">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Nhập câu hỏi của bạn…"
+            disabled={sending}
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={sending || !input.trim()}
+            className={[
+              'flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-accent-strong to-emerald-600 px-5 text-sm font-semibold text-white shadow-whisper',
+              'transition-all duration-short ease-out',
+              'hover:shadow-card hover:scale-[1.02] active:scale-[0.98]',
+              'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-whisper disabled:hover:scale-100',
+            ].join(' ')}
+          >
+            <Send size={15} />
+            <span className="hidden sm:inline">{sending ? 'Đang gửi…' : 'Gửi'}</span>
+          </button>
+        </div>
       </form>
 
       {/* Modal xác nhận xóa lịch sử trò chuyện */}
@@ -221,8 +246,8 @@ function Bubble({ role, content, citations }) {
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div
         className={[
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-          isUser ? 'bg-paper-3 text-ink-2' : 'bg-accent-soft text-accent-strong',
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-whisper',
+          isUser ? 'bg-gradient-to-r from-accent-strong to-emerald-600 text-white' : 'bg-accent-soft text-accent-strong border border-accent/20',
         ].join(' ')}
       >
         {isUser ? <User size={16} /> : <Bot size={16} />}
@@ -230,10 +255,10 @@ function Bubble({ role, content, citations }) {
       <div className={`min-w-0 max-w-[85%] sm:max-w-[80%] ${isUser ? 'items-end' : ''}`}>
         <div
           className={[
-            'whitespace-pre-wrap rounded-md px-4 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere]',
+            'whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed [overflow-wrap:anywhere] shadow-whisper',
             isUser
-              ? 'rounded-br-sm bg-accent-strong text-accent-ink'
-              : 'rounded-bl-sm bg-paper-3 text-ink',
+              ? 'rounded-tr-xs bg-gradient-to-r from-accent-strong to-emerald-600 text-white font-medium'
+              : 'rounded-tl-xs bg-paper-2 text-ink border border-black/5',
           ].join(' ')}
         >
           {content}
@@ -244,7 +269,6 @@ function Bubble({ role, content, citations }) {
   );
 }
 
-// Nguồn trích dẫn y khoa — thu gọn/mở rộng, animate grid-rows (không animate height)
 function Citations({ items }) {
   const [open, setOpen] = useState(false);
   return (
@@ -278,7 +302,7 @@ function Citations({ items }) {
             const url = c.url ?? c.link;
             const snippet = c.snippet ?? c.excerpt;
             return (
-              <li key={i} className="mt-1 rounded-sm bg-paper-2 p-3 shadow-hairline">
+              <li key={i} className="mt-1 rounded-xl bg-white p-3 shadow-whisper border border-black/5">
                 <div className="flex items-start justify-between gap-2">
                   <p className="min-w-0 text-xs font-semibold text-ink [overflow-wrap:anywhere]">
                     <span className="mr-1.5 text-accent-strong [font-variant-numeric:tabular-nums]">[{i + 1}]</span>

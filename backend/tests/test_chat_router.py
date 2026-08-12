@@ -33,8 +33,7 @@ client = TestClient(app)
 
 def _register(user_test) -> str:
     """Đăng ký user mới, trả về access token."""
-    countries = client.get("/api/v1/catalog/countries").json()
-    country_code = countries[0]["code"] if countries else "VN"
+    country_code = "VN"
 
     email = f"chat_{uuid.uuid4().hex[:10]}@example.com"
     payload = {

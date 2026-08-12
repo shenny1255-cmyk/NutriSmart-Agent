@@ -19,7 +19,6 @@
     birth_date {label:"DATE"}
     height_cm {label:"NUMERIC(5,2)"}
     weight_kg {label:"NUMERIC(5,2)"}
-    bmi {label:"NUMERIC(5,2) GENERATED"}
     activity_level {label:"SMALLINT"}
     goal {label:"VARCHAR(20)"}
     daily_calorie_target {label:"INTEGER"}
@@ -55,7 +54,6 @@
 
 [medical_conditions]
     *id {label:"INTEGER"}
-    code {label:"VARCHAR(50)"}
     name {label:"VARCHAR(150)"}
 
 [allergens]
@@ -78,7 +76,6 @@
     user_id {label:"UUID (FK → users)"}
     recorded_at {label:"DATE"}
     weight_kg {label:"NUMERIC(5,2)"}
-    bmi {label:"NUMERIC(5,2)"}
 
 [meal_logs]
     *id {label:"BIGINT"}
@@ -143,7 +140,6 @@
     goal {label:"goal_enum"}
     daily_kcal_target {label:"INTEGER"}
     content {label:"JSONB"}
-    generated_by {label:"VARCHAR(100)"}
     start_date {label:"DATE"}
     end_date {label:"DATE"}
     created_at {label:"TIMESTAMPTZ"}

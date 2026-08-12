@@ -1,7 +1,7 @@
-INSERT INTO medical_conditions(code, name) VALUES
-  ('E11','Đái tháo đường típ 2'),
-  ('I10','Tăng huyết áp'),
-  ('E78','Rối loạn lipid máu');
+INSERT INTO medical_conditions(name) VALUES
+  ('Đái tháo đường típ 2'),
+  ('Tăng huyết áp'),
+  ('Rối loạn lipid máu');
 
 INSERT INTO allergens(name) VALUES
   ('Đậu phộng'), ('Hải sản có vỏ'), ('Sữa bò'), ('Gluten');

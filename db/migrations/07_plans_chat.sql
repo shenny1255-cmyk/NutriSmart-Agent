@@ -2,13 +2,12 @@ CREATE TABLE nutrition_plans (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version           INT NOT NULL DEFAULT 1,
-    parent_plan_id    UUID REFERENCES nutrition_plans(id),  -- hiệu chỉnh từ plan nào
+    parent_plan_id    UUID REFERENCES nutrition_plans(id) ON DELETE SET NULL,  -- hiệu chỉnh từ plan nào
     start_date        DATE NOT NULL,
     end_date          DATE NOT NULL,
     daily_kcal_target INT NOT NULL,
     goal              goal_enum NOT NULL,
     content           JSONB NOT NULL,      -- thực đơn + lịch tập do LLM sinh
-    generated_by      VARCHAR(100),        -- tên model
     status            plan_status NOT NULL DEFAULT 'ACTIVE',
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (end_date >= start_date)

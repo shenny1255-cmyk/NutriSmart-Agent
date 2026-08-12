@@ -11,7 +11,24 @@ import { LogoMark } from './components/Logo';
 
 const Stack = createNativeStackNavigator();
 
-const BACKEND_IP = '10.120.56.85';
+import Constants from 'expo-constants';
+
+function getDynamicBackendIp() {
+  try {
+    const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        return ip;
+      }
+    }
+  } catch {
+    // Fallback
+  }
+  return '10.251.3.81';
+}
+
+const BACKEND_IP = getDynamicBackendIp();
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);

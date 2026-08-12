@@ -32,8 +32,19 @@ def summary(
         ORDER BY day
     """)
     since = date.today() - timedelta(days=days - 1)
-    rows = db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()
-    return list(rows)
+    rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
+    today = date.today()
+    if not any(r["day"] == today for r in rows):
+        target = (user.info.daily_calorie_target if user.info else None) or 2000
+        rows.append({
+            "day": today,
+            "kcal_intake": 0.0,
+            "kcal_burned": 0.0,
+            "daily_calorie_target": target,
+            "kcal_remaining": float(target),
+        })
+        rows.sort(key=lambda x: x["day"])
+    return rows
 
 
 @router.post("/daily-activity", response_model=TodayActivityOut)
@@ -360,10 +371,9 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
 
     if row:
         row.weight_kg = payload.weight_kg  # type: ignore
-        row.bmi = bmi  # type: ignore
     else:
         row = BodyMetricHistory(user_id=user.id, recorded_at=ngay,
-                                weight_kg=payload.weight_kg, bmi=bmi)
+                                weight_kg=payload.weight_kg)
         db.add(row)
 
     db.commit()
@@ -372,7 +382,7 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
     return WeightOut(
         recorded_at=row.recorded_at,  # type: ignore
         weight_kg=float(row.weight_kg) if row.weight_kg is not None else 0.0,  # type: ignore
-        bmi=float(row.bmi) if row.bmi is not None else None,  # type: ignore
+        bmi=bmi,
     )
 
 
@@ -384,11 +394,12 @@ def lich_su_can_nang(db: Session, user: User, days: int = 90) -> list[WeightOut]
         .order_by(BodyMetricHistory.recorded_at)  # type: ignore
         .all()
     )
+    chieu_cao = float(user.info.height_cm) if user.info and user.info.height_cm else None
     return [
         WeightOut(
             recorded_at=r.recorded_at,  # type: ignore
             weight_kg=float(r.weight_kg) if r.weight_kg is not None else 0.0,  # type: ignore
-            bmi=float(r.bmi) if r.bmi is not None else None,  # type: ignore
+            bmi=round(float(r.weight_kg) / ((chieu_cao / 100) ** 2), 2) if chieu_cao and r.weight_kg else None,
         )
         for r in rows if r.weight_kg is not None
     ]

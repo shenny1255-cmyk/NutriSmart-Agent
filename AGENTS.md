@@ -22,7 +22,7 @@ in Vietnamese.**
 # 1. Database
 cd db && docker compose up -d            # or restart existing: docker start nutrismart-db nutrismart-redis
 # 2. Backend  (venv at backend/.venv and backend/.env already exist locally; both gitignored)
-cd backend && ./.venv/Scripts/python.exe -m uvicorn app.main:app --reload   # http://localhost:8000  (docs at /docs)
+cd backend && ./.venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload   # http://localhost:8000  (docs at /docs)
 # 3. Frontend
 cd frontend && npm run dev               # http://localhost:5173  (proxies /api -> :8000)
 ```

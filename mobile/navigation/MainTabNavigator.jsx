@@ -12,7 +12,7 @@ import { Theme } from '../theme';
 const Tab = createBottomTabNavigator();
 
 export default function MainTabNavigator({ route }) {
-  const backendIp = route?.params?.backendIp ?? '10.120.56.85';
+  const backendIp = route?.params?.backendIp ?? '10.251.3.81';
 
   return (
     <Tab.Navigator
