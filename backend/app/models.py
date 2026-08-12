@@ -56,8 +56,12 @@ class UserInfo(Base):
     birth_date: date | None     = Column(Date)  # type: ignore
     height_cm: float | None      = Column(Numeric(5, 2))  # type: ignore
     weight_kg: float | None      = Column(Numeric(5, 2))  # type: ignore
-    # generated column → chỉ đọc, KHÔNG bao giờ insert
-    bmi: float | None            = Column(Numeric(5, 2), server_default=FetchedValue())  # type: ignore
+    @property
+    def bmi(self) -> float | None:
+        """BMI tự động tính toán động từ height_cm và weight_kg (không cần cột trong CSDL)."""
+        if self.height_cm and self.weight_kg and float(self.height_cm) > 0:
+            return round(float(self.weight_kg) / ((float(self.height_cm) / 100) ** 2), 2)
+        return None
     activity_level: int | None = Column(SmallInteger)  # type: ignore
     goal: str           = Column(goal_enum, nullable=False, default="MAINTAIN")  # type: ignore
     daily_calorie_target: int | None = Column(Integer)  # type: ignore
@@ -110,8 +114,7 @@ class StaffPermission(Base):
 class MedicalCondition(Base):
     __tablename__ = "medical_conditions"
     id   = Column(Integer, primary_key=True)
-    code = Column(String(50), unique=True, nullable=False)
-    name = Column(String(150), nullable=False)
+    name = Column(String(150), unique=True, nullable=False)
 
 
 class Allergen(Base):
@@ -137,14 +140,13 @@ class NutritionPlan(Base):
     __tablename__ = "nutrition_plans"
     id: uuid.UUID     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id"))
+    parent_plan_id    = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id", ondelete="SET NULL"))
     version           = Column(Integer, nullable=False, default=1)
     start_date: date  = Column(Date, nullable=False)  # type: ignore
     end_date: date    = Column(Date, nullable=False)  # type: ignore
     daily_kcal_target: int = Column(Integer, nullable=False)  # type: ignore
     goal: str         = Column(goal_enum, nullable=False)  # type: ignore
     content           = Column(JSONB, nullable=False)
-    generated_by      = Column(String(100))
     status: str       = Column(plan_status, nullable=False, default="ACTIVE")  # type: ignore
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -171,7 +173,6 @@ class BodyMetricHistory(Base):
     user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
     recorded_at: date = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
     weight_kg: float | None = Column(Numeric(5, 2))  # type: ignore
-    bmi: float | None = Column(Numeric(5, 2))  # type: ignore
 
 
 class PlanCheckinSeries(Base):
@@ -259,7 +260,7 @@ doc_status  = SAEnum("DRAFT", "PENDING", "APPROVED", "REJECTED",
 class DocCategory(Base):
     __tablename__ = "doc_categories"
     id: int          = Column(Integer, primary_key=True)  # type: ignore
-    parent_id: int | None = Column(Integer, ForeignKey("doc_categories.id"))  # type: ignore
+    parent_id: int | None = Column(Integer, ForeignKey("doc_categories.id", ondelete="SET NULL"))  # type: ignore
     name: str        = Column(String(150), nullable=False)  # type: ignore
     slug: str        = Column(String(150), unique=True, nullable=False)  # type: ignore
 

@@ -62,18 +62,18 @@ tables_data = {
         ]
     },
     "health_profiles": {
-        "headers": ["id", "user_id", "gender", "birth_date", "height_cm", "weight_kg", "bmi", "activity_level", "goal", "daily_calorie_target", "updated_at"],
+        "headers": ["id", "user_id", "gender", "birth_date", "height_cm", "weight_kg", "activity_level", "goal", "daily_calorie_target", "updated_at"],
         "rows": [
-            [1, 1, "MALE", "1995-04-12", 172.50, 75.00, 25.21, 2, "LOSE_WEIGHT", 1850, "2026-07-20 14:00:00"],
-            [2, 2, "FEMALE", "1990-11-20", 158.00, 52.00, 20.83, 4, "MAINTAIN", 1900, "2026-07-15 16:30:00"]
+            [1, 1, "MALE", "1995-04-12", 172.50, 75.00, 2, "LOSE_WEIGHT", 1850, "2026-07-20 14:00:00"],
+            [2, 2, "FEMALE", "1990-11-20", 158.00, 52.00, 4, "MAINTAIN", 1900, "2026-07-15 16:30:00"]
         ]
     },
     "medical_conditions": {
-        "headers": ["id", "code", "name"],
+        "headers": ["id", "name"],
         "rows": [
-            [1, "E11", "Đái tháo đường týp 2"],
-            [2, "I10", "Tăng huyết áp vô căn"],
-            [3, "K21", "Trào ngược dạ dày thực quản (GERD)"]
+            [1, "Đái tháo đường týp 2"],
+            [2, "Tăng huyết áp vô căn"],
+            [3, "Trào ngược dạ dày thực quản (GERD)"]
         ]
     },
     "allergens": {
@@ -138,9 +138,9 @@ tables_data = {
         ]
     },
     "nutrition_plans": {
-        "headers": ["id", "user_id", "version", "start_date", "end_date", "daily_kcal_target", "goal", "content", "generated_by", "status", "created_at"],
+        "headers": ["id", "user_id", "version", "start_date", "end_date", "daily_kcal_target", "goal", "content", "status", "created_at"],
         "rows": [
-            [1, 1, 1, "2026-07-20", "2026-07-26", 1850, "LOSE_WEIGHT", '{"day_1": {"breakfast": "Phở gà ít bánh", "lunch": "Cơm lứt + ức gà"}}', "ai-gemma3", "ACTIVE", "2026-07-19 20:00:00"]
+            [1, 1, 1, "2026-07-20", "2026-07-26", 1850, "LOSE_WEIGHT", '{"day_1": {"breakfast": "Phở gà ít bánh", "lunch": "Cơm lứt + ức gà"}}', "ACTIVE", "2026-07-19 20:00:00"]
         ]
     },
     "plan_evaluations": {

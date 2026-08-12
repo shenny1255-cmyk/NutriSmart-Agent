@@ -1,55 +1,72 @@
-%% ERD NutriSmart Agent — sinh từ db/migrations/*.sql (nguồn sự thật của DB)
-%% 25 bảng / 5 miền nghiệp vụ: Người dùng · Tri thức (RAG) · Dược phẩm · Theo dõi · Lộ trình & Chat
-%% Xem trước: https://mermaid.live  (dán nguyên nội dung file này)
+%% ERD NutriSmart Agent — sinh từ backend/app/models.py (nguồn sự thật của DB)
+%% 27 bảng / 6 miền nghiệp vụ: Người dùng · Tri thức (RAG) & Cào tin · Theo dõi · Lộ trình & Checkin · Chat · Thông báo
+%% Xem trước: https://mermaid.live (dán nguyên nội dung file này)
 erDiagram
 
     %% ---------- 1. NGƯỜI DÙNG & HỒ SƠ SỨC KHỎE ----------
-    COUNTRIES {
-        char     code             PK
-        string   name
-    }
     USERS {
         uuid        id             PK
         string      email          UK
         string      password_hash
-        string      full_name
         enum        role
-        char        country_code   FK
-        boolean     is_active
-        boolean     email_verified
         timestamptz created_at
         timestamptz updated_at
-        timestamptz deleted_at
     }
-    HEALTH_PROFILES {
-        uuid        id                   PK
-        uuid        user_id              FK
+    USER_INFO {
+        uuid        user_id              PK_FK
+        string      full_name
         enum        gender
         date        birth_date
         numeric     height_cm
         numeric     weight_kg
-        numeric     bmi
         smallint    activity_level
         enum        goal
         int         daily_calorie_target
+        jsonb       custom_conditions
+        jsonb       custom_allergens
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    STAFF_PROFILES {
+        uuid        user_id            PK_FK
+        string      staff_code         UK
+        string      full_name
+        string      gender
+        date        birth_date
+        string      specialization
+        string      qualification
+        string      employment_status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    STAFF_PERMISSIONS {
+        uuid        user_id            PK_FK
+        boolean     can_manage_users
+        boolean     can_manage_foods
+        boolean     can_manage_categories
+        boolean     can_review_documents
+        boolean     can_review_plans
+        boolean     can_review_ai_chat
+        boolean     can_review_logs
+        boolean     can_manage_permissions
+        timestamptz created_at
         timestamptz updated_at
     }
     MEDICAL_CONDITIONS {
         int      id      PK
-        string   code    UK
-        string   name
+        string   name    UK
     }
     ALLERGENS {
         int      id    PK
         string   name  UK
     }
     PROFILE_CONDITIONS {
-        uuid  profile_id    PK
-        int   condition_id  PK
+        uuid  user_id       PK_FK
+        int   condition_id  PK_FK
     }
     PROFILE_ALLERGENS {
-        uuid      profile_id   PK
-        int       allergen_id  PK
+        uuid      user_id      PK_FK
+        int       allergen_id  PK_FK
         smallint  severity
     }
     BODY_METRICS_HISTORY {
@@ -57,18 +74,18 @@ erDiagram
         uuid     user_id      FK
         date     recorded_at
         numeric  weight_kg
-        numeric  bmi
     }
 
-    COUNTRIES        ||--o{ USERS                : "located_in"
-    USERS            ||--o| HEALTH_PROFILES      : "has"
-    HEALTH_PROFILES  ||--o{ PROFILE_CONDITIONS   : "has"
-    MEDICAL_CONDITIONS ||--o{ PROFILE_CONDITIONS : "listed_in"
-    HEALTH_PROFILES  ||--o{ PROFILE_ALLERGENS    : "has"
-    ALLERGENS        ||--o{ PROFILE_ALLERGENS    : "listed_in"
-    USERS            ||--o{ BODY_METRICS_HISTORY : "records"
+    USERS            ||--o| USER_INFO           : "has_info"
+    USERS            ||--o| STAFF_PROFILES      : "has_staff"
+    STAFF_PROFILES   ||--o| STAFF_PERMISSIONS   : "has_perm"
+    USER_INFO        ||--o{ PROFILE_CONDITIONS  : "has"
+    MEDICAL_CONDITIONS ||--o{ PROFILE_CONDITIONS: "listed_in"
+    USER_INFO        ||--o{ PROFILE_ALLERGENS   : "has"
+    ALLERGENS        ||--o{ PROFILE_ALLERGENS   : "listed_in"
+    USERS            ||--o{ BODY_METRICS_HISTORY: "records"
 
-    %% ---------- 2. TRI THỨC (RAG) ----------
+    %% ---------- 2. TRI THỨC (RAG) & CÀO TIN TỰ ĐỘNG ----------
     DOC_CATEGORIES {
         int      id         PK
         int      parent_id  FK
@@ -100,42 +117,24 @@ erDiagram
         vector   embedding
         jsonb    metadata
     }
+    CRAWL_SOURCES {
+        uuid        id          PK
+        string      name
+        string      source_key  UK
+        string      domain
+        jsonb       base_urls
+        boolean     is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
 
     DOC_CATEGORIES ||--o{ DOCUMENTS  : "groups"
     DOC_CATEGORIES ||--o{ DOC_CATEGORIES : "parent_of"
     DOCUMENTS      ||--o{ DOC_CHUNKS : "split_into"
     USERS          ||--o{ DOCUMENTS  : "uploads_doc"
+    CRAWL_SOURCES  ||--o{ DOCUMENTS  : "scrapes_to"
 
-    %% ---------- 3. DƯỢC PHẨM THEO QUỐC GIA ----------
-    DRUG_CATEGORIES {
-        int      id    PK
-        string   name  UK
-    }
-    DRUGS {
-        uuid        id                 PK
-        int         category_id        FK
-        string      name
-        string      active_ingredient
-        text        indications
-        text        side_effects
-        text        contraindications
-        timestamptz created_at
-        timestamptz deleted_at
-    }
-    DRUG_COUNTRY_RULES {
-        uuid        drug_id       PK
-        char        country_code  PK
-        enum        status
-        text        note
-        uuid        updated_by    FK
-        timestamptz updated_at
-    }
-
-    DRUG_CATEGORIES ||--o{ DRUGS              : "groups"
-    DRUGS           ||--o{ DRUG_COUNTRY_RULES : "restricted_by"
-    COUNTRIES       ||--o{ DRUG_COUNTRY_RULES : "applies_to"
-
-    %% ---------- 4. THEO DÕI ĂN UỐNG & VẬN ĐỘNG ----------
+    %% ---------- 3. THEO DÕI ĂN UỐNG & VẬN ĐỘNG ----------
     FOODS {
         uuid     id             PK
         string   name
@@ -177,13 +176,13 @@ erDiagram
         string   category
     }
     ACTIVITY_LOGS {
-        bigint   id               PK
-        uuid     user_id          FK
-        int      exercise_id      FK
-        int      steps
-        int      duration_min
-        numeric  calories_burned
-        date     log_date
+        bigint      id               PK
+        uuid        user_id          FK
+        int         exercise_id      FK
+        int         steps
+        int         duration_min
+        numeric     calories_burned
+        timestamptz logged_at
     }
 
     USERS       ||--o{ MEAL_IMAGES   : "uploads"
@@ -194,7 +193,7 @@ erDiagram
     MEAL_IMAGES ||--o{ MEAL_LOGS     : "source_of"
     EXERCISES   ||--o{ ACTIVITY_LOGS : "used_in"
 
-    %% ---------- 5. LỘ TRÌNH, ĐÁNH GIÁ & CHAT ----------
+    %% ---------- 4. LỘ TRÌNH, CHECKIN 14 NGÀY & ĐÁNH GIÁ ----------
     NUTRITION_PLANS {
         uuid        id                 PK
         uuid        user_id            FK
@@ -205,7 +204,6 @@ erDiagram
         int         daily_kcal_target
         enum        goal
         jsonb       content
-        string      generated_by
         enum        status
         timestamptz created_at
     }
@@ -220,6 +218,39 @@ erDiagram
         text        ai_feedback
         timestamptz evaluated_at
     }
+    PLAN_CHECKIN_SERIES {
+        uuid        id          PK
+        uuid        user_id     FK
+        enum        goal
+        string      status
+        date        started_at
+        date        closed_at
+        timestamptz created_at
+    }
+    PLAN_CHECKINS {
+        uuid        id                 PK
+        uuid        series_id          FK
+        uuid        user_id            FK
+        uuid        plan_id            FK
+        uuid        adjusted_plan_id   FK
+        int         period_number
+        date        start_date
+        date        period_end
+        numeric     baseline_weight_kg
+        numeric     actual_weight_kg
+        smallint    adherence_pct
+        string      status
+        timestamptz created_at
+    }
+
+    USERS               ||--o{ NUTRITION_PLANS      : "follows"
+    NUTRITION_PLANS     ||--o{ NUTRITION_PLANS      : "revised_from"
+    NUTRITION_PLANS     ||--o{ PLAN_EVALUATIONS     : "evaluated_by"
+    USERS               ||--o{ PLAN_CHECKIN_SERIES  : "starts_series"
+    PLAN_CHECKIN_SERIES ||--o{ PLAN_CHECKINS        : "contains"
+    NUTRITION_PLANS     ||--o{ PLAN_CHECKINS        : "tracks_plan"
+
+    %% ---------- 5. AI CHAT ----------
     CHAT_SESSIONS {
         uuid        id          PK
         uuid        user_id     FK
@@ -241,9 +272,6 @@ erDiagram
         smallint  rank
     }
 
-    USERS           ||--o{ NUTRITION_PLANS   : "follows"
-    NUTRITION_PLANS ||--o{ NUTRITION_PLANS   : "revised_from"
-    NUTRITION_PLANS ||--o{ PLAN_EVALUATIONS  : "evaluated_by"
     USERS           ||--o{ CHAT_SESSIONS     : "starts"
     CHAT_SESSIONS   ||--o{ CHAT_MESSAGES     : "contains"
     CHAT_MESSAGES   ||--o{ MESSAGE_CITATIONS : "cites"

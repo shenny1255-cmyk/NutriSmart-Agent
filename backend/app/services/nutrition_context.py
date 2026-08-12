@@ -9,6 +9,13 @@ _SAFETY = (
 )
 
 
+GOAL_MAP = {
+    "LOSE_WEIGHT": "Giảm cân",
+    "MAINTAIN": "Duy trì cân nặng",
+    "GAIN_WEIGHT": "Tăng cân",
+}
+
+
 def render_system_prompt(ctx: dict) -> str:
     lines = [_SAFETY, ""]
 
@@ -20,9 +27,11 @@ def render_system_prompt(ctx: dict) -> str:
     if profile:
         conditions = ", ".join(profile.get("conditions") or []) or "không có"
         allergens = ", ".join(profile.get("allergens") or []) or "không có"
+        raw_goal = str(profile.get("goal") or "")
+        goal_str = GOAL_MAP.get(raw_goal.upper(), raw_goal)
         lines.append("Hồ sơ người dùng:")
         lines.append(
-            f"- Mục tiêu: {profile['goal']} · "
+            f"- Mục tiêu: {goal_str} · "
             f"Mục tiêu calo: {profile['daily_calorie_target']} kcal/ngày"
         )
         lines.append(

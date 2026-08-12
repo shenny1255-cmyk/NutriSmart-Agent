@@ -1,10 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, CheckCircle2, Utensils } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar } from 'lucide-react';
 import { api } from '../lib/api.js';
 
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
 import sampleChickenRice from '../assets/sample_chicken_rice.jpg';
+
+const MEAL_TYPES = [
+  { value: 'BREAKFAST', label: 'Bữa Sáng' },
+  { value: 'LUNCH', label: 'Bữa Trưa' },
+  { value: 'DINNER', label: 'Bữa Tối' },
+  { value: 'SNACK', label: 'Bữa Phụ' },
+];
+
+const PORTIONS = [
+  { value: 0.5, label: '0.5 phần' },
+  { value: 1.0, label: '1 phần (chuẩn)' },
+  { value: 1.5, label: '1.5 phần' },
+  { value: 2.0, label: '2 phần' },
+];
+
+function getSuggestedMealType() {
+  const hour = new Date().getHours() + new Date().getMinutes() / 60;
+  if (hour >= 5 && hour < 10.5) return 'BREAKFAST';
+  if (hour >= 10.5 && hour < 14) return 'LUNCH';
+  if (hour >= 14 && hour < 17.5) return 'SNACK';
+  return 'DINNER';
+}
 
 const SAMPLE_FOODS = [
   {
@@ -70,16 +93,19 @@ function fileToDataUrl(file) {
 }
 
 export default function MealScan() {
+  const navigate = useNavigate();
   const sessionRef = useRef(mealScanCache);
   const [preview, setPreview] = useState(sessionRef.current.preview ?? null);
   const [result, setResult] = useState(sessionRef.current.result ?? null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  const [portion, setPortion] = useState(1.0);
+  const [mealType, setMealType] = useState(getSuggestedMealType());
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
-  // Giữ ảnh và kết quả khi người dùng chuyển sang trang khác rồi quay lại.
   useEffect(() => {
     mealScanCache = { preview, result };
     try {
@@ -92,7 +118,7 @@ export default function MealScan() {
         JSON.stringify(mealScanCache),
       );
     } catch {
-      // Ảnh lớn có thể vượt dung lượng sessionStorage; bộ nhớ vẫn giữ trạng thái khi chuyển trang.
+      // Ignore storage errors for large images
     }
   }, [preview, result]);
 
@@ -101,7 +127,10 @@ export default function MealScan() {
 
     setPreview(await fileToDataUrl(file));
     setResult(null);
+    setIsSaved(false);
     setSavedMsg('');
+    setPortion(1.0);
+    setMealType(getSuggestedMealType());
     setLoading(true);
 
     try {
@@ -113,22 +142,22 @@ export default function MealScan() {
     }
   }
 
-  // Chọn ảnh mẫu thử nghiệm
   async function selectSample(sample) {
     setPreview(sample.img);
     setResult(null);
+    setIsSaved(false);
     setSavedMsg('');
+    setPortion(1.0);
+    setMealType(getSuggestedMealType());
     setLoading(true);
 
     try {
-      // Thử gọi API thực bằng cách fetch blob ảnh mẫu
       const res = await fetch(sample.img);
       const blob = await res.blob();
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
       const apiResult = await api.analyzeMeal(file);
       setResult(apiResult);
     } catch {
-      // Giả lập kết quả nếu backend vision service tạm thời offline
       setResult(sample.mockResult);
     } finally {
       setLoading(false);
@@ -137,7 +166,6 @@ export default function MealScan() {
 
   function onFile(e) {
     handleFile(e.target.files?.[0]);
-    // Cho phép chọn lại cùng một tệp sau đó.
     e.target.value = '';
   }
 
@@ -148,13 +176,16 @@ export default function MealScan() {
   }
 
   const confidence = Math.round((result?.confidence ?? 0) * 100);
-  const kcalVal = result?.calories_kcal ?? result?.estimated_kcal ?? 0;
+  const baseKcal = result?.calories_kcal ?? result?.estimated_kcal ?? 0;
+  const kcalVal = Math.round(baseKcal * portion);
+  const proteinVal = result?.protein_g ? Math.round(result.protein_g * portion * 10) / 10 : null;
+  const carbVal = (result?.carb_g ?? result?.carbs_g) ? Math.round((result.carb_g ?? result.carbs_g) * portion * 10) / 10 : null;
+  const fatVal = result?.fat_g ? Math.round(result.fat_g * portion * 10) / 10 : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Phân tích hình ảnh món ăn</h1>
 
-      {/* Main Upload Zone — Glass Card */}
       <div className="glass-card rounded-2xl p-6 sm:p-8">
         {!preview && (
           <label
@@ -168,37 +199,33 @@ export default function MealScan() {
                 : 'border-accent/40 bg-white/30 hover:border-accent-strong hover:bg-white/50',
             ].join(' ')}
           >
-          {/* Cloud Upload Icon */}
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft/70 text-accent-strong shadow-sm transition-transform duration-short hover:scale-110">
-            <CloudUpload size={32} strokeWidth={1.8} />
-          </div>
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft/70 text-accent-strong shadow-sm transition-transform duration-short hover:scale-110">
+              <CloudUpload size={32} strokeWidth={1.8} />
+            </div>
 
-          {/* Headline text với chữ "chọn" và "chụp trực tiếp" nhấn mạnh */}
-          <p className="max-w-md font-body text-base text-ink-2">
-            Kéo thả,{' '}
-            <span className="font-bold text-accent-strong underline decoration-accent/40 underline-offset-2">
-              chọn
-            </span>{' '}
-            hoặc{' '}
-            <span className="font-bold text-accent-strong">
-              chụp trực tiếp
-            </span>{' '}
-            ảnh món ăn của bạn
-          </p>
+            <p className="max-w-md font-body text-base text-ink-2">
+              Kéo thả,{' '}
+              <span className="font-bold text-accent-strong underline decoration-accent/40 underline-offset-2">
+                chọn
+              </span>{' '}
+              hoặc{' '}
+              <span className="font-bold text-accent-strong">
+                chụp trực tiếp
+              </span>{' '}
+              ảnh món ăn của bạn
+            </p>
 
-          <p className="mt-2 text-xs text-muted">
-            Hỗ trợ định dạng <b>PNG, JPG</b>. Chụp trên điện thoại rất nhanh!
-          </p>
+            <p className="mt-2 text-xs text-muted">
+              Hỗ trợ định dạng <b>PNG, JPG</b>. Chụp trên điện thoại rất nhanh!
+            </p>
 
-          {/* Button "Chọn ảnh" màu xanh nổi bật */}
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="mt-5 inline-flex min-h-10 items-center justify-center rounded-full bg-accent-strong px-6 py-2 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card active:translate-y-0"
-          >
-            Chọn ảnh
-          </button>
-
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="mt-5 inline-flex min-h-10 items-center justify-center rounded-full bg-accent-strong px-6 py-2 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card active:translate-y-0"
+            >
+              Chọn ảnh
+            </button>
           </label>
         )}
 
@@ -211,7 +238,6 @@ export default function MealScan() {
           className="sr-only"
         />
 
-        {/* Xem trước ảnh đã tải lên */}
         {preview && (
           <div className="overflow-hidden rounded-xl bg-black/5 p-2 backdrop-blur-sm">
             <img
@@ -234,7 +260,6 @@ export default function MealScan() {
         )}
       </div>
 
-      {/* Section: Hoặc thử với ảnh mẫu */}
       {!loading && !result && (
         <div className="space-y-3">
           <p className="text-sm font-medium text-ink-2">Hoặc thử với ảnh mẫu:</p>
@@ -257,7 +282,6 @@ export default function MealScan() {
         </div>
       )}
 
-      {/* Đang phân tích */}
       {loading && (
         <div className="glass-card flex items-center gap-4 rounded-xl p-5" aria-busy="true">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
@@ -270,7 +294,6 @@ export default function MealScan() {
         </div>
       )}
 
-      {/* Kết quả phân tích */}
       {result && !result.error && result.is_food_image !== false && (
         <div className="glass-card space-y-5 rounded-2xl p-6">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-4">
@@ -294,15 +317,59 @@ export default function MealScan() {
             </div>
           </header>
 
-          {/* Dinh dưỡng đa lượng */}
+          {!isSaved && (
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/5 bg-black/5 p-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-ink-2">Khẩu phần ăn</label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {PORTIONS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setPortion(p.value)}
+                      className={[
+                        'rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                        portion === p.value
+                          ? 'bg-accent-strong text-white shadow-sm'
+                          : 'bg-white text-ink-2 hover:bg-paper-3',
+                      ].join(' ')}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-ink-2">Bữa ăn</label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {MEAL_TYPES.map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => setMealType(m.value)}
+                      className={[
+                        'rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                        mealType === m.value
+                          ? 'bg-accent-strong text-white shadow-sm'
+                          : 'bg-white text-ink-2 hover:bg-paper-3',
+                      ].join(' ')}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <dl className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(4,minmax(0,1fr))]">
             <Macro label="Calo" value={kcalVal} unit="kcal" primary />
-            <Macro label="Protein" value={result.protein_g} unit="g" />
-            <Macro label="Carb" value={result.carb_g ?? result.carbs_g} unit="g" />
-            <Macro label="Fat" value={result.fat_g} unit="g" />
+            <Macro label="Protein" value={proteinVal} unit="g" />
+            <Macro label="Carb" value={carbVal} unit="g" />
+            <Macro label="Fat" value={fatVal} unit="g" />
           </dl>
 
-          {/* Cảnh báo y tế / phù hợp sức khỏe */}
           {result.suitability_note && (
             <aside
               role="alert"
@@ -316,34 +383,72 @@ export default function MealScan() {
             </aside>
           )}
 
-          {/* Nút Lưu vào Nhật ký */}
-          <div className="pt-2">
-            <button
-              onClick={async () => {
-                try {
-                  setSaving(true);
-                  const res = await api.logMeal({
-                    food_name: result.food_name,
-                    calories_kcal: kcalVal,
-                    protein_g: result.protein_g ?? 0,
-                    carb_g: result.carb_g ?? result.carbs_g ?? 0,
-                    fat_g: result.fat_g ?? 0,
-                    quantity: 1.0,
-                    meal_type: 'LUNCH',
-                  });
-                  setSavedMsg(`✅ Đã lưu ${result.food_name} vào Nhật ký (+${res.added_calories} kcal)!`);
-                } catch (e) {
-                  alert(e.detail || 'Vui lòng đăng nhập để lưu bữa ăn.');
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              disabled={saving}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent-strong px-4 py-2.5 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:opacity-50"
-            >
-              <Utensils size={16} />
-              {saving ? 'Đang lưu...' : `Lưu vào Nhật ký bữa ăn (+${kcalVal} kcal)`}
-            </button>
+          <div className="space-y-3 pt-2">
+            {!isSaved ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setSaving(true);
+                    const res = await api.logMeal({
+                      food_name: result.food_name,
+                      calories_kcal: kcalVal,
+                      protein_g: proteinVal ?? 0,
+                      carb_g: carbVal ?? 0,
+                      fat_g: fatVal ?? 0,
+                      quantity: portion,
+                      meal_type: mealType,
+                    });
+                    setIsSaved(true);
+                    setSavedMsg(`✅ Đã lưu ${result.food_name} (${portion} phần) vào Nhật ký (+${res.added_calories} kcal)!`);
+                  } catch (e) {
+                    alert(e.detail || 'Vui lòng đăng nhập để lưu bữa ăn.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent-strong px-4 py-2.5 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:opacity-50"
+              >
+                <Utensils size={16} />
+                {saving ? 'Đang lưu...' : `Lưu vào Nhật ký bữa ăn (+${kcalVal} kcal)`}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  disabled
+                  className="flex min-h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-paper-3 px-4 py-2.5 text-sm font-semibold text-ink-2 opacity-90 shadow-hairline"
+                >
+                  <Check size={18} className="text-accent-strong" />
+                  Đã lưu vào Nhật ký bữa ăn (+{kcalVal} kcal)
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/diary')}
+                    className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-accent-strong px-4 py-2 text-sm font-semibold text-white shadow-whisper hover:bg-accent-strong/90"
+                  >
+                    <Calendar size={16} />
+                    Xem Nhật ký
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreview(null);
+                      setResult(null);
+                      setIsSaved(false);
+                      setSavedMsg('');
+                    }}
+                    className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-rule-2 bg-paper-2 px-4 py-2 text-sm font-semibold text-ink-2 hover:bg-paper-3"
+                  >
+                    <RefreshCw size={16} />
+                    Quét món khác
+                  </button>
+                </div>
+              </div>
+            )}
+
             {savedMsg && (
               <p className="mt-2 text-center text-xs font-semibold text-accent-strong">{savedMsg}</p>
             )}
@@ -351,7 +456,6 @@ export default function MealScan() {
         </div>
       )}
 
-      {/* Ảnh không phải món ăn hoặc không đủ rõ để phân tích */}
       {result?.is_food_image === false && (
         <div className="glass-card rounded-xl border border-warning-strong/30 bg-warning-soft/90 p-5" role="alert">
           <div className="flex gap-3">
@@ -369,7 +473,6 @@ export default function MealScan() {
         </div>
       )}
 
-      {/* Lỗi service */}
       {result?.error && (
         <div className="glass-card flex items-center justify-between gap-3 rounded-xl bg-danger-soft/80 p-4">
           <p className="text-sm font-medium text-danger">{result.error}</p>

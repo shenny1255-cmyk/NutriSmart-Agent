@@ -202,7 +202,6 @@ def seed_demo(db: Session = Depends(get_db)):
         daily_kcal_target=target,
         goal="LOSE_WEIGHT",
         content=plan_content,
-        generated_by="demo-seed",
         status="ACTIVE",
     )
     db.add(plan)

@@ -5,7 +5,6 @@ import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
 import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
-import CustomHealthTerms from '../components/CustomHealthTerms.jsx';
 import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
@@ -38,7 +37,6 @@ const INITIAL_FORM = {
   gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
   activity_level: 3, goal: 'MAINTAIN',
   condition_ids: [], allergen_ids: [],
-  custom_conditions: [], custom_allergens: [],
 };
 
 export default function Register() {
@@ -344,18 +342,14 @@ export default function Register() {
               </Select>
             </FieldGroup>
 
-            <FieldGroup label={`Bệnh nền${form.condition_ids.length + form.custom_conditions.length ? ` (${form.condition_ids.length + form.custom_conditions.length})` : ''}`}>
+            <FieldGroup label={`Bệnh nền${form.condition_ids.length ? ` (${form.condition_ids.length})` : ''}`}>
               <CatalogMultiSelect kind="condition" items={conditions} selected={form.condition_ids}
                 onChange={(values) => set('condition_ids', values)} />
-              <CustomHealthTerms kind="condition" values={form.custom_conditions}
-                existingNames={conditions.map((item) => item.name)} onChange={(values) => set('custom_conditions', values)} />
             </FieldGroup>
 
-            <FieldGroup label={`Dị ứng thực phẩm${form.allergen_ids.length + form.custom_allergens.length ? ` (${form.allergen_ids.length + form.custom_allergens.length})` : ''}`}>
+            <FieldGroup label={`Dị ứng thực phẩm${form.allergen_ids.length ? ` (${form.allergen_ids.length})` : ''}`}>
               <CatalogMultiSelect kind="allergen" items={allergens} selected={form.allergen_ids}
                 onChange={(values) => set('allergen_ids', values)} />
-              <CustomHealthTerms kind="allergen" values={form.custom_allergens}
-                existingNames={allergens.map((item) => item.name)} onChange={(values) => set('custom_allergens', values)} />
             </FieldGroup>
           </div>
         )}

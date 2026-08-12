@@ -5,7 +5,6 @@ ALTER TABLE user_info ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS birth_date DATE;
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS height_cm NUMERIC(5, 2);
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS weight_kg NUMERIC(5, 2);
-ALTER TABLE user_info ADD COLUMN IF NOT EXISTS bmi NUMERIC(5, 2);
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS activity_level SMALLINT;
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS goal VARCHAR(20) DEFAULT 'MAINTAIN';
 ALTER TABLE user_info ADD COLUMN IF NOT EXISTS daily_calorie_target INTEGER;
@@ -20,7 +19,6 @@ BEGIN
             birth_date = hp.birth_date,
             height_cm = hp.height_cm,
             weight_kg = hp.weight_kg,
-            bmi = hp.bmi,
             activity_level = hp.activity_level,
             goal = hp.goal,
             daily_calorie_target = hp.daily_calorie_target

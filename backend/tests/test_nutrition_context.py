@@ -31,7 +31,7 @@ def test_always_includes_safety_and_identity():
 
 def test_full_context_includes_profile_details():
     prompt = render_system_prompt(FULL_CTX)
-    assert "LOSE_WEIGHT" in prompt
+    assert "Giảm cân" in prompt
     assert "1800" in prompt
     assert "đậu phộng" in prompt            # dị ứng
     assert "Tiểu đường type 2" in prompt     # bệnh nền

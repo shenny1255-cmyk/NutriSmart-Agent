@@ -407,14 +407,11 @@ def _upsert_weight(db: Session, user: User, weight_kg: float, recorded_at: date)
         BodyMetricHistory.user_id == user.id,
         BodyMetricHistory.recorded_at == recorded_at,  # type: ignore
     ).first()
-    height = float(user.info.height_cm) if user.info and user.info.height_cm else None
-    bmi = round(weight_kg / ((height / 100) ** 2), 2) if height else None
     if row:
         row.weight_kg = weight_kg  # type: ignore
-        row.bmi = bmi  # type: ignore
     else:
         db.add(BodyMetricHistory(
-            user_id=user.id, recorded_at=recorded_at, weight_kg=weight_kg, bmi=bmi
+            user_id=user.id, recorded_at=recorded_at, weight_kg=weight_kg
         ))
     if user.info:
         user.info.weight_kg = weight_kg  # type: ignore

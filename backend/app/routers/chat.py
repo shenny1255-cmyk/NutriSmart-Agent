@@ -176,6 +176,7 @@ def stream_message(
     # 2. Truy hồi RAG & xây dựng System Prompt
     ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
+    ctx = gather_context(db, user)
     rag_block = retrieval.render_context_block(hits)
     system_prompt = render_system_prompt(ctx) + rag_block
 
