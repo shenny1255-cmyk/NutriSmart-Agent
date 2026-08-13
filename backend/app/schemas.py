@@ -184,8 +184,9 @@ class ItemOut(BaseModel):
     name: str
 
 
-class StaffPermissionOut(BaseModel):
+class RolePermissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    role: str
     can_manage_users: bool = False
     can_manage_foods: bool = False
     can_manage_categories: bool = False
@@ -205,7 +206,6 @@ class StaffProfileOut(BaseModel):
     specialization: str | None = None
     qualification: str | None = None
     employment_status: str = "ACTIVE"
-    permissions: StaffPermissionOut | None = None
 
 
 # ---------- User ----------
@@ -216,6 +216,7 @@ class UserOut(BaseModel):
     full_name: str | None = None
     role: str
     staff_profile: StaffProfileOut | None = None
+    role_permission: RolePermissionOut | None = None
 
 
 class ProfileOut(BaseModel):

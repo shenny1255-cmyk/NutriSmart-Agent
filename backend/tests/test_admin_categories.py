@@ -78,11 +78,11 @@ def db():
 
 @pytest.fixture
 def admin(db):
-    from app.models import User, UserInfo
+    from app.models import User, UserProfile
     u = User(email=f"cat-{uuid.uuid4().hex[:8]}@test.local", password_hash="x", role="ADMIN")
     db.add(u)
     db.flush()
-    db.add(UserInfo(user_id=u.id, full_name="Quản trị test"))
+    db.add(UserProfile(user_id=u.id, full_name="Quản trị test"))
     db.commit()
     yield u
     # audit_logs.actor_id không có ON DELETE nên phải dọn nhật ký kiểm toán trước

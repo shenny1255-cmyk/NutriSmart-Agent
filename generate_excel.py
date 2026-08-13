@@ -23,17 +23,17 @@ tables_data = {
         "title": "TỔNG HỢP CÁC ĐIỂM ĐÃ TỐI ƯU & LƯỢC BỎ TRONG CSDL (NUTRISMART AGENT)",
         "headers": ["STT", "Tên Bảng / Thuộc tính", "Nhóm Chức Năng", "Trạng Thái", "Đánh Giá & Lý Do Lược Bỏ"],
         "rows": [
-            [1, "user_info", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Tách riêng bảng thông tin cá nhân theo Yêu cầu Giảng viên & Bảo mật (phân tách auth và profile)"],
+            [1, "role_permissions", "Người dùng & Phân quyền", "✅ THAY THẾ", "Quyền dùng chung theo role, thay cho quyền riêng theo từng staff user_id"],
             [2, "nutrition_plans.parent_plan_id", "Kế hoạch Dinh dưỡng", "❌ ĐÃ LƯỢC BỎ", "Dư thừa vì đã có user_id + version + created_at để xác định thứ tự"],
-            [3, "body_metrics_history.bmi", "Người dùng & Hồ sơ", "❌ ĐÃ LƯỢC BỎ", "Dư thừa vì chiều cao cố định, BMI tính động từ weight_kg"],
+            [3, "body_metrics_history.bmi", "Người dùng & Hồ sơ", "❌ ĐÃ LƯỢC BỎ", "Dư thừa vì BMI được tính động từ height_cm và weight_kg tại từng mốc"],
             [4, "documents.raw_text", "Tri thức RAG", "❌ ĐÃ LƯỢC BỎ", "Dư thừa vì RAG chỉ search theo doc_chunks, raw_text làm nặng DB"],
             [5, "users", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Tài khoản người dùng (email, password_hash, role)"],
-            [6, "health_profiles", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Hồ sơ thể trạng (height, weight, activity_level, goal)"],
+            [6, "activity_levels", "Người dùng & Hồ sơ", "✅ BỔ SUNG", "Danh mục mức vận động và hệ số tính TDEE; không cần thuộc tính code"],
             [7, "medical_conditions", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Danh mục bệnh nền"],
             [8, "allergens", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Danh mục chất gây dị ứng"],
-            [9, "profile_conditions", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Bảng liên kết Hồ sơ - Bệnh nền"],
-            [10, "profile_allergens", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Bảng liên kết Hồ sơ - Dị ứng"],
-            [11, "body_metrics_history", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Nhật ký cân nặng theo ngày"],
+            [9, "user_medical_conditions", "Người dùng & Hồ sơ", "✅ ĐỔI TÊN", "Bảng liên kết Người dùng - Bệnh nền"],
+            [10, "user_allergens", "Người dùng & Hồ sơ", "✅ ĐỔI TÊN", "Bảng liên kết Người dùng - Dị ứng; đã bỏ severity không dùng"],
+            [11, "body_metrics_history", "Người dùng & Hồ sơ", "✅ GIỮ NGUYÊN", "Nhật ký chiều cao và cân nặng theo ngày"],
             [12, "foods", "Nhật ký & Vận động", "✅ GIỮ NGUYÊN", "Thực phẩm (giữ cột source để biết nguồn AI/Người dùng/USDA)"],
             [13, "meal_images", "Nhật ký & Vận động", "✅ GIỮ NGUYÊN", "Ảnh bữa ăn phân tích bởi AI Vision"],
             [14, "meal_logs", "Nhật ký & Vận động", "✅ GIỮ NGUYÊN", "Nhật ký khẩu phần ăn thực tế"],
@@ -61,11 +61,29 @@ tables_data = {
             [3, "admin@nutrismart.vn", "$2b$12$9yMm34bM...", "Quản Trị Viên", "ADMIN", "2026-06-01 00:00:00", "2026-06-01 00:00:00"]
         ]
     },
-    "health_profiles": {
-        "headers": ["id", "user_id", "gender", "birth_date", "height_cm", "weight_kg", "activity_level", "goal", "daily_calorie_target", "updated_at"],
+    "user_profile": {
+        "headers": ["user_id", "gender", "birth_date", "activity_level_id", "goal", "daily_calorie_target", "updated_at"],
         "rows": [
-            [1, 1, "MALE", "1995-04-12", 172.50, 75.00, 2, "LOSE_WEIGHT", 1850, "2026-07-20 14:00:00"],
-            [2, 2, "FEMALE", "1990-11-20", 158.00, 52.00, 4, "MAINTAIN", 1900, "2026-07-15 16:30:00"]
+            [1, "MALE", "1995-04-12", 2, "LOSE_WEIGHT", 1850, "2026-07-20 14:00:00"],
+            [2, "FEMALE", "1990-11-20", 4, "MAINTAIN", 1900, "2026-07-15 16:30:00"]
+        ]
+    },
+    "activity_levels": {
+        "headers": ["id", "name", "description", "calorie_multiplier"],
+        "rows": [
+            [1, "Ít vận động", "Hầu như không tập thể dục", 1.200],
+            [2, "Vận động nhẹ", "Tập nhẹ 1-3 ngày/tuần", 1.375],
+            [3, "Vận động vừa", "Tập vừa 3-5 ngày/tuần", 1.550],
+            [4, "Vận động nhiều", "Tập nặng 6-7 ngày/tuần", 1.725],
+            [5, "Vận động rất nhiều", "Tập rất nặng hoặc lao động thể lực", 1.900]
+        ]
+    },
+    "role_permissions": {
+        "headers": ["role", "can_manage_users", "can_manage_foods", "can_manage_categories", "can_review_documents", "can_review_plans", "can_review_ai_chat", "can_review_logs", "can_manage_permissions"],
+        "rows": [
+            ["USER", False, False, False, False, False, False, False, False],
+            ["EXPERT", False, False, False, True, True, True, True, False],
+            ["ADMIN", True, True, True, True, True, True, True, True]
         ]
     },
     "medical_conditions": {
@@ -84,24 +102,24 @@ tables_data = {
             [3, "Sữa & Lactose"]
         ]
     },
-    "profile_conditions": {
-        "headers": ["profile_id", "condition_id"],
+    "user_medical_conditions": {
+        "headers": ["user_id", "condition_id"],
         "rows": [
             [1, 1],
             [1, 2]
         ]
     },
-    "profile_allergens": {
-        "headers": ["profile_id", "allergen_id", "severity"],
+    "user_allergens": {
+        "headers": ["user_id", "allergen_id"],
         "rows": [
-            [1, 1, 3]
+            [1, 1]
         ]
     },
     "body_metrics_history": {
-        "headers": ["id", "user_id", "recorded_at", "weight_kg"],
+        "headers": ["id", "user_id", "recorded_at", "height_cm", "weight_kg"],
         "rows": [
-            [1, 1, "2026-07-20", 75.00],
-            [2, 1, "2026-07-27", 74.20]
+            [1, 1, "2026-07-20", 170.00, 75.00],
+            [2, 1, "2026-07-27", 170.00, 74.20]
         ]
     },
     "foods": {

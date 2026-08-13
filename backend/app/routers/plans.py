@@ -27,7 +27,7 @@ def active_plan(
 ):
     plan = _active_plan_or_404(db, user)
 
-    res = plan_generator.plan_to_dict(plan, user)
+    res = plan_generator.plan_to_dict(db, plan, user)
     res["days_elapsed"] = (date.today() - plan.start_date).days  # type: ignore
     try:
         current = plan_checkin.get_current_checkin(db, user)
@@ -47,7 +47,7 @@ def generate_plan(
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
-    if not user.info:
+    if not user.profile:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
     job = plan_jobs.enqueue(user.id)

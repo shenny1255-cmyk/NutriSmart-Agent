@@ -35,7 +35,7 @@ def _run(job_id: str) -> None:
     try:
         db = SessionLocal()
         user = db.query(User).filter(User.id == job.user_id).first()  # type: ignore
-        if not user or not user.info:
+        if not user or not user.profile:
             raise ValueError("Chưa có hồ sơ sức khỏe")
         plan = plan_generator.create_plan(db, user)
         db.flush()

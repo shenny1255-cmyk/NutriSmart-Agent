@@ -1,5 +1,5 @@
 %% ERD NutriSmart Agent — sinh từ backend/app/models.py (nguồn sự thật của DB)
-%% 27 bảng / 6 miền nghiệp vụ: Người dùng · Tri thức (RAG) & Cào tin · Theo dõi · Lộ trình & Checkin · Chat · Thông báo
+%% 28 bảng / 6 miền nghiệp vụ: Người dùng · Tri thức (RAG) & Cào tin · Theo dõi · Lộ trình & Checkin · Chat · Thông báo
 %% Xem trước: https://mermaid.live (dán nguyên nội dung file này)
 erDiagram
 
@@ -12,20 +12,24 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    USER_INFO {
+    USER_PROFILE {
         uuid        user_id              PK_FK
         string      full_name
         enum        gender
         date        birth_date
-        numeric     height_cm
-        numeric     weight_kg
-        smallint    activity_level
+        smallint    activity_level_id   FK
         enum        goal
         int         daily_calorie_target
         jsonb       custom_conditions
         jsonb       custom_allergens
         timestamptz created_at
         timestamptz updated_at
+    }
+    ACTIVITY_LEVELS {
+        smallint id                  PK
+        string   name                UK
+        string   description
+        numeric  calorie_multiplier
     }
     STAFF_PROFILES {
         uuid        user_id            PK_FK
@@ -39,8 +43,8 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    STAFF_PERMISSIONS {
-        uuid        user_id            PK_FK
+    ROLE_PERMISSIONS {
+        enum        role               PK
         boolean     can_manage_users
         boolean     can_manage_foods
         boolean     can_manage_categories
@@ -60,29 +64,30 @@ erDiagram
         int      id    PK
         string   name  UK
     }
-    PROFILE_CONDITIONS {
+    USER_MEDICAL_CONDITIONS {
         uuid  user_id       PK_FK
         int   condition_id  PK_FK
     }
-    PROFILE_ALLERGENS {
+    USER_ALLERGENS {
         uuid      user_id      PK_FK
         int       allergen_id  PK_FK
-        smallint  severity
     }
     BODY_METRICS_HISTORY {
         bigint   id           PK
         uuid     user_id      FK
         date     recorded_at
+        numeric  height_cm
         numeric  weight_kg
     }
 
-    USERS            ||--o| USER_INFO           : "has_info"
+    USERS            ||--o| USER_PROFILE           : "has_info"
+    ACTIVITY_LEVELS  ||--o{ USER_PROFILE           : "classifies"
     USERS            ||--o| STAFF_PROFILES      : "has_staff"
-    STAFF_PROFILES   ||--o| STAFF_PERMISSIONS   : "has_perm"
-    USER_INFO        ||--o{ PROFILE_CONDITIONS  : "has"
-    MEDICAL_CONDITIONS ||--o{ PROFILE_CONDITIONS: "listed_in"
-    USER_INFO        ||--o{ PROFILE_ALLERGENS   : "has"
-    ALLERGENS        ||--o{ PROFILE_ALLERGENS   : "listed_in"
+    ROLE_PERMISSIONS ||--o{ USERS               : "grants"
+    USER_PROFILE        ||--o{ USER_MEDICAL_CONDITIONS  : "has"
+    MEDICAL_CONDITIONS ||--o{ USER_MEDICAL_CONDITIONS: "listed_in"
+    USER_PROFILE        ||--o{ USER_ALLERGENS   : "has"
+    ALLERGENS        ||--o{ USER_ALLERGENS   : "listed_in"
     USERS            ||--o{ BODY_METRICS_HISTORY: "records"
 
     %% ---------- 2. TRI THỨC (RAG) & CÀO TIN TỰ ĐỘNG ----------
