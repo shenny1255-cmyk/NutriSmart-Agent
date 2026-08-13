@@ -42,21 +42,28 @@ tables = [
         ]
     },
     {
-        "name": "user_info", "pos": (80, 270),
+        "name": "user_profile", "pos": (80, 270),
         "cols": [
             ("user_id", "UUID", "[PK, FK → users]"),
             ("full_name", "VARCHAR(150)", ""),
             ("gender", "gender_enum", "ENUM"),
             ("birth_date", "DATE", ""),
-            ("height_cm", "NUMERIC(5,2)", ""),
-            ("weight_kg", "NUMERIC(5,2)", ""),
-            ("activity_level", "SMALLINT", ""),
+            ("activity_level_id", "SMALLINT", "[FK → activity_levels]"),
             ("goal", "goal_enum", "ENUM"),
             ("daily_calorie_target", "INTEGER", ""),
             ("custom_conditions", "JSONB", ""),
             ("custom_allergens", "JSONB", ""),
             ("created_at", "TIMESTAMPTZ", ""),
             ("updated_at", "TIMESTAMPTZ", ""),
+        ]
+    },
+    {
+        "name": "activity_levels", "pos": (80, 2100),
+        "cols": [
+            ("id", "SMALLINT", "[PK]"),
+            ("name", "VARCHAR(100)", "UNIQUE"),
+            ("description", "VARCHAR(500)", ""),
+            ("calorie_multiplier", "NUMERIC(4,3)", ""),
         ]
     },
     {
@@ -75,9 +82,9 @@ tables = [
         ]
     },
     {
-        "name": "staff_permissions", "pos": (80, 1050),
+        "name": "role_permissions", "pos": (80, 1050),
         "cols": [
-            ("user_id", "UUID", "[PK, FK → staff]"),
+            ("role", "user_role", "[PK]"),
             ("can_manage_users", "BOOLEAN", ""),
             ("can_manage_foods", "BOOLEAN", ""),
             ("can_manage_categories", "BOOLEAN", ""),
@@ -105,18 +112,17 @@ tables = [
         ]
     },
     {
-        "name": "profile_conditions", "pos": (80, 1730),
+        "name": "user_medical_conditions", "pos": (80, 1730),
         "cols": [
-            ("user_id", "UUID", "[PK, FK → user_info]"),
+            ("user_id", "UUID", "[PK, FK → user_profile]"),
             ("condition_id", "INTEGER", "[PK, FK → med_cond]"),
         ]
     },
     {
-        "name": "profile_allergens", "pos": (80, 1870),
+        "name": "user_allergens", "pos": (80, 1870),
         "cols": [
-            ("user_id", "UUID", "[PK, FK → user_info]"),
+            ("user_id", "UUID", "[PK, FK → user_profile]"),
             ("allergen_id", "INTEGER", "[PK, FK → allergens]"),
-            ("severity", "SMALLINT", ""),
         ]
     },
 
@@ -193,6 +199,7 @@ tables = [
             ("id", "BIGINT", "[PK]"),
             ("user_id", "UUID", "[FK → users]"),
             ("recorded_at", "DATE", ""),
+            ("height_cm", "NUMERIC(5,2)", ""),
             ("weight_kg", "NUMERIC(5,2)", ""),
         ]
     },
@@ -403,13 +410,14 @@ for tbl in tables:
 # CONNECTIONS (Clean Connector Lines)
 connections = [
     # Column 1
-    ("users", "user_info", "1", "0..1"),
+    ("users", "user_profile", "1", "0..1"),
+    ("activity_levels", "user_profile", "1", "0..*"),
     ("users", "staff_profiles", "1", "0..1"),
-    ("staff_profiles", "staff_permissions", "1", "1..1"),
-    ("user_info", "profile_conditions", "1", "0..*"),
-    ("medical_conditions", "profile_conditions", "1", "0..*"),
-    ("user_info", "profile_allergens", "1", "0..*"),
-    ("allergens", "profile_allergens", "1", "0..*"),
+    ("role_permissions", "users", "1", "0..*"),
+    ("user_profile", "user_medical_conditions", "1", "0..*"),
+    ("medical_conditions", "user_medical_conditions", "1", "0..*"),
+    ("user_profile", "user_allergens", "1", "0..*"),
+    ("allergens", "user_allergens", "1", "0..*"),
 
     # Column 2
     ("foods", "meal_images", "0..1", "0..*"),
@@ -434,7 +442,7 @@ connections = [
     ("notifications", "audit_logs", "1", "0..*"),
 
     # Cross-Column connections
-    ("user_info", "body_metrics_history", "1", "0..*"),
+    ("user_profile", "body_metrics_history", "1", "0..*"),
     ("meal_logs", "nutrition_plans", "0..*", "1"),
     ("plan_checkins", "chat_sessions", "0..1", "0..*"),
 ]

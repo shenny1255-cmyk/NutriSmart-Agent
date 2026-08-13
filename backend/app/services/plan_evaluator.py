@@ -245,8 +245,8 @@ def run_plan_job(db: Session, user: User, force: bool = False) -> dict:
     db.add(evaluation)
 
     # Đồng bộ mục tiêu calo mới vào hồ sơ để dashboard/chat dùng chung một con số
-    if user.info and new_target != target:
-        user.info.daily_calorie_target = new_target  # type: ignore
+    if user.profile and new_target != target:
+        user.profile.daily_calorie_target = new_target  # type: ignore
 
     note = build_note(result, target, new_target, avg_kcal, weight_change)
     new_plan = plan_generator.create_plan(

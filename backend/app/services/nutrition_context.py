@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models import User
+from app.services.body_metrics import latest_body_metric
 
 
 _SAFETY = (
@@ -65,7 +66,7 @@ def render_system_prompt(ctx: dict) -> str:
 
 
 def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
-    full_name = user.info.full_name if user.info else "Người dùng"
+    full_name = user.profile.full_name if user.profile else "Người dùng"
 
     ctx: dict = {
         "full_name": full_name,
@@ -74,8 +75,9 @@ def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
         "tracking": None,
     }
 
-    if user.info:
-        info = user.info
+    if user.profile:
+        info = user.profile
+        metric = latest_body_metric(db, user.id)
         from datetime import date
         age = (date.today() - info.birth_date).days // 365 if info.birth_date else None
         conditions = [c.name for c in getattr(info, "conditions", [])]
@@ -89,9 +91,9 @@ def gather_context(db: Session, user: User, tracking_days: int = 7) -> dict:
             "goal": info.goal,
             "gender": info.gender,
             "age": age,
-            "height_cm": info.height_cm,
-            "weight_kg": info.weight_kg,
-            "bmi": info.bmi,
+            "height_cm": metric.height_cm if metric else None,
+            "weight_kg": metric.weight_kg if metric else None,
+            "bmi": metric.bmi if metric else None,
             "daily_calorie_target": info.daily_calorie_target,
             "conditions": conditions,
             "allergens": allergens,

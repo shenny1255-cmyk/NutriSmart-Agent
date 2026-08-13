@@ -147,7 +147,7 @@ def _checkin_schema_up() -> bool:
 
 @pytest.mark.skipif(not _checkin_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 19")
 def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
-    from app.models import BodyMetricHistory, NutritionPlan, PlanCheckin, User, UserInfo
+    from app.models import BodyMetricHistory, NutritionPlan, PlanCheckin, User, UserProfile
     from app.services.plan_checkin import (
         decide_checkin, get_current_checkin, reopen_checkin, simulate_due_checkin,
         start_new_series, submit_checkin,
@@ -157,11 +157,12 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
     user = User(email=f"checkin-{uuid.uuid4().hex[:8]}@test.local", password_hash="x", role="USER")
     db.add(user)
     db.flush()
-    db.add(UserInfo(
+    db.add(UserProfile(
         user_id=user.id, full_name="Người check-in", gender="MALE",
-        birth_date=date(2000, 1, 1), height_cm=170, weight_kg=70,
+        birth_date=date(2000, 1, 1),
         activity_level=3, goal="MAINTAIN", daily_calorie_target=2000,
     ))
+    db.add(BodyMetricHistory(user_id=user.id, height_cm=170, weight_kg=70))
     plan = NutritionPlan(
         user_id=user.id, version=1, start_date=date.today() - timedelta(days=14),
         end_date=date.today(), daily_kcal_target=2000, goal="MAINTAIN",
@@ -233,7 +234,7 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
 
 @pytest.mark.skipif(not _checkin_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 19")
 def test_adjustment_lap_chi_tao_mot_plan_version(monkeypatch):
-    from app.models import NutritionPlan, PlanCheckin, User, UserInfo
+    from app.models import BodyMetricHistory, NutritionPlan, PlanCheckin, User, UserProfile
     from app.services import plan_generator
     from app.services.plan_checkin import decide_checkin, start_new_series
 
@@ -246,11 +247,12 @@ def test_adjustment_lap_chi_tao_mot_plan_version(monkeypatch):
     user = User(email=f"adjust-{uuid.uuid4().hex[:8]}@test.local", password_hash="x", role="USER")
     db.add(user)
     db.flush()
-    db.add(UserInfo(
+    db.add(UserProfile(
         user_id=user.id, full_name="Người điều chỉnh", gender="FEMALE",
-        birth_date=date(2000, 1, 1), height_cm=160, weight_kg=65,
+        birth_date=date(2000, 1, 1),
         activity_level=3, goal="LOSE_WEIGHT", daily_calorie_target=2000,
     ))
+    db.add(BodyMetricHistory(user_id=user.id, height_cm=160, weight_kg=65))
     plan = NutritionPlan(
         user_id=user.id, version=1, start_date=date.today() - timedelta(days=14),
         end_date=date.today(), daily_kcal_target=2000, goal="LOSE_WEIGHT",
