@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.models import (
-    User, UserInfo, NutritionPlan, ProfileCondition, ProfileAllergen
+    User, UserProfile, NutritionPlan, UserMedicalCondition, UserAllergen
 )
 from app.security import hash_password, create_access_token
 from app.services.calorie import daily_calorie_target
 from app.services import plan_checkin
+from app.services.activity_levels import get_activity_level
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -52,19 +53,14 @@ def seed_demo(db: Session = Depends(get_db)):
     db.flush()
 
     # 2b. Tạo thêm user demo phụ (USER + EXPERT) để Admin quản lý
-    from app.models import StaffProfile, StaffPermission
+    from app.models import StaffProfile
     import uuid
-    # Admin staff_profile & permissions
+    # Hồ sơ nhân viên của Admin; quyền được lấy chung theo role.
     sp_admin = StaffProfile(
         user_id=user.id,
         staff_code=f"STF-ADM{uuid.uuid4().hex[:4].upper()}",
         full_name=user.full_name or "Tài khoản Demo Admin",
         employment_status="ACTIVE",
-    )
-    sp_admin.permissions = StaffPermission(
-        can_manage_users=True, can_manage_foods=True, can_manage_categories=True,
-        can_review_documents=True, can_review_plans=True, can_review_ai_chat=True,
-        can_review_logs=True, can_manage_permissions=True,
     )
     db.add(sp_admin)
 
@@ -74,11 +70,10 @@ def seed_demo(db: Session = Depends(get_db)):
             password_hash=hash_password(DEMO_PASSWORD),
             role=u["role"],
         )
-        extra_u.info = UserInfo(user_id=extra_u.id, full_name=u["full_name"])
+        extra_u.profile = UserProfile(user_id=extra_u.id, full_name=u["full_name"])
         db.add(extra_u)
         db.flush()
         if u["role"] in ("EXPERT", "ADMIN"):
-            is_adm = (u["role"] == "ADMIN")
             sp_extra = StaffProfile(
                 user_id=extra_u.id,
                 staff_code=f"STF-EXP{idx:03d}",
@@ -87,15 +82,10 @@ def seed_demo(db: Session = Depends(get_db)):
                 qualification="Thạc sĩ Y học",
                 employment_status="ACTIVE",
             )
-            sp_extra.permissions = StaffPermission(
-                can_manage_users=is_adm, can_manage_foods=is_adm, can_manage_categories=is_adm,
-                can_review_documents=True, can_review_plans=True, can_review_ai_chat=True,
-                can_review_logs=True, can_manage_permissions=is_adm,
-            )
             db.add(sp_extra)
     db.flush()
 
-    # 3. Hồ sơ sức khỏe (nằm trong user_info)
+    # 3. Hồ sơ sức khỏe (nằm trong user_profile)
     profile_args = dict(
         gender="MALE",
         birth_date=date(2000, 1, 1),
@@ -109,22 +99,26 @@ def seed_demo(db: Session = Depends(get_db)):
         birth_date=profile_args["birth_date"],  # type: ignore
         height_cm=float(profile_args["height_cm"]),  # type: ignore
         weight_kg=float(profile_args["weight_kg"]),  # type: ignore
-        activity_level=int(profile_args["activity_level"]),  # type: ignore
+        activity_multiplier=float(
+            get_activity_level(db, int(profile_args["activity_level"])).calorie_multiplier
+        ),
         goal=str(profile_args["goal"]),
     )
 
-    if not user.info:
-        user.info = UserInfo(user_id=user.id, full_name=DEMO_NAME)
+    if not user.profile:
+        user.profile = UserProfile(user_id=user.id, full_name=DEMO_NAME)
     for k, v in profile_args.items():
-        setattr(user.info, k, v)
-    user.info.daily_calorie_target = target
+        if k in {"height_cm", "weight_kg"}:
+            continue
+        setattr(user.profile, k, v)
+    user.profile.daily_calorie_target = target
     db.flush()
 
     # 4. Gắn 1 bệnh nền + 1 dị ứng (nếu seed catalog có id 1)
     if db.execute(text("SELECT 1 FROM medical_conditions WHERE id = 1")).first():
-        db.add(ProfileCondition(user_id=user.id, condition_id=1))
+        db.add(UserMedicalCondition(user_id=user.id, condition_id=1))
     if db.execute(text("SELECT 1 FROM allergens WHERE id = 1")).first():
-        db.add(ProfileAllergen(user_id=user.id, allergen_id=1, severity=2))
+        db.add(UserAllergen(user_id=user.id, allergen_id=1))
 
     # 5. Lấy sẵn món ăn (kèm calo thật) + bài tập từ seed
     mon_an = db.execute(text(
@@ -171,12 +165,14 @@ def seed_demo(db: Session = Depends(get_db)):
     # 6b. Mốc cân nặng 7 ngày (giảm dần) để job đánh giá tính được weight_change_kg
     for d in range(6, -1, -1):
         db.execute(text("""
-            INSERT INTO body_metrics_history (user_id, recorded_at, weight_kg)
-            VALUES (:uid, :d, :w)
-            ON CONFLICT (user_id, recorded_at) DO UPDATE SET weight_kg = EXCLUDED.weight_kg
+            INSERT INTO body_metrics_history (user_id, recorded_at, height_cm, weight_kg)
+            VALUES (:uid, :d, :h, :w)
+            ON CONFLICT (user_id, recorded_at) DO UPDATE
+            SET height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg
         """), {
             "uid": str(user.id),
             "d": date.today() - timedelta(days=d),
+            "h": profile_args["height_cm"],
             "w": round(float(profile_args["weight_kg"]) + d * 0.1, 2),  # type: ignore
         })
 

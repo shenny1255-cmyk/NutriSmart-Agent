@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import User, NutritionPlan, BodyMetricHistory
+from app.models import User, NutritionPlan
+from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services import ollama_client
 from app.services.nutrition_context import gather_context
 
@@ -170,24 +171,17 @@ def generate_content(db: Session, user: User, target: int, note: str | None = No
 
 def record_weight_snapshot(db: Session, user: User) -> None:
     """Ghi mốc cân nặng hôm nay (mỗi ngày 1 bản ghi) để kỳ sau tính được biến thiên."""
-    info = user.info
-    if not info or info.weight_kg is None:
+    metric = latest_body_metric(db, user.id)
+    if not metric or metric.weight_kg is None:
         return
 
-    today = date.today()
-    row = (
-        db.query(BodyMetricHistory)
-        .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at == today)  # type: ignore
-        .first()
+    upsert_body_metric(
+        db,
+        user.id,
+        height_cm=float(metric.height_cm) if metric.height_cm is not None else None,
+        weight_kg=float(metric.weight_kg),
+        recorded_at=date.today(),
     )
-    if row:
-        row.weight_kg = info.weight_kg  # type: ignore
-    else:
-        db.add(BodyMetricHistory(
-            user_id=user.id,
-            recorded_at=today,
-            weight_kg=info.weight_kg,
-        ))
 
 
 def create_plan(
@@ -201,7 +195,7 @@ def create_plan(
 
     Không commit — caller quyết định thời điểm commit.
     """
-    info = user.info
+    info = user.profile
     if target is None:
         target = int((info.daily_calorie_target if info else None) or 2000)
 
@@ -231,7 +225,7 @@ def create_plan(
     return plan
 
 
-def plan_to_dict(plan: NutritionPlan, user: User) -> dict:
+def plan_to_dict(db: Session, plan: NutritionPlan, user: User) -> dict:
     """Hình dạng JSON trang Lộ trình (Plan.jsx) đang đọc."""
     return {
         "id": plan.id,
@@ -242,5 +236,5 @@ def plan_to_dict(plan: NutritionPlan, user: User) -> dict:
         "daily_kcal_target": plan.daily_kcal_target,
         "content": plan.content,
         "status": plan.status,
-        "bmi": user.info.bmi if user.info else None,
+        "bmi": (metric.bmi if (metric := latest_body_metric(db, user.id)) else None),
     }

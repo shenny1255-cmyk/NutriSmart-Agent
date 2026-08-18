@@ -1,8 +1,10 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
-from app.models import User, UserInfo, ProfileCondition, ProfileAllergen
+from app.models import User, UserProfile, UserMedicalCondition, UserAllergen, BodyMetricHistory
 from app.schemas import (
     RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn,
     EmailAvailabilityIn, EmailAvailabilityOut,
@@ -14,8 +16,21 @@ from app.security import (
 )
 from app.services.calorie import daily_calorie_target
 from app.services.email import build_verify_link, send_verification_email
+from app.services.body_metrics import latest_body_metric, upsert_body_metric
+from app.services.activity_levels import get_activity_level
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _profile_out(info: UserProfile, metric: BodyMetricHistory | None) -> ProfileOut:
+    """Ghép hồ sơ ổn định với số đo cơ thể mới nhất mà không đổi hợp đồng API."""
+    data = ProfileOut.model_validate(info).model_dump()
+    data.update({
+        "height_cm": float(metric.height_cm) if metric and metric.height_cm is not None else None,
+        "weight_kg": float(metric.weight_kg) if metric and metric.weight_kg is not None else None,
+        "bmi": metric.bmi if metric else None,
+    })
+    return ProfileOut(**data)
 
 
 @router.post("/check-email", response_model=EmailAvailabilityOut)
@@ -41,23 +56,22 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         db.add(user)
         db.flush()   # lấy user.id mà CHƯA commit
 
-        # 2. user_info + tính mục tiêu calo
+        # 2. user_profile + tính mục tiêu calo
+        activity_level = get_activity_level(db, p.activity_level)
         target = daily_calorie_target(
             gender=p.gender,
             birth_date=p.birth_date,
             height_cm=p.height_cm,
             weight_kg=p.weight_kg,
-            activity_level=p.activity_level,
+            activity_multiplier=float(activity_level.calorie_multiplier),
             goal=p.goal,
         )
 
-        info = UserInfo(
+        info = UserProfile(
             user_id=user.id,
             full_name=payload.full_name,
             gender=p.gender,
             birth_date=p.birth_date,
-            height_cm=p.height_cm,
-            weight_kg=p.weight_kg,
             activity_level=p.activity_level,
             goal=p.goal,
             daily_calorie_target=target,
@@ -67,12 +81,18 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         )
         db.add(info)
         db.flush()
+        db.add(BodyMetricHistory(
+            user_id=user.id,
+            recorded_at=date.today(),
+            height_cm=p.height_cm,
+            weight_kg=p.weight_kg,
+        ))
 
         # 3. bệnh nền + dị ứng (nhiều-nhiều)
         for cid in p.condition_ids:
-            db.add(ProfileCondition(user_id=user.id, condition_id=cid))
+            db.add(UserMedicalCondition(user_id=user.id, condition_id=cid))
         for aid in p.allergen_ids:
-            db.add(ProfileAllergen(user_id=user.id, allergen_id=aid))
+            db.add(UserAllergen(user_id=user.id, allergen_id=aid))
 
         db.commit()
 
@@ -120,14 +140,16 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=MeOut)
-def me(user: User = Depends(get_current_user)):
-    profile_out = ProfileOut.model_validate(user.info) if user.info else None
+def me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    metric = latest_body_metric(db, user.id)
+    profile_out = _profile_out(user.profile, metric) if user.profile else None
     return MeOut(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
         role=user.role,
         staff_profile=user.staff_profile,
+        role_permission=user.role_permission,
         profile=profile_out,
     )
 
@@ -139,24 +161,38 @@ def update_me(
     user: User = Depends(get_current_user),
 ):
     """Cập nhật thông tin cá nhân + hồ sơ sức khỏe của chính mình."""
-    info = user.info
+    info = user.profile
     if info is None:
-        info = UserInfo(user_id=user.id)
+        info = UserProfile(user_id=user.id)
         db.add(info)
         db.flush()
 
     if payload.full_name is not None:
         info.full_name = payload.full_name
 
+    selected_activity_level = None
+    if payload.activity_level is not None:
+        selected_activity_level = get_activity_level(db, payload.activity_level)
+
+    metric = latest_body_metric(db, user.id)
     if payload.height_cm is not None or payload.weight_kg is not None:
-        next_height = payload.height_cm if payload.height_cm is not None else info.height_cm
-        next_weight = payload.weight_kg if payload.weight_kg is not None else info.weight_kg
+        next_height = payload.height_cm if payload.height_cm is not None else (
+            float(metric.height_cm) if metric and metric.height_cm is not None else None
+        )
+        next_weight = payload.weight_kg if payload.weight_kg is not None else (
+            float(metric.weight_kg) if metric and metric.weight_kg is not None else None
+        )
         if next_height is not None and next_weight is not None:
             validate_body_metrics(float(next_height), float(next_weight))
+        metric = upsert_body_metric(
+            db,
+            user.id,
+            height_cm=payload.height_cm,
+            weight_kg=payload.weight_kg,
+        )
 
-    profile_fields = ["gender", "birth_date", "height_cm", "weight_kg",
-                      "activity_level", "goal"]
-    changed_profile = False
+    profile_fields = ["gender", "birth_date", "activity_level", "goal"]
+    changed_profile = payload.height_cm is not None or payload.weight_kg is not None
     for field in profile_fields:
         val = getattr(payload, field)
         if val is not None:
@@ -165,32 +201,37 @@ def update_me(
 
     # Tính lại calo mục tiêu nếu hồ sơ đầy đủ và có thay đổi
     if changed_profile and all([
-        info.gender, info.birth_date, info.height_cm,
-        info.weight_kg, info.activity_level, info.goal,
+        info.gender, info.birth_date,
+        metric and metric.height_cm, metric and metric.weight_kg,
+        info.activity_level, info.goal,
     ]):
         info.daily_calorie_target = daily_calorie_target(  # type: ignore
             gender=str(info.gender),
             birth_date=info.birth_date,  # type: ignore
-            height_cm=float(info.height_cm),  # type: ignore
-            weight_kg=float(info.weight_kg),  # type: ignore
-            activity_level=int(info.activity_level),  # type: ignore
+            height_cm=float(metric.height_cm),  # type: ignore
+            weight_kg=float(metric.weight_kg),  # type: ignore
+            activity_multiplier=float(
+                selected_activity_level.calorie_multiplier
+                if selected_activity_level is not None
+                else info.activity_level_ref.calorie_multiplier
+            ),
             goal=str(info.goal),
         )
 
     # Cập nhật bệnh nền + dị ứng nếu có gửi lên
     if payload.condition_ids is not None:
-        db.query(ProfileCondition).filter(
-            ProfileCondition.user_id == user.id
+        db.query(UserMedicalCondition).filter(
+            UserMedicalCondition.user_id == user.id
         ).delete()
         for cid in payload.condition_ids:
-            db.add(ProfileCondition(user_id=user.id, condition_id=cid))
+            db.add(UserMedicalCondition(user_id=user.id, condition_id=cid))
 
     if payload.allergen_ids is not None:
-        db.query(ProfileAllergen).filter(
-            ProfileAllergen.user_id == user.id
+        db.query(UserAllergen).filter(
+            UserAllergen.user_id == user.id
         ).delete()
         for aid in payload.allergen_ids:
-            db.add(ProfileAllergen(user_id=user.id, allergen_id=aid))
+            db.add(UserAllergen(user_id=user.id, allergen_id=aid))
 
     if payload.custom_conditions is not None:
         info.custom_conditions = payload.custom_conditions
@@ -200,13 +241,15 @@ def update_me(
     db.commit()
     db.refresh(user)
     db.refresh(info)
+    metric = latest_body_metric(db, user.id)
 
-    profile_out = ProfileOut.model_validate(info)
+    profile_out = _profile_out(info, metric)
     return MeOut(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
         role=user.role,
         staff_profile=user.staff_profile,
+        role_permission=user.role_permission,
         profile=profile_out,
     )

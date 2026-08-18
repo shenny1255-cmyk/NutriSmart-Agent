@@ -8,17 +8,17 @@ from app.deps import get_db, get_current_user, require_role
 from app.config import settings
 from app.models import User, NutritionPlan, PlanCheckin, PlanEvaluation
 from app.schemas import CheckinDecisionIn, CheckinSubmitIn, PlanCheckinOut
-from app.services import plan_checkin, plan_evaluator, plan_generator, plan_jobs
+from app.services import body_metrics, plan_checkin, plan_evaluator, plan_generator, plan_jobs
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
 PLAN_PROFILE_FIELDS = (
-    ("gender", "giới tính"),
-    ("birth_date", "ngày sinh"),
-    ("height_cm", "chiều cao"),
-    ("weight_kg", "cân nặng"),
-    ("activity_level", "mức vận động"),
-    ("goal", "mục tiêu"),
+    ("profile", "gender", "giới tính"),
+    ("profile", "birth_date", "ngày sinh"),
+    ("metric", "height_cm", "chiều cao"),
+    ("metric", "weight_kg", "cân nặng"),
+    ("profile", "activity_level", "mức vận động"),
+    ("profile", "goal", "mục tiêu"),
 )
 
 
@@ -28,11 +28,13 @@ def _join_vietnamese(items: list[str]) -> str:
     return f"{', '.join(items[:-1])} và {items[-1]}"
 
 
-def _require_complete_profile_for_plan(user: User) -> None:
-    info = user.info
+def _require_complete_profile_for_plan(db: Session, user: User) -> None:
+    profile = user.profile
+    metric = body_metrics.latest_body_metric(db, user.id)
+    sources = {"profile": profile, "metric": metric}
     missing = [
-        label for field, label in PLAN_PROFILE_FIELDS
-        if info is None or getattr(info, field, None) in (None, "")
+        label for source, field, label in PLAN_PROFILE_FIELDS
+        if sources[source] is None or getattr(sources[source], field, None) in (None, "")
     ]
     if missing:
         raise HTTPException(
@@ -56,7 +58,7 @@ def active_plan(
 ):
     plan = _active_plan_or_404(db, user)
 
-    res = plan_generator.plan_to_dict(plan, user)
+    res = plan_generator.plan_to_dict(db, plan, user)
     res["days_elapsed"] = (date.today() - plan.start_date).days  # type: ignore
     try:
         current = plan_checkin.get_current_checkin(db, user)
@@ -76,7 +78,7 @@ def generate_plan(
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
-    _require_complete_profile_for_plan(user)
+    _require_complete_profile_for_plan(db, user)
 
     job = plan_jobs.enqueue(user.id)
     return {"job_id": job.id, "status": job.status}

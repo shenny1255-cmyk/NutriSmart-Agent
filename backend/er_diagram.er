@@ -1,6 +1,6 @@
 // ER Diagram - NutriSmart Agent (Nhóm E15)
-// Tái cấu trúc theo mô hình Table-per-Role: Hợp nhất sức khỏe vào user_info, thêm staff_profiles & staff_permissions, đã xóa Drug.
-// Tổng: 24 bảng
+// Tái cấu trúc theo mô hình Table-per-Role; số đo thay đổi được lưu riêng theo lịch sử.
+// Tổng: 25 bảng
 
 // ==================== NHÓM USER & PHÂN QUYỀN ====================
 
@@ -12,18 +12,22 @@
     created_at {label:"TIMESTAMPTZ"}
     updated_at {label:"TIMESTAMPTZ"}
 
-[user_info]
+[user_profile]
     *user_id {label:"UUID (FK → users)"}
     full_name {label:"VARCHAR(150)"}
     gender {label:"VARCHAR(10)"}
     birth_date {label:"DATE"}
-    height_cm {label:"NUMERIC(5,2)"}
-    weight_kg {label:"NUMERIC(5,2)"}
-    activity_level {label:"SMALLINT"}
+    activity_level_id {label:"SMALLINT (FK → activity_levels)"}
     goal {label:"VARCHAR(20)"}
     daily_calorie_target {label:"INTEGER"}
     created_at {label:"TIMESTAMPTZ"}
     updated_at {label:"TIMESTAMPTZ"}
+
+[activity_levels]
+    *id {label:"SMALLINT"}
+    name {label:"VARCHAR(100) UNIQUE"}
+    description {label:"VARCHAR(500)"}
+    calorie_multiplier {label:"NUMERIC(4,3)"}
 
 [staff_profiles]
     *user_id {label:"UUID (FK → users)"}
@@ -37,8 +41,8 @@
     created_at {label:"TIMESTAMPTZ"}
     updated_at {label:"TIMESTAMPTZ"}
 
-[staff_permissions]
-    *user_id {label:"UUID (FK → staff_profiles)"}
+[role_permissions]
+    *role {label:"user_role"}
     can_manage_users {label:"BOOLEAN"}
     can_manage_foods {label:"BOOLEAN"}
     can_manage_categories {label:"BOOLEAN"}
@@ -60,14 +64,13 @@
     *id {label:"INTEGER"}
     name {label:"VARCHAR(150)"}
 
-[profile_conditions]
-    *user_id {label:"UUID (FK → user_info)"}
+[user_medical_conditions]
+    *user_id {label:"UUID (FK → user_profile)"}
     *condition_id {label:"INTEGER (FK → medical_conditions)"}
 
-[profile_allergens]
-    *user_id {label:"UUID (FK → user_info)"}
+[user_allergens]
+    *user_id {label:"UUID (FK → user_profile)"}
     *allergen_id {label:"INTEGER (FK → allergens)"}
-    severity {label:"SMALLINT"}
 
 // ==================== THEO DÕI SỨC KHỎE ====================
 
@@ -75,6 +78,7 @@
     *id {label:"BIGINT"}
     user_id {label:"UUID (FK → users)"}
     recorded_at {label:"DATE"}
+    height_cm {label:"NUMERIC(5,2)"}
     weight_kg {label:"NUMERIC(5,2)"}
 
 [meal_logs]
@@ -234,14 +238,15 @@
 
 // ==================== RELATIONSHIPS ====================
 
-users 1--1 user_info
+users 1--1 user_profile
+activity_levels 1--* user_profile
 users 1--? staff_profiles
-staff_profiles 1--1 staff_permissions
+role_permissions 1--* users
 
-user_info 1--* profile_conditions
-medical_conditions 1--* profile_conditions
-user_info 1--* profile_allergens
-allergens 1--* profile_allergens
+user_profile 1--* user_medical_conditions
+medical_conditions 1--* user_medical_conditions
+user_profile 1--* user_allergens
+allergens 1--* user_allergens
 
 users 1--* body_metrics_history
 users 1--* meal_logs

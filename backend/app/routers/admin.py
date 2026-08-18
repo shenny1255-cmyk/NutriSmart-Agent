@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
 from app.models import (
-    User, UserInfo, AuditLog, DocCategory, Document,
+    User, UserProfile, AuditLog, DocCategory, Document,
 )
 from app.schemas import (
     AdminUserOut, AdminCreateUserIn, UpdateRoleIn, BulkDeleteUsersIn, BulkDeleteUsersOut,
@@ -44,19 +44,19 @@ def _kiem_tra_unaccent(db: Session) -> bool:
 
 def search_users(db: Session, q: str | None) -> list[User]:
     """Danh sách user, lọc theo HỌ TÊN hoặc email khi có từ khóa."""
-    query = db.query(User).outerjoin(UserInfo, UserInfo.user_id == User.id)
+    query = db.query(User).outerjoin(UserProfile, UserProfile.user_id == User.id)
 
     tu_khoa = (q or "").strip()
     if tu_khoa:
         kw = f"%{tu_khoa}%"
         if _kiem_tra_unaccent(db):
             dieu_kien = text(
-                "unaccent(coalesce(user_info.full_name, '')) ILIKE unaccent(:kw)"
+                "unaccent(coalesce(user_profile.full_name, '')) ILIKE unaccent(:kw)"
                 " OR unaccent(users.email) ILIKE unaccent(:kw)"
             ).bindparams(kw=kw)
         else:
             dieu_kien = text(
-                "coalesce(user_info.full_name, '') ILIKE :kw OR users.email ILIKE :kw"
+                "coalesce(user_profile.full_name, '') ILIKE :kw OR users.email ILIKE :kw"
             ).bindparams(kw=kw)
         query = query.filter(dieu_kien)
 
@@ -87,7 +87,7 @@ def create_user(
     if db.query(User).filter(func.lower(User.email) == str(payload.email).lower()).first():  # type: ignore
         raise HTTPException(409, "Email đã được sử dụng")
 
-    from app.models import StaffProfile, StaffPermission
+    from app.models import StaffProfile
     import uuid
 
     user = User(
@@ -95,23 +95,12 @@ def create_user(
         password_hash=hash_password(payload.password),
         role=payload.role,
     )
-    user.info = UserInfo(full_name=payload.full_name)
+    user.profile = UserProfile(full_name=payload.full_name)
     if payload.role in ("EXPERT", "ADMIN"):
-        is_admin = payload.role == "ADMIN"
         user.staff_profile = StaffProfile(
             staff_code=f"STF-{uuid.uuid4().hex[:6].upper()}",
             full_name=payload.full_name,
             employment_status="ACTIVE",
-            permissions=StaffPermission(
-                can_manage_users=is_admin,
-                can_manage_foods=is_admin,
-                can_manage_categories=is_admin,
-                can_review_documents=True,
-                can_review_plans=True,
-                can_review_ai_chat=True,
-                can_review_logs=True,
-                can_manage_permissions=is_admin,
-            ),
         )
     db.add(user)
     db.flush()
@@ -138,8 +127,8 @@ def update_role(
     before = {"role": user.role}
     user.role = payload.role  # type: ignore
 
-    # Auto sync staff_profiles & staff_permissions
-    from app.models import StaffProfile, StaffPermission
+    # Tự đồng bộ hồ sơ nhân viên; quyền được lấy chung theo role.
+    from app.models import StaffProfile
     import uuid
     if payload.role in ("EXPERT", "ADMIN"):
         if not user.staff_profile:
@@ -151,18 +140,6 @@ def update_role(
                 full_name=full_name,
                 employment_status="ACTIVE",
             )
-            is_admin = (payload.role == "ADMIN")
-            perm = StaffPermission(
-                can_manage_users=is_admin,
-                can_manage_foods=is_admin,
-                can_manage_categories=is_admin,
-                can_review_documents=True,
-                can_review_plans=True,
-                can_review_ai_chat=True,
-                can_review_logs=True,
-                can_manage_permissions=is_admin,
-            )
-            sp.permissions = perm
             user.staff_profile = sp
     elif payload.role == "USER" and user.staff_profile:
         db.delete(user.staff_profile)
@@ -342,7 +319,7 @@ def list_audit(
     query = (
         db.query(AuditLog)
         .outerjoin(User, User.id == AuditLog.actor_id)  # type: ignore
-        .outerjoin(UserInfo, UserInfo.user_id == User.id)  # type: ignore
+        .outerjoin(UserProfile, UserProfile.user_id == User.id)  # type: ignore
     )
     if action:
         query = query.filter(AuditLog.action == action)  # type: ignore
@@ -359,7 +336,7 @@ def list_audit(
             | func.cast(AuditLog.before_data, String).ilike(keyword)
             | func.cast(AuditLog.after_data, String).ilike(keyword)
             | User.email.ilike(keyword)  # type: ignore
-            | UserInfo.full_name.ilike(keyword)  # type: ignore
+            | UserProfile.full_name.ilike(keyword)  # type: ignore
         )
 
     total = query.count()

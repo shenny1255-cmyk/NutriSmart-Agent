@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,10 +12,17 @@ from app.schemas import (
     ManualMealIn, MealLogOut, ManualActivityIn, ActivityLogOut, WeightIn, WeightOut,
 )
 from app.services.calorie import calories_burned, manual_calories_limit
+from app.services.body_metrics import latest_body_metric, upsert_body_metric
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
+
+
+def _ngay_viet_nam(column):
+    """Đổi TIMESTAMPTZ sang ngày Việt Nam trước khi lọc theo lịch địa phương."""
+    from sqlalchemy import func
+    return func.date(func.timezone("Asia/Bangkok", column))
 
 
 @router.get("/summary", response_model=list[DailySummaryOut])
@@ -35,7 +42,7 @@ def summary(
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
     today = date.today()
     if not any(r["day"] == today for r in rows):
-        target = (user.info.daily_calorie_target if user.info else None) or 2000
+        target = (user.profile.daily_calorie_target if user.profile else None) or 2000
         rows.append({
             "day": today,
             "kcal_intake": 0.0,
@@ -63,7 +70,7 @@ def upsert_daily_activity(
             db.query(ActivityLog)
             .filter(
                 ActivityLog.user_id == user.id,  # type: ignore
-                func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == log_date,  # type: ignore
+                _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == log_date,  # type: ignore
                 ActivityLog.exercise_id.is_(None)  # type: ignore
             )
             .first()
@@ -107,7 +114,7 @@ def get_today_activity(
         db.query(ActivityLog)
         .filter(
             ActivityLog.user_id == user.id,  # type: ignore
-            func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == today,  # type: ignore
+            _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == today,  # type: ignore
             ActivityLog.exercise_id.is_(None)  # type: ignore
         )
         .first()
@@ -240,7 +247,8 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
     if not bai_tap:
         raise HTTPException(404, "Không tìm thấy bài tập")
 
-    can_nang = user.info.weight_kg if user.info else None
+    metric = latest_body_metric(db, user.id)
+    can_nang = metric.weight_kg if metric else None
     kcal_du_kien, kcal_toi_da = manual_calories_limit(
         float(bai_tap.met_value), float(can_nang) if can_nang else None, payload.duration_min  # type: ignore
     )
@@ -259,7 +267,7 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
             f"Kcal nhập vào quá cao so với bài tập và thời gian. Hệ thống ước tính{du_kien}.",
         )
 
-    started_at = payload.started_at
+    started_at = payload.started_at or datetime.now().astimezone()
     ended_at = payload.ended_at
 
     log = ActivityLog(
@@ -289,7 +297,7 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
         .outerjoin(Exercise, Exercise.id == ActivityLog.exercise_id)  # type: ignore
         .filter(
             ActivityLog.user_id == user.id,
-            func.date(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == ngay,
+            _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == ngay,
             ActivityLog.exercise_id.isnot(None)
         )
         .order_by(ActivityLog.id)  # type: ignore
@@ -347,42 +355,29 @@ def api_xoa_van_dong(
 # ---------- Cân nặng ----------
 
 def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
-    """Cập nhật cân nặng hiện tại + ghi mốc lịch sử (mỗi ngày 1 bản ghi).
+    """Cập nhật cân nặng trong bảng lịch sử (mỗi ngày một bản ghi).
 
     Mục tiêu calo KHÔNG đổi ở đây: nó do lộ trình quản lý và được hiệu chỉnh
     sau mỗi chu kỳ check-in 14 ngày (xem services/plan_checkin.py).
     """
-    if not user.info:
+    if not user.profile:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
     ngay = payload.recorded_at or date.today()
 
-    # Chỉ cân nặng mới nhất mới cập nhật vào hồ sơ (BMI là cột generated, tự tính)
-    if ngay >= date.today():
-        user.info.weight_kg = payload.weight_kg  # type: ignore
-
-    row = (
-        db.query(BodyMetricHistory)
-        .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at == ngay)  # type: ignore
-        .first()
+    row = upsert_body_metric(
+        db,
+        user.id,
+        weight_kg=payload.weight_kg,
+        recorded_at=ngay,
     )
-    chieu_cao = float(user.info.height_cm) if user.info.height_cm else None
-    bmi = round(payload.weight_kg / ((chieu_cao / 100) ** 2), 2) if chieu_cao else None
-
-    if row:
-        row.weight_kg = payload.weight_kg  # type: ignore
-    else:
-        row = BodyMetricHistory(user_id=user.id, recorded_at=ngay,
-                                weight_kg=payload.weight_kg)
-        db.add(row)
 
     db.commit()
     db.refresh(row)
-    db.refresh(user.info)
     return WeightOut(
         recorded_at=row.recorded_at,  # type: ignore
         weight_kg=float(row.weight_kg) if row.weight_kg is not None else 0.0,  # type: ignore
-        bmi=bmi,
+        bmi=row.bmi,
     )
 
 
@@ -394,12 +389,11 @@ def lich_su_can_nang(db: Session, user: User, days: int = 90) -> list[WeightOut]
         .order_by(BodyMetricHistory.recorded_at)  # type: ignore
         .all()
     )
-    chieu_cao = float(user.info.height_cm) if user.info and user.info.height_cm else None
     return [
         WeightOut(
             recorded_at=r.recorded_at,  # type: ignore
             weight_kg=float(r.weight_kg) if r.weight_kg is not None else 0.0,  # type: ignore
-            bmi=round(float(r.weight_kg) / ((chieu_cao / 100) ** 2), 2) if chieu_cao and r.weight_kg else None,
+            bmi=r.bmi,
         )
         for r in rows if r.weight_kg is not None
     ]

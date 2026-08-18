@@ -12,13 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
-    BodyMetricHistory,
     NutritionPlan,
     PlanCheckin,
     PlanCheckinSeries,
     Notification,
     User,
 )
+from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services import ollama_client
 
 
@@ -206,16 +206,9 @@ def checkin_to_dict(checkin: PlanCheckin, today: date | None = None) -> dict:
 
 
 def _latest_weight(db: Session, user: User) -> float | None:
-    row = (
-        db.query(BodyMetricHistory)
-        .filter(BodyMetricHistory.user_id == user.id)  # type: ignore
-        .order_by(BodyMetricHistory.recorded_at.desc(), BodyMetricHistory.id.desc())  # type: ignore
-        .first()
-    )
+    row = latest_body_metric(db, user.id)
     if row and row.weight_kg is not None:
         return float(row.weight_kg)
-    if user.info and user.info.weight_kg is not None:
-        return float(user.info.weight_kg)
     return None
 
 
@@ -242,7 +235,7 @@ def _new_period(
         baseline_weight_kg=baseline_weight,
         goal_snapshot=plan.goal,
         target_kcal_snapshot=plan.daily_kcal_target,
-        activity_target_snapshot=user.info.activity_level if user.info else None,
+        activity_target_snapshot=user.profile.activity_level if user.profile else None,
         expected_weight_min_kg=expected_min,
         expected_weight_max_kg=expected_max,
         prediction_rule_version=PREDICTION_RULE_VERSION,
@@ -403,18 +396,7 @@ def _previous_was_off_track(db: Session, checkin: PlanCheckin) -> bool:
 
 
 def _upsert_weight(db: Session, user: User, weight_kg: float, recorded_at: date) -> None:
-    row = db.query(BodyMetricHistory).filter(
-        BodyMetricHistory.user_id == user.id,
-        BodyMetricHistory.recorded_at == recorded_at,  # type: ignore
-    ).first()
-    if row:
-        row.weight_kg = weight_kg  # type: ignore
-    else:
-        db.add(BodyMetricHistory(
-            user_id=user.id, recorded_at=recorded_at, weight_kg=weight_kg
-        ))
-    if user.info:
-        user.info.weight_kg = weight_kg  # type: ignore
+    upsert_body_metric(db, user.id, weight_kg=weight_kg, recorded_at=recorded_at)
 
 
 def submit_checkin(db: Session, user: User, checkin_id, payload, today: date | None = None) -> PlanCheckin:

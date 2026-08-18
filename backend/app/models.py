@@ -30,39 +30,40 @@ class User(Base):
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     email: str    = Column(String(255), unique=True, nullable=False)  # type: ignore
     password_hash: str = Column(String(255), nullable=False)  # type: ignore
-    role: str     = Column(user_role, nullable=False, default="USER")  # type: ignore
+    role: str     = Column(
+        user_role,
+        ForeignKey("role_permissions.role"),
+        nullable=False,
+        default="USER",
+    )  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at    = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    info          = relationship("UserInfo", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    profile       = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     staff_profile = relationship("StaffProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    role_permission = relationship("RolePermission", back_populates="users", uselist=False, lazy="joined")
 
     @property
     def full_name(self) -> str | None:
-        return self.info.full_name if self.info else None
+        return self.profile.full_name if self.profile else None
 
     @full_name.setter
     def full_name(self, value: str | None):
-        if not self.info:
-            self.info = UserInfo()
-        self.info.full_name = value
+        if not self.profile:
+            self.profile = UserProfile()
+        self.profile.full_name = value
 
 
-class UserInfo(Base):
-    __tablename__ = "user_info"
+class UserProfile(Base):
+    __tablename__ = "user_profile"
     user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     full_name: str | None = Column(String(150))  # type: ignore
     gender: str | None         = Column(gender_enum)  # type: ignore
     birth_date: date | None     = Column(Date)  # type: ignore
-    height_cm: float | None      = Column(Numeric(5, 2))  # type: ignore
-    weight_kg: float | None      = Column(Numeric(5, 2))  # type: ignore
-    @property
-    def bmi(self) -> float | None:
-        """BMI tự động tính toán động từ height_cm và weight_kg (không cần cột trong CSDL)."""
-        if self.height_cm and self.weight_kg and float(self.height_cm) > 0:
-            return round(float(self.weight_kg) / ((float(self.height_cm) / 100) ** 2), 2)
-        return None
-    activity_level: int | None = Column(SmallInteger)  # type: ignore
+    activity_level_id: int | None = Column(
+        SmallInteger,
+        ForeignKey("activity_levels.id"),
+    )  # type: ignore
     goal: str           = Column(goal_enum, nullable=False, default="MAINTAIN")  # type: ignore
     daily_calorie_target: int | None = Column(Integer)  # type: ignore
     custom_conditions = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
@@ -70,11 +71,30 @@ class UserInfo(Base):
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", back_populates="info")
-    conditions = relationship("MedicalCondition", secondary="profile_conditions",
+    user = relationship("User", back_populates="profile")
+    conditions = relationship("MedicalCondition", secondary="user_medical_conditions",
                               lazy="selectin", viewonly=True)
-    allergens  = relationship("Allergen", secondary="profile_allergens",
+    allergens  = relationship("Allergen", secondary="user_allergens",
                               lazy="selectin", viewonly=True)
+    activity_level_ref = relationship("ActivityLevel", lazy="joined")
+
+    @property
+    def activity_level(self) -> int | None:
+        """Tên tương thích cho API cũ; dữ liệu thật nằm ở activity_level_id."""
+        return self.activity_level_id
+
+    @activity_level.setter
+    def activity_level(self, value: int | None) -> None:
+        self.activity_level_id = value  # type: ignore
+
+
+class ActivityLevel(Base):
+    """Danh mục mức độ vận động và hệ số tính TDEE."""
+    __tablename__ = "activity_levels"
+    id: int = Column(SmallInteger, primary_key=True, autoincrement=False)  # type: ignore
+    name: str = Column(String(100), unique=True, nullable=False)  # type: ignore
+    description: str | None = Column(String(500))  # type: ignore
+    calorie_multiplier: float = Column(Numeric(4, 3), nullable=False)  # type: ignore
 
 
 class StaffProfile(Base):
@@ -91,12 +111,12 @@ class StaffProfile(Base):
     updated_at         = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user        = relationship("User", back_populates="staff_profile")
-    permissions = relationship("StaffPermission", back_populates="staff_profile", uselist=False, cascade="all, delete-orphan")
 
 
-class StaffPermission(Base):
-    __tablename__ = "staff_permissions"
-    user_id                = Column(UUID(as_uuid=True), ForeignKey("staff_profiles.user_id", ondelete="CASCADE"), primary_key=True)
+class RolePermission(Base):
+    """Bộ quyền dùng chung cho toàn bộ tài khoản có cùng vai trò."""
+    __tablename__ = "role_permissions"
+    role: str = Column(user_role, primary_key=True)  # type: ignore
     can_manage_users: bool       = Column(Boolean, nullable=False, default=False)  # type: ignore
     can_manage_foods: bool       = Column(Boolean, nullable=False, default=False)  # type: ignore
     can_manage_categories: bool  = Column(Boolean, nullable=False, default=False)  # type: ignore
@@ -108,7 +128,7 @@ class StaffPermission(Base):
     created_at             = Column(DateTime(timezone=True), server_default=func.now())
     updated_at             = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    staff_profile = relationship("StaffProfile", back_populates="permissions")
+    users = relationship("User", back_populates="role_permission")
 
 
 class MedicalCondition(Base):
@@ -123,17 +143,16 @@ class Allergen(Base):
     name = Column(String(150), unique=True, nullable=False)
 
 
-class ProfileCondition(Base):
-    __tablename__ = "profile_conditions"
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("user_info.user_id", ondelete="CASCADE"), primary_key=True)
+class UserMedicalCondition(Base):
+    __tablename__ = "user_medical_conditions"
+    user_id      = Column(UUID(as_uuid=True), ForeignKey("user_profile.user_id", ondelete="CASCADE"), primary_key=True)
     condition_id = Column(Integer, ForeignKey("medical_conditions.id", ondelete="CASCADE"), primary_key=True)
 
 
-class ProfileAllergen(Base):
-    __tablename__ = "profile_allergens"
-    user_id     = Column(UUID(as_uuid=True), ForeignKey("user_info.user_id", ondelete="CASCADE"), primary_key=True)
+class UserAllergen(Base):
+    __tablename__ = "user_allergens"
+    user_id     = Column(UUID(as_uuid=True), ForeignKey("user_profile.user_id", ondelete="CASCADE"), primary_key=True)
     allergen_id = Column(Integer, ForeignKey("allergens.id", ondelete="CASCADE"), primary_key=True)
-    severity    = Column(SmallInteger)
 
 
 class NutritionPlan(Base):
@@ -167,12 +186,20 @@ class PlanEvaluation(Base):
 
 
 class BodyMetricHistory(Base):
-    """Mốc cân nặng theo ngày — dùng để tính weight_change_kg giữa 2 kỳ đánh giá."""
+    """Số đo cơ thể theo ngày — mỗi lần thay đổi đều giữ lại được lịch sử."""
     __tablename__ = "body_metrics_history"
     id: int          = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
     user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
     recorded_at: date = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
+    height_cm: float | None = Column(Numeric(5, 2))  # type: ignore
     weight_kg: float | None = Column(Numeric(5, 2))  # type: ignore
+
+    @property
+    def bmi(self) -> float | None:
+        """Tính BMI từ số đo tại chính mốc lịch sử này."""
+        if self.height_cm and self.weight_kg and float(self.height_cm) > 0:
+            return round(float(self.weight_kg) / ((float(self.height_cm) / 100) ** 2), 2)
+        return None
 
 
 class PlanCheckinSeries(Base):

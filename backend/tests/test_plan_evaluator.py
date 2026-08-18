@@ -99,7 +99,7 @@ pytestmark_db = pytest.mark.skipif(not _db_up(), reason="Cần Postgres để ch
 @pytest.fixture
 def user_co_plan_qua_han():
     """Tạo user + profile + plan bắt đầu 8 ngày trước + nhật ký ăn, dọn sạch sau test."""
-    from app.models import User, UserInfo, NutritionPlan
+    from app.models import BodyMetricHistory, User, UserProfile, NutritionPlan
 
     db = SessionLocal()
     u = User(
@@ -109,18 +109,17 @@ def user_co_plan_qua_han():
     )
     db.add(u)
     db.flush()
-    info = UserInfo(
+    info = UserProfile(
         user_id=u.id,
         full_name="Người dùng test",
         gender="MALE",
         birth_date=date(2000, 1, 1),
-        height_cm=170,
-        weight_kg=70,
         activity_level=3,
         goal="LOSE_WEIGHT",
         daily_calorie_target=2000,
     )
     db.add(info)
+    db.add(BodyMetricHistory(user_id=u.id, height_cm=170, weight_kg=70))
 
     start = date.today() - timedelta(days=8)
     plan = NutritionPlan(
