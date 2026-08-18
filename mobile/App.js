@@ -1,53 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 
 import LoginScreen from './screens/LoginScreen';
 import MainTabNavigator from './navigation/MainTabNavigator';
+import JournalScreen from './screens/JournalScreen';
+import CheckinScreen from './screens/CheckinScreen';
+import EditProfileScreen from './screens/EditProfileScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import ChatScreen from './screens/ChatScreen';
 import { Theme } from './theme';
 import { LogoMark } from './components/Logo';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const Stack = createNativeStackNavigator();
 
-import Constants from 'expo-constants';
+function RootNavigator() {
+  const { status } = useAuth();
 
-function getDynamicBackendIp() {
-  try {
-    const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-    if (hostUri) {
-      const ip = hostUri.split(':')[0];
-      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-        return ip;
-      }
-    }
-  } catch {
-    // Fallback
-  }
-  return '10.251.3.81';
-}
-
-const BACKEND_IP = getDynamicBackendIp();
-
-export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [initialRoute, setInitialRoute] = useState('Login');
-
-  useEffect(() => {
-    AsyncStorage.getItem('access_token')
-      .then((token) => {
-        setInitialRoute(token ? 'Main' : 'Login');
-      })
-      .catch(() => {
-        setInitialRoute('Login');
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, []);
-
-  if (isLoading) {
+  if (status === 'loading') {
     return (
       <View style={styles.splash}>
         <StatusBar barStyle="dark-content" backgroundColor={Theme.colors.background} />
@@ -62,24 +34,37 @@ export default function App() {
     <NavigationContainer>
       <StatusBar barStyle="dark-content" backgroundColor={Theme.colors.background} />
       <Stack.Navigator
-        initialRouteName={initialRoute}
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: Theme.colors.background },
+          headerStyle: { backgroundColor: Theme.colors.card },
+          headerTintColor: Theme.colors.text,
+          headerTitleStyle: { fontWeight: '800' },
+          headerShadowVisible: false,
         }}
       >
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          initialParams={{ backendIp: BACKEND_IP }}
-        />
-        <Stack.Screen
-          name="Main"
-          component={MainTabNavigator}
-          initialParams={{ backendIp: BACKEND_IP }}
-        />
+        {status === 'authenticated' ? (
+          <>
+            <Stack.Screen name="Main" component={MainTabNavigator} />
+            <Stack.Screen name="Journal" component={JournalScreen} options={{ headerShown: true, title: 'Nhật ký' }} />
+            <Stack.Screen name="Checkin" component={CheckinScreen} options={{ headerShown: true, title: 'Check-in 14 ngày' }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: true, title: 'Cập nhật hồ sơ' }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true, title: 'Thông báo' }} />
+            <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: true, title: 'Trợ lý AI' }} />
+          </>
+        ) : (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
   );
 }
 

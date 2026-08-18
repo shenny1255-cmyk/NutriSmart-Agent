@@ -45,6 +45,12 @@
           "photosPermission": "NutriSmart cần quyền truy cập thư viện ảnh để phân tích món ăn.",
           "cameraPermission": "NutriSmart cần quyền Camera để chụp ảnh món ăn."
         }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
       ]
     ],
     "web": {

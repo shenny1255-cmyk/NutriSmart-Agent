@@ -1,411 +1,366 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StatusBar,
+  ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet,
+  Text, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { Camera, Image as ImageIcon, Sparkles, CheckCircle2, ChevronLeft, Flame, Utensils, AlertTriangle } from 'lucide-react-native';
+import {
+  AlertCircle, AlertTriangle, Camera, CheckCircle2, Flame, Image as ImageIcon,
+  RefreshCw, Sparkles, Utensils,
+} from 'lucide-react-native';
+
 import { Theme } from '../theme';
+import { ApiError, api } from '../services/api';
+import { OfflineBanner } from '../components/OfflineBanner';
 
-export default function FoodScanScreen({ navigation, route }) {
-  let rawIp = route?.params?.backendIp ?? '10.251.3.81';
-  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.251.3.81';
-  const backendIp = rawIp.trim();
+const PORTIONS = [0.5, 1, 1.5, 2];
+const MEAL_TYPES = [
+  { value: 'BREAKFAST', label: 'Bữa sáng' },
+  { value: 'LUNCH', label: 'Bữa trưa' },
+  { value: 'DINNER', label: 'Bữa tối' },
+  { value: 'SNACK', label: 'Ăn nhẹ' },
+];
 
-  const [imageUri, setImageUri] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
+function validNutritionResult(result) {
+  if (result?.is_food_image !== true || !result.food_name) return false;
+  return ['calories_kcal', 'protein_g', 'carb_g', 'fat_g']
+    .every((field) => Number.isFinite(Number(result[field])) && Number(result[field]) >= 0);
+}
+
+export default function FoodScanScreen() {
+  const [imageAsset, setImageAsset] = useState(null);
+  const [status, setStatus] = useState('idle');
   const [analysisResult, setAnalysisResult] = useState(null);
-  const [portion, setPortion] = useState(1.0);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [portion, setPortion] = useState(1);
+  const [mealType, setMealType] = useState('LUNCH');
   const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [savedMessage, setSavedMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const savingRef = useRef(false);
 
-  // 1. Chụp ảnh từ Camera
+  const analyzeImage = async (asset) => {
+    setImageAsset(asset);
+    setStatus('analyzing');
+    setAnalysisResult(null);
+    setErrorMessage('');
+    setSaveError('');
+    setSavedMessage('');
+    setPortion(1);
+    setMealType('LUNCH');
+
+    try {
+      const result = await api.analyzeMeal(asset);
+      setAnalysisResult(result);
+      if (result?.is_food_image === false) {
+        setStatus('rejected');
+      } else if (validNutritionResult(result)) {
+        setStatus('success');
+      } else {
+        throw new ApiError({
+          code: 'INVALID_AI_RESULT',
+          message: 'Kết quả phân tích chưa đầy đủ. Vui lòng thử ảnh khác.',
+        });
+      }
+    } catch (error) {
+      const message = error.code === 'SERVICE_UNAVAILABLE'
+        ? 'Dịch vụ phân tích ảnh đang tạm thời gián đoạn. Vui lòng thử lại sau.'
+        : error.code === 'TIMEOUT'
+          ? 'Phân tích ảnh mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.'
+          : error.userMessage || 'Không thể phân tích ảnh. Vui lòng thử lại.';
+      setErrorMessage(message);
+      setStatus('error');
+    }
+  };
+
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Cần cấp quyền', 'Ứng dụng cần quyền Camera để chụp ảnh đĩa thức ăn.');
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Cần cấp quyền', 'Hãy cấp quyền Camera để chụp ảnh món ăn.');
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImageUri(uri);
-      analyzeImage(uri);
-    }
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+    if (!result.canceled && result.assets?.[0]) await analyzeImage(result.assets[0]);
   };
 
-  // 2. Chọn ảnh từ Thư viện (Gallery)
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImageUri(uri);
-      analyzeImage(uri);
-    }
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
+    if (!result.canceled && result.assets?.[0]) await analyzeImage(result.assets[0]);
   };
 
-  // 3. Gửi ảnh lên Backend Python (Gemini 2.0 Flash AI)
-  const analyzeImage = async (uri) => {
-    setAnalyzing(true);
-    setAnalysisResult(null);
-    setSuccessMessage('');
-
-    try {
-      const token = await AsyncStorage.getItem('access_token');
-      const formData = new FormData();
-      formData.append('file', {
-        uri,
-        name: 'food_photo.jpg',
-        type: 'image/jpeg',
-      });
-
-      const response = await fetch(`http://${backendIp}:8000/api/v1/vision/analyze-meal`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setAnalysisResult(data);
-        setPortion(1.0);
-      } else if (response.status === 401) {
-        Alert.alert('Phiên đăng nhập hết hạn', 'Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.', [
-          {
-            text: 'Đăng nhập lại',
-            onPress: async () => {
-              await AsyncStorage.removeItem('access_token');
-              navigation.replace('Login', { backendIp });
-            },
-          },
-        ]);
-      } else {
-        Alert.alert('Phân tích thất bại', data.detail || 'Không thể phân tích ảnh món ăn.');
-      }
-    } catch (err) {
-      Alert.alert(
-        'Lỗi kết nối',
-        `Không thể gửi ảnh tới Backend (IP: ${backendIp}:8000). Kiểm tra lại kết nối Wi-Fi.`
-      );
-    } finally {
-      setAnalyzing(false);
-    }
+  const chooseAnotherImage = () => {
+    Alert.alert('Chọn ảnh khác', 'Bạn muốn lấy ảnh từ đâu?', [
+      { text: 'Huỷ', style: 'cancel' },
+      { text: 'Thư viện', onPress: pickImage },
+      { text: 'Camera', onPress: takePhoto },
+    ]);
   };
 
-  // 4. Lưu bữa ăn vào CSDL
   const handleSaveMeal = async () => {
-    if (!analysisResult || analysisResult.is_food_image === false) return;
+    if (!validNutritionResult(analysisResult) || savingRef.current || savedMessage) return;
 
+    savingRef.current = true;
     setSaving(true);
+    setSaveError('');
     try {
-      const token = await AsyncStorage.getItem('access_token');
-      const payload = {
+      const response = await api.logMeal({
         food_name: analysisResult.food_name,
-        calories_kcal: analysisResult.calories_kcal,
-        protein_g: analysisResult.protein_g,
-        carb_g: analysisResult.carb_g,
-        fat_g: analysisResult.fat_g,
+        calories_kcal: Number(analysisResult.calories_kcal),
+        protein_g: Number(analysisResult.protein_g),
+        carb_g: Number(analysisResult.carb_g),
+        fat_g: Number(analysisResult.fat_g),
         quantity: portion,
-        meal_type: 'LUNCH',
-      };
-
-      const res = await axios.post(
-        `http://${backendIp}:8000/api/v1/vision/log-meal`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          timeout: 10000,
-        }
-      );
-
-      if (res.data && res.data.status === 'success') {
-        const addedKcal = (analysisResult.calories_kcal * portion).toFixed(0);
-        setSuccessMessage(`✅ Đã lưu ${analysisResult.food_name} (+${addedKcal} kcal) vào Nhật ký!`);
-      }
-    } catch (err) {
-      Alert.alert('Lỗi lưu bữa ăn', err.response?.data?.detail || err.message);
+        meal_type: mealType,
+      });
+      const added = Math.round(Number(response?.added_calories || analysisResult.calories_kcal * portion));
+      setSavedMessage(`Đã lưu ${analysisResult.food_name} (+${added} kcal) vào nhật ký.`);
+    } catch (error) {
+      setSaveError(error.userMessage || 'Không thể lưu bữa ăn. Vui lòng thử lại.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
-  // Tính toán dinh dưỡng dựa trên Khẩu phần (Portion multiplier)
-  const hasFoodResult = analysisResult && analysisResult.is_food_image !== false;
-  const calcKcal = hasFoodResult ? (analysisResult.calories_kcal * portion).toFixed(0) : 0;
-  const calcProtein = hasFoodResult ? (analysisResult.protein_g * portion).toFixed(1) : 0;
-  const calcCarbs = hasFoodResult ? (analysisResult.carb_g * portion).toFixed(1) : 0;
-  const calcFat = hasFoodResult ? (analysisResult.fat_g * portion).toFixed(1) : 0;
+  const hasFoodResult = status === 'success' && validNutritionResult(analysisResult);
+  const calculated = hasFoodResult ? {
+    kcal: (Number(analysisResult.calories_kcal) * portion).toFixed(0),
+    protein: (Number(analysisResult.protein_g) * portion).toFixed(1),
+    carbs: (Number(analysisResult.carb_g) * portion).toFixed(1),
+    fat: (Number(analysisResult.fat_g) * portion).toFixed(1),
+  } : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={Theme.colors.background} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
-        {/* Header Navigation */}
+        <OfflineBanner />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <ChevronLeft size={22} color={Theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Phân tích Món ăn AI</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {/* Nút bấm Chọn / Chụp Ảnh */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionCard} onPress={takePhoto} activeOpacity={0.8}>
-            <View style={[styles.iconCircle, { backgroundColor: '#10B98115' }]}>
-              <Camera size={26} color={Theme.colors.accentStrong} />
-            </View>
-            <Text style={styles.actionCardTitle}>Chụp ảnh mới</Text>
-            <Text style={styles.actionCardSub}>Mở Camera điện thoại</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={pickImage} activeOpacity={0.8}>
-            <View style={[styles.iconCircle, { backgroundColor: '#38BDF815' }]}>
-              <ImageIcon size={26} color="#38BDF8" />
-            </View>
-            <Text style={styles.actionCardTitle}>Chọn từ Thư viện</Text>
-            <Text style={styles.actionCardSub}>Tải ảnh sẵn có lên</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Xem Ảnh đã chọn */}
-        {imageUri && (
-          <View style={styles.imagePreviewBox}>
-            <Image source={{ uri: imageUri }} style={styles.foodImage} />
-            {analyzing && (
-              <View style={styles.analyzingOverlay}>
-                <ActivityIndicator size="large" color={Theme.colors.accentStrong} />
-                <Text style={styles.analyzingText}>Gemini AI đang phân tích đĩa thức ăn...</Text>
-              </View>
-            )}
+          <View style={styles.headerIcon}><Sparkles size={22} color={Theme.colors.accentStrong} /></View>
+          <View>
+            <Text style={styles.headerTitle}>Phân tích món ăn AI</Text>
+            <Text style={styles.headerSubtitle}>Chụp rõ món ăn trong điều kiện đủ sáng</Text>
           </View>
-        )}
+        </View>
 
-        {/* Ảnh không phải món ăn hoặc không đủ rõ để phân tích */}
-        {analysisResult?.is_food_image === false && (
-          <View style={styles.rejectionCard} accessibilityRole="alert">
-            <View style={styles.rejectionIcon}>
-              <AlertTriangle size={22} color="#D97706" />
+        {status === 'idle' ? (
+          <View style={styles.actionRow}>
+            <ActionCard icon={<Camera size={27} color={Theme.colors.accentStrong} />} title="Chụp ảnh" subtitle="Mở Camera" onPress={takePhoto} />
+            <ActionCard icon={<ImageIcon size={27} color="#0284C7" />} title="Thư viện" subtitle="Chọn ảnh có sẵn" onPress={pickImage} />
+          </View>
+        ) : null}
+
+        {imageAsset ? (
+          <>
+            <View style={styles.previewBox}>
+              <Image source={{ uri: imageAsset.uri }} style={styles.foodImage} />
+              {status === 'analyzing' ? (
+                <View style={styles.analyzingOverlay}>
+                  <ActivityIndicator size="large" color={Theme.colors.accentStrong} />
+                  <Text style={styles.analyzingText}>Đang phân tích ảnh món ăn...</Text>
+                </View>
+              ) : null}
             </View>
+            {status !== 'analyzing' ? (
+              <TouchableOpacity style={styles.changeButton} onPress={chooseAnotherImage}>
+                <RefreshCw size={16} color={Theme.colors.accentStrong} />
+                <Text style={styles.changeButtonText}>Chọn ảnh khác</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        ) : null}
+
+        {status === 'error' ? (
+          <View style={styles.errorCard} accessibilityRole="alert">
+            <AlertCircle size={25} color={Theme.colors.danger} />
+            <Text style={styles.errorTitle}>Phân tích chưa thành công</Text>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => analyzeImage(imageAsset)}>
+              <Text style={styles.retryButtonText}>Thử phân tích lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {status === 'rejected' ? (
+          <View style={styles.rejectionCard} accessibilityRole="alert">
+            <AlertTriangle size={25} color="#D97706" />
             <View style={styles.rejectionContent}>
               <Text style={styles.rejectionTitle}>Không nhận diện được món ăn</Text>
               <Text style={styles.rejectionText}>
-                {analysisResult.rejection_reason || 'Ảnh này dường như không chứa món ăn hoặc món ăn không đủ rõ để phân tích.'}
+                {analysisResult?.rejection_reason || 'Ảnh không chứa món ăn hoặc món ăn chưa đủ rõ.'}
               </Text>
-              <Text style={styles.rejectionHint}>Hãy chụp món ăn đủ sáng, rõ nét và nằm ở giữa khung hình.</Text>
+              <Text style={styles.rejectionHint}>Không có dữ liệu kcal nào được tạo từ ảnh này.</Text>
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Kết quả Phân tích Gemini Flash AI */}
-        {hasFoodResult && (
+        {hasFoodResult ? (
           <View style={styles.resultCard}>
             <View style={styles.resultHeader}>
-              <Sparkles size={20} color={Theme.colors.accentStrong} />
-              <Text style={styles.resultHeaderTitle}>Kết quả nhận diện AI</Text>
-              <Text style={styles.confidenceText}>{(analysisResult.confidence * 100).toFixed(0)}% tin cậy</Text>
+              <Sparkles size={19} color={Theme.colors.accentStrong} />
+              <Text style={styles.resultHeaderTitle}>Kết quả nhận diện</Text>
+              <Text style={styles.confidence}>{Math.round(Number(analysisResult.confidence || 0) * 100)}% tin cậy</Text>
             </View>
-
             <Text style={styles.foodName}>{analysisResult.food_name}</Text>
-            <Text style={styles.foodDesc}>{analysisResult.description}</Text>
+            {analysisResult.description ? <Text style={styles.foodDescription}>{analysisResult.description}</Text> : null}
 
-            {/* Thẻ Calo lớn */}
             <View style={styles.kcalBanner}>
               <Flame size={28} color="#F97316" />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={styles.kcalValue}>{calcKcal} <Text style={styles.kcalUnit}>kcal</Text></Text>
-                <Text style={styles.kcalSubtitle}>Năng lượng ước tính</Text>
+              <View style={styles.kcalContent}>
+                <Text style={styles.kcalValue}>{calculated.kcal} <Text style={styles.kcalUnit}>kcal</Text></Text>
+                <Text style={styles.kcalSubtitle}>Năng lượng ước tính theo khẩu phần</Text>
               </View>
             </View>
 
-            {/* Chọn Khẩu phần (Portion Selector) */}
-            <Text style={styles.portionTitle}>Khẩu phần ăn (Portion):</Text>
-            <View style={styles.portionRow}>
-              {[0.5, 1.0, 1.5, 2.0].map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.portionChip, portion === p && styles.portionChipActive]}
-                  onPress={() => setPortion(p)}
-                >
-                  <Text style={[styles.portionChipText, portion === p && styles.portionChipTextActive]}>
-                    {p}x
-                  </Text>
-                </TouchableOpacity>
+            <Text style={styles.selectorTitle}>Khẩu phần</Text>
+            <View style={styles.chipRow}>
+              {PORTIONS.map((value) => (
+                <ChoiceChip
+                  key={value}
+                  active={portion === value}
+                  label={`${value}x`}
+                  onPress={() => setPortion(value)}
+                  disabled={Boolean(savedMessage)}
+                />
               ))}
             </View>
 
-            {/* Chi tiết Macros (Protein, Carbs, Fat) */}
-            <View style={styles.macrosRow}>
-              <View style={styles.macroBox}>
-                <Text style={[styles.macroVal, { color: '#38BDF8' }]}>{calcProtein}g</Text>
-                <Text style={styles.macroLabel}>Protein (Đạm)</Text>
-              </View>
-              <View style={styles.macroDivider} />
-              <View style={styles.macroBox}>
-                <Text style={[styles.macroVal, { color: '#EAB308' }]}>{calcCarbs}g</Text>
-                <Text style={styles.macroLabel}>Carbs (Đường)</Text>
-              </View>
-              <View style={styles.macroDivider} />
-              <View style={styles.macroBox}>
-                <Text style={[styles.macroVal, { color: '#EF4444' }]}>{calcFat}g</Text>
-
-                <Text style={styles.macroLabel}>Fat (Béo)</Text>
-              </View>
+            <Text style={styles.selectorTitle}>Loại bữa</Text>
+            <View style={styles.mealTypeRow}>
+              {MEAL_TYPES.map((item) => (
+                <ChoiceChip
+                  key={item.value}
+                  active={mealType === item.value}
+                  label={item.label}
+                  onPress={() => setMealType(item.value)}
+                  disabled={Boolean(savedMessage)}
+                />
+              ))}
             </View>
 
-            {/* Thông báo thành công */}
-            {successMessage !== '' && (
-              <View style={styles.successBox}>
-                <CheckCircle2 size={18} color="#10B981" style={{ marginRight: 8 }} />
-                <Text style={styles.successText}>{successMessage}</Text>
-              </View>
-            )}
+            <View style={styles.macrosRow}>
+              <Macro value={`${calculated.protein}g`} label="Protein" color="#0284C7" />
+              <View style={styles.macroDivider} />
+              <Macro value={`${calculated.carbs}g`} label="Carb" color="#CA8A04" />
+              <View style={styles.macroDivider} />
+              <Macro value={`${calculated.fat}g`} label="Chất béo" color="#DC2626" />
+            </View>
 
-            {/* Nút Xác Nhận Nạp Bữa Ăn */}
+            {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
+            {savedMessage ? (
+              <View style={styles.successBox}>
+                <CheckCircle2 size={18} color={Theme.colors.success} />
+                <Text style={styles.successText}>{savedMessage}</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              style={[styles.saveButton, (saving || savedMessage) && styles.saveButtonDisabled]}
               onPress={handleSaveMeal}
-              disabled={saving}
-              activeOpacity={0.8}
+              disabled={saving || Boolean(savedMessage)}
             >
-              {saving ? (
-                <ActivityIndicator color="#0F172A" />
+              {saving ? <ActivityIndicator color="#0F172A" /> : savedMessage ? (
+                <><CheckCircle2 size={18} color="#0F172A" /><Text style={styles.saveButtonText}>Đã lưu bữa ăn</Text></>
               ) : (
-                <>
-                  <Utensils size={18} color="#0F172A" style={{ marginRight: 8 }} />
-                  <Text style={styles.saveBtnText}>Lưu vào Nhật ký (+{calcKcal} kcal)</Text>
-                </>
+                <><Utensils size={18} color="#0F172A" /><Text style={styles.saveButtonText}>Lưu vào nhật ký (+{calculated.kcal} kcal)</Text></>
               )}
             </TouchableOpacity>
           </View>
-        )}
-
+        ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ActionCard({ icon, title, subtitle, onPress }) {
+  return (
+    <TouchableOpacity style={styles.actionCard} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.actionIcon}>{icon}</View>
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionSubtitle}>{subtitle}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ChoiceChip({ active, label, onPress, disabled }) {
+  return (
+    <TouchableOpacity
+      style={[styles.choiceChip, active && styles.choiceChipActive, disabled && styles.choiceChipDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text style={[styles.choiceChipText, active && styles.choiceChipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function Macro({ value, label, color }) {
+  return (
+    <View style={styles.macroBox}>
+      <Text style={[styles.macroValue, { color }]}>{value}</Text>
+      <Text style={styles.macroLabel}>{label}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Theme.colors.background },
   container: { padding: 20, paddingBottom: 40 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 20, marginTop: 4,
-  },
-  backBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Theme.colors.card, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Theme.colors.border,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: Theme.colors.text },
-
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  headerIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: Theme.colors.accentSoft, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: Theme.colors.text },
+  headerSubtitle: { color: Theme.colors.textMuted, fontSize: 11, marginTop: 2 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  actionCard: {
-    width: '48%', backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md,
-    padding: 16, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border,
-  },
-  iconCircle: {
-    width: 52, height: 52, borderRadius: 26, alignItems: 'center',
-    justifyContent: 'center', marginBottom: 10,
-  },
-  actionCardTitle: { fontSize: 14, fontWeight: '700', color: Theme.colors.text, marginBottom: 2 },
-  actionCardSub: { fontSize: 11, color: Theme.colors.textMuted },
-
-  imagePreviewBox: {
-    borderRadius: Theme.radius.md, overflow: 'hidden', marginBottom: 20,
-    borderWidth: 1, borderColor: Theme.colors.border, position: 'relative',
-  },
-  foodImage: { width: '100%', height: 220, resizeMode: 'cover' },
-  analyzingOverlay: {
-    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    alignItems: 'center', justifyContent: 'center', padding: 20,
-  },
-  analyzingText: { color: '#F8FAFC', fontSize: 14, fontWeight: '600', marginTop: 12, textAlign: 'center' },
-
-  resultCard: {
-    backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md,
-    padding: 20, borderWidth: 1, borderColor: Theme.colors.border, marginBottom: 20,
-  },
-  rejectionCard: {
-    flexDirection: 'row', backgroundColor: '#FEF3C7', borderRadius: Theme.radius.md,
-    padding: 18, borderWidth: 1, borderColor: '#F59E0B55', marginBottom: 20,
-  },
-  rejectionIcon: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFFFFFAA',
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
-  },
+  actionCard: { width: '48%', backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, padding: 17, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  actionIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: Theme.colors.accentSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  actionTitle: { color: Theme.colors.text, fontSize: 14, fontWeight: '800' },
+  actionSubtitle: { color: Theme.colors.textMuted, fontSize: 11, marginTop: 3 },
+  previewBox: { borderRadius: Theme.radius.md, overflow: 'hidden', borderWidth: 1, borderColor: Theme.colors.border, position: 'relative' },
+  foodImage: { width: '100%', height: 230, resizeMode: 'cover' },
+  analyzingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 23, 42, 0.78)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  analyzingText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', marginTop: 12 },
+  changeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, marginBottom: 16 },
+  changeButtonText: { color: Theme.colors.accentStrong, fontSize: 13, fontWeight: '800' },
+  errorCard: { alignItems: 'center', backgroundColor: Theme.colors.dangerSoft, borderRadius: Theme.radius.md, padding: 20, borderWidth: 1, borderColor: '#EF444430', marginBottom: 16 },
+  errorTitle: { color: Theme.colors.danger, fontSize: 16, fontWeight: '900', marginTop: 9 },
+  errorText: { color: Theme.colors.textSecondary, textAlign: 'center', fontSize: 13, lineHeight: 19, marginTop: 5 },
+  retryButton: { backgroundColor: Theme.colors.danger, borderRadius: Theme.radius.sm, paddingHorizontal: 18, paddingVertical: 9, marginTop: 13 },
+  retryButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  rejectionCard: { flexDirection: 'row', gap: 12, backgroundColor: '#FEF3C7', borderRadius: Theme.radius.md, padding: 18, borderWidth: 1, borderColor: '#F59E0B55', marginBottom: 16 },
   rejectionContent: { flex: 1 },
-  rejectionTitle: { fontSize: 17, fontWeight: '800', color: Theme.colors.text, marginBottom: 6 },
-  rejectionText: { fontSize: 15, lineHeight: 21, color: Theme.colors.textSecondary },
-  rejectionHint: { fontSize: 13, lineHeight: 19, color: Theme.colors.textMuted, marginTop: 7 },
+  rejectionTitle: { color: Theme.colors.text, fontSize: 17, fontWeight: '900' },
+  rejectionText: { color: Theme.colors.textSecondary, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  rejectionHint: { color: '#92400E', fontSize: 12, fontWeight: '700', marginTop: 7 },
+  resultCard: { backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, padding: 20, borderWidth: 1, borderColor: Theme.colors.border },
   resultHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  resultHeaderTitle: { fontSize: 14, fontWeight: '700', color: Theme.colors.accentStrong, marginLeft: 6, flex: 1 },
-  confidenceText: { fontSize: 11, color: Theme.colors.textMuted, backgroundColor: Theme.colors.cardSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-
-  foodName: { fontSize: 22, fontWeight: '800', color: Theme.colors.text, marginBottom: 6 },
-  foodDesc: { fontSize: 13, color: Theme.colors.textMuted, lineHeight: 19, marginBottom: 16 },
-
-  kcalBanner: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9731610',
-    borderRadius: Theme.radius.sm, padding: 14, borderWidth: 1, borderColor: '#F9731630',
-    marginBottom: 16,
-  },
-  kcalValue: { fontSize: 28, fontWeight: '900', color: '#F97316' },
-  kcalUnit: { fontSize: 16, fontWeight: '600', color: Theme.colors.textMuted },
-  kcalSubtitle: { fontSize: 12, color: Theme.colors.textMuted, marginTop: 2 },
-
-  portionTitle: { fontSize: 12, fontWeight: '700', color: Theme.colors.textMuted, marginBottom: 8 },
-  portionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  portionChip: {
-    flex: 1, marginHorizontal: 3, backgroundColor: Theme.colors.cardSecondary,
-    paddingVertical: 8, borderRadius: Theme.radius.sm, alignItems: 'center',
-    borderWidth: 1, borderColor: Theme.colors.border,
-  },
-  portionChipActive: { backgroundColor: Theme.colors.accentStrong, borderColor: Theme.colors.accentStrong },
-  portionChipText: { fontSize: 13, fontWeight: '700', color: Theme.colors.text },
-  portionChipTextActive: { color: '#0F172A' },
-
-  macrosRow: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.cardSecondary,
-    borderRadius: Theme.radius.sm, padding: 12, marginBottom: 16,
-  },
+  resultHeaderTitle: { color: Theme.colors.accentStrong, fontSize: 14, fontWeight: '800', marginLeft: 6, flex: 1 },
+  confidence: { color: Theme.colors.textMuted, fontSize: 11, backgroundColor: Theme.colors.cardSecondary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  foodName: { color: Theme.colors.text, fontSize: 22, fontWeight: '900' },
+  foodDescription: { color: Theme.colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 5, marginBottom: 15 },
+  kcalBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9731610', borderRadius: Theme.radius.sm, padding: 14, borderWidth: 1, borderColor: '#F9731630', marginVertical: 16 },
+  kcalContent: { marginLeft: 12 },
+  kcalValue: { color: '#F97316', fontSize: 28, fontWeight: '900' },
+  kcalUnit: { color: Theme.colors.textMuted, fontSize: 15, fontWeight: '600' },
+  kcalSubtitle: { color: Theme.colors.textMuted, fontSize: 11, marginTop: 2 },
+  selectorTitle: { color: Theme.colors.textSecondary, fontSize: 12, fontWeight: '800', marginBottom: 8 },
+  chipRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
+  mealTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
+  choiceChip: { minWidth: 58, flexGrow: 1, backgroundColor: Theme.colors.cardSecondary, paddingHorizontal: 10, paddingVertical: 9, borderRadius: Theme.radius.sm, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  choiceChipActive: { backgroundColor: Theme.colors.accentStrong, borderColor: Theme.colors.accentStrong },
+  choiceChipDisabled: { opacity: 0.65 },
+  choiceChipText: { color: Theme.colors.text, fontSize: 12, fontWeight: '800' },
+  choiceChipTextActive: { color: '#FFFFFF' },
+  macrosRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.cardSecondary, borderRadius: Theme.radius.sm, padding: 12, marginBottom: 16 },
   macroBox: { flex: 1, alignItems: 'center' },
-  macroDivider: { width: 1, height: 24, backgroundColor: Theme.colors.border },
-  macroVal: { fontSize: 15, fontWeight: '800' },
-  macroLabel: { fontSize: 10, color: Theme.colors.textMuted, marginTop: 2 },
-
-  successBox: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B98115',
-    padding: 12, borderRadius: Theme.radius.sm, borderWidth: 1, borderColor: '#10B98140',
-    marginBottom: 16,
-  },
-  successText: { color: '#10B981', fontSize: 13, fontWeight: '600', flex: 1 },
-
-  saveBtn: {
-    flexDirection: 'row', backgroundColor: Theme.colors.accentStrong,
-    paddingVertical: 14, borderRadius: Theme.radius.sm, alignItems: 'center', justifyContent: 'center',
-  },
-  saveBtnDisabled: { backgroundColor: Theme.colors.cardSecondary },
-  saveBtnText: { color: '#0F172A', fontWeight: 'bold', fontSize: 15 },
+  macroDivider: { width: 1, height: 28, backgroundColor: Theme.colors.border },
+  macroValue: { fontSize: 16, fontWeight: '900' },
+  macroLabel: { color: Theme.colors.textMuted, fontSize: 10, marginTop: 2 },
+  saveError: { color: Theme.colors.danger, fontSize: 13, lineHeight: 18, textAlign: 'center', marginBottom: 12 },
+  successBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Theme.colors.accentSoft, padding: 12, borderRadius: Theme.radius.sm, borderWidth: 1, borderColor: '#10B98140', marginBottom: 14 },
+  successText: { color: Theme.colors.accentStrong, fontSize: 12, fontWeight: '700', flex: 1 },
+  saveButton: { flexDirection: 'row', gap: 8, backgroundColor: Theme.colors.accentStrong, paddingVertical: 14, borderRadius: Theme.radius.sm, alignItems: 'center', justifyContent: 'center' },
+  saveButtonDisabled: { opacity: 0.55 },
+  saveButtonText: { color: '#0F172A', fontWeight: '900', fontSize: 14 },
 });

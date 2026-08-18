@@ -1,29 +1,37 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet, Text, View, TouchableOpacity,
-  ScrollView, StatusBar, TextInput,
-  Alert, ActivityIndicator,
+  ActivityIndicator, Alert, RefreshControl, ScrollView, StatusBar, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Pedometer, Accelerometer } from 'expo-sensors';
+import { useFocusEffect } from '@react-navigation/native';
+import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import {
-  LogOut, Footprints, Flame, MapPin, CloudUpload,
-  Cpu, User, RefreshCw, Activity, Camera, Sparkles
+  Activity, Bell, BookOpenText, CalendarCheck, Camera, CloudUpload, Cpu, Flame,
+  Footprints, LogOut, MapPin, MessageCircle, RefreshCw, Sparkles, User,
 } from 'lucide-react-native';
+
 import { Theme } from '../theme';
+import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { ErrorState, LoadingSkeleton } from '../components/AsyncState';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { LogoMark } from '../components/Logo';
 
 const STEP_KEY = 'nutrismart_steps_today';
 const DATE_KEY = 'nutrismart_step_date';
 
-export default function HomeScreen({ navigation, route }) {
-  let rawIp = route?.params?.backendIp ?? '10.251.3.81';
-  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.251.3.81';
-  const backendIp = rawIp.trim();
+export default function HomeScreen({ navigation }) {
+  const { signOut } = useAuth();
+  const [dataStatus, setDataStatus] = useState('loading');
+  const [dataError, setDataError] = useState('');
+  const [userData, setUserData] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const [isPedometerAvailable, setIsPedometerAvailable] = useState('Đang khởi tạo...');
+  const [stepsReady, setStepsReady] = useState(false);
+  const [sensorStatus, setSensorStatus] = useState('Đang khởi tạo...');
   const [stepCount, setStepCount] = useState(0);
   const [motionIntensity, setMotionIntensity] = useState(0);
   const [weight, setWeight] = useState('65');
@@ -31,530 +39,383 @@ export default function HomeScreen({ navigation, route }) {
   const [syncStatus, setSyncStatus] = useState('Chưa đồng bộ');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
-  const [userEmail, setUserEmail] = useState('');
 
   const isPeak = useRef(false);
   const lastStepTime = useRef(Date.now());
   const stepCountRef = useRef(0);
 
-  // ─── Load token & email, số bước đã lưu hôm nay ───
-  useEffect(() => {
-    async function init() {
-      try {
-        const token = await AsyncStorage.getItem('access_token');
-        if (!token) {
-          navigation.replace('Login', { backendIp });
-          return;
-        }
-        try {
-          const res = await axios.get(`http://${backendIp}:8000/api/v1/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-            timeout: 5000,
-          });
-          setUserEmail(res.data?.email ?? '');
-        } catch (_) {}
-
-        const savedDate = await AsyncStorage.getItem(DATE_KEY);
-        const today = new Date().toDateString();
-        if (savedDate === today) {
-          const saved = await AsyncStorage.getItem(STEP_KEY);
-          if (saved) {
-            const steps = parseInt(saved, 10);
-            setStepCount(steps);
-            stepCountRef.current = steps;
-          }
-        } else {
-          await AsyncStorage.setItem(DATE_KEY, today);
-          await AsyncStorage.setItem(STEP_KEY, '0');
-        }
-      } catch (e) {
-        console.log('Init error:', e);
-      }
-    }
-    init();
-  }, [backendIp, navigation]);
-
-  // ─── Lưu bước chân offline ───
   const saveSteps = useCallback(async (steps) => {
     try {
-      await AsyncStorage.setItem(DATE_KEY, new Date().toDateString());
-      await AsyncStorage.setItem(STEP_KEY, String(steps));
-    } catch (_) {}
+      await AsyncStorage.multiSet([
+        [DATE_KEY, new Date().toDateString()],
+        [STEP_KEY, String(steps)],
+      ]);
+    } catch {
+      // Cache bước chân không được làm gián đoạn trải nghiệm chính.
+    }
   }, []);
 
-  // ─── Khởi tạo cảm biến ───
   useEffect(() => {
-    let pedometerSub;
-    let accelSub;
-
-    async function setupSensors() {
+    let active = true;
+    async function loadCachedSteps() {
       try {
-        const available = await Pedometer.isAvailableAsync();
-        if (available) {
-          const perm = await Pedometer.requestPermissionsAsync();
-          if (perm.granted) {
-            setIsPedometerAvailable('Pedometer Native 🏃');
-            pedometerSub = Pedometer.watchStepCount(() => {
-              setStepCount((prev) => {
-                const next = prev + 1;
-                stepCountRef.current = next;
-                saveSteps(next);
-                return next;
-              });
-            });
-            return;
-          }
+        const [[, savedDate], [, savedSteps]] = await AsyncStorage.multiGet([DATE_KEY, STEP_KEY]);
+        const today = new Date().toDateString();
+        const steps = savedDate === today ? Number.parseInt(savedSteps || '0', 10) || 0 : 0;
+        if (active) {
+          stepCountRef.current = steps;
+          setStepCount(steps);
         }
-      } catch (_) {}
+        if (savedDate !== today) await saveSteps(0);
+      } finally {
+        if (active) setStepsReady(true);
+      }
+    }
+    loadCachedSteps();
+    return () => {
+      active = false;
+    };
+  }, [saveSteps]);
 
-      setIsPedometerAvailable('Accelerometer 📱');
+  useEffect(() => {
+    if (!stepsReady) return undefined;
+
+    let cancelled = false;
+    let pedometerSubscription;
+    let accelerometerSubscription;
+
+    function updateSteps(next) {
+      stepCountRef.current = next;
+      setStepCount(next);
+      saveSteps(next);
+    }
+
+    function startAccelerometer() {
+      setSensorStatus('Ước tính bằng gia tốc kế');
       Accelerometer.setUpdateInterval(100);
-      accelSub = Accelerometer.addListener(({ x, y, z }) => {
+      accelerometerSubscription = Accelerometer.addListener(({ x, y, z }) => {
         const magnitude = Math.sqrt(x * x + y * y + z * z);
-        setMotionIntensity(parseFloat(magnitude.toFixed(1)));
+        setMotionIntensity(Number(magnitude.toFixed(1)));
         const now = Date.now();
         if (magnitude > 1.28 && !isPeak.current && now - lastStepTime.current > 300) {
           isPeak.current = true;
           lastStepTime.current = now;
-          setStepCount((prev) => {
-            const next = prev + 1;
-            stepCountRef.current = next;
-            saveSteps(next);
-            return next;
-          });
+          updateSteps(stepCountRef.current + 1);
         } else if (magnitude < 1.1) {
           isPeak.current = false;
         }
       });
     }
 
+    async function setupSensors() {
+      try {
+        const available = await Pedometer.isAvailableAsync();
+        if (available) {
+          const permission = await Pedometer.requestPermissionsAsync();
+          if (permission.granted) {
+            const baseSteps = stepCountRef.current;
+            setSensorStatus('Cảm biến bước chân');
+            const subscription = Pedometer.watchStepCount(({ steps }) => {
+              updateSteps(baseSteps + Number(steps || 0));
+            });
+            if (cancelled) subscription.remove();
+            else pedometerSubscription = subscription;
+            return;
+          }
+        }
+      } catch {
+        // Thiết bị không hỗ trợ Pedometer sẽ dùng gia tốc kế.
+      }
+      if (!cancelled) startAccelerometer();
+    }
+
     setupSensors();
     return () => {
-      if (pedometerSub) pedometerSub.remove();
-      if (accelSub) accelSub.remove();
+      cancelled = true;
+      pedometerSubscription?.remove();
+      accelerometerSubscription?.remove();
     };
-  }, [saveSteps]);
+  }, [saveSteps, stepsReady]);
 
-  // ─── Tính calo & quãng đường ───
-  const userHeight = parseFloat(height) || 170;
+  const loadDashboard = useCallback(async () => {
+    setDataStatus((current) => (current === 'success' ? 'refreshing' : 'loading'));
+    setDataError('');
+    try {
+      const [me, rows, notifications] = await Promise.all([
+        api.me(), api.dailySummary(1), api.notifications(20).catch(() => []),
+      ]);
+      const today = rows?.[rows.length - 1] || null;
+      setUserData(me);
+      setSummary(today);
+      setUnreadCount(notifications.filter((item) => !item.is_read).length);
+      if (me?.profile?.weight_kg) setWeight(String(me.profile.weight_kg));
+      if (me?.profile?.height_cm) setHeight(String(me.profile.height_cm));
+      setDataStatus('success');
+    } catch (error) {
+      setDataError(error.userMessage || 'Không thể tải dữ liệu tổng quan.');
+      setDataStatus('error');
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadDashboard();
+  }, [loadDashboard]));
+
+  const userHeight = Number.parseFloat(height) || 170;
+  const userWeight = Number.parseFloat(weight) || 65;
   const strideMeters = (userHeight * 0.414) / 100;
-  const distanceKm = parseFloat(((stepCount * strideMeters) / 1000).toFixed(2));
-  const userWeight = parseFloat(weight) || 65;
-  const caloriesBurned = parseFloat((stepCount * 0.04 * (userWeight / 60)).toFixed(1));
+  const distanceKm = Number(((stepCount * strideMeters) / 1000).toFixed(2));
+  const caloriesBurned = Number((stepCount * 0.04 * (userWeight / 60)).toFixed(1));
 
-  // ─── Đồng bộ lên Backend ───
   const handleSync = async () => {
+    if (isSyncing) return;
     setIsSyncing(true);
     setSyncStatus('Đang gửi dữ liệu...');
     try {
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        setSyncStatus('❌ Chưa đăng nhập');
-        navigation.replace('Login', { backendIp });
-        return;
-      }
-
-      const res = await axios.post(
-        `http://${backendIp}:8000/api/v1/tracking/daily-activity`,
-        { steps: stepCountRef.current, calories_burned: caloriesBurned, distance_km: distanceKm },
-        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, timeout: 8000 }
-      );
-
-      if (res.status === 200) {
-        const now = new Date();
-        const t = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-        setSyncStatus(`✅ Đồng bộ thành công lúc ${t}`);
-        setLastSyncTime(t);
-      }
-    } catch (err) {
-      if (err.response?.status === 401) {
-        setSyncStatus('❌ Token hết hạn — vui lòng đăng nhập lại');
-        await AsyncStorage.removeItem('access_token');
-        navigation.replace('Login', { backendIp });
-      } else {
-        setSyncStatus(`❌ ${err.message}`);
-      }
+      await api.syncActivity({
+        steps: stepCountRef.current,
+        calories_burned: caloriesBurned,
+        distance_km: distanceKm,
+      });
+      const now = new Date();
+      const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+      setSyncStatus(`Đồng bộ thành công lúc ${time}`);
+      setLastSyncTime(time);
+      await loadDashboard();
+    } catch (error) {
+      setSyncStatus(error.userMessage || 'Chưa thể đồng bộ. Vui lòng thử lại.');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // ─── Đăng xuất ───
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có muốn đăng xuất không?', [
       { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Đăng xuất', style: 'destructive',
-        onPress: async () => {
-          await AsyncStorage.removeItem('access_token');
-          navigation.replace('Login', { backendIp });
-        },
-      },
+      { text: 'Đăng xuất', style: 'destructive', onPress: signOut },
     ]);
   };
+
+  const openRootScreen = (name) => navigation.getParent()?.navigate(name);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={Theme.colors.background} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={dataStatus === 'refreshing'} onRefresh={loadDashboard} />}
+      >
+        <OfflineBanner />
         <View style={styles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={styles.identity}>
             <LogoMark size={36} />
-            <View style={{ marginLeft: 10 }}>
+            <View style={styles.identityText}>
               <Text style={styles.headerTitle}>NutriSmart</Text>
-              {userEmail ? (
-                <Text style={styles.headerEmail}>{userEmail}</Text>
-              ) : null}
+              <Text style={styles.headerEmail}>{userData?.email || 'Tổng quan hôm nay'}</Text>
             </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            {lastSyncTime && (
-              <View style={styles.syncBadgeContainer}>
-                <RefreshCw size={10} color={Theme.colors.accentStrong} style={{ marginRight: 4 }} />
-                <Text style={styles.syncBadge}>Đã sync lúc {lastSyncTime}</Text>
-              </View>
-            )}
-          </View>
+          {lastSyncTime ? <Text style={styles.syncBadge}>Đã sync {lastSyncTime}</Text> : null}
         </View>
 
-        {/* Card Bước chân */}
+        {dataStatus === 'loading' && !userData ? <LoadingSkeleton rows={1} /> : null}
+        {dataStatus === 'error' && !userData ? <ErrorState message={dataError} onRetry={loadDashboard} /> : null}
+        {dataStatus === 'error' && userData ? (
+          <ErrorState message={`${dataError} Số liệu bên dưới có thể là dữ liệu cũ.`} onRetry={loadDashboard} />
+        ) : null}
+
+        {summary ? (
+          <View style={styles.summaryCard}>
+            <SummaryMetric label="Đã nạp" value={summary.kcal_intake} color="#F97316" />
+            <View style={styles.verticalDivider} />
+            <SummaryMetric label="Đã tiêu hao" value={summary.kcal_burned} color="#0284C7" />
+            <View style={styles.verticalDivider} />
+            <SummaryMetric label="Còn lại" value={summary.kcal_remaining} color={Theme.colors.accentStrong} />
+          </View>
+        ) : null}
+
+        <Text style={styles.quickTitle}>Truy cập nhanh</Text>
+        <View style={styles.quickGrid}>
+          <QuickAction icon={BookOpenText} label="Nhật ký" onPress={() => openRootScreen('Journal')} />
+          <QuickAction icon={CalendarCheck} label="Check-in" onPress={() => openRootScreen('Checkin')} />
+          <QuickAction icon={Bell} label="Thông báo" badge={unreadCount} onPress={() => openRootScreen('Notifications')} />
+          <QuickAction icon={MessageCircle} label="Trợ lý AI" onPress={() => openRootScreen('Chat')} />
+        </View>
+
         <View style={styles.mainCard}>
-          <Footprints size={44} color={Theme.colors.accentStrong} style={styles.cardIcon} />
+          <Footprints size={44} color={Theme.colors.accentStrong} />
           <Text style={styles.cardLabel}>SỐ BƯỚC HÔM NAY</Text>
           <Text style={styles.stepNumber}>{stepCount.toLocaleString()}</Text>
           <Text style={styles.stepUnit}>bước chân</Text>
-          
           <View style={styles.metricsRow}>
-            <View style={styles.metricBox}>
-              <View style={styles.metricHeader}>
-                <Flame size={16} color={Theme.colors.warning} style={{ marginRight: 4 }} />
-                <Text style={styles.metricLabel}>Calo tiêu hao</Text>
-              </View>
-              <Text style={[styles.metricValue, { color: Theme.colors.warning }]}>{caloriesBurned} <Text style={styles.metricUnit}>kcal</Text></Text>
-            </View>
-            
-            <View style={styles.divider} />
-            
-            <View style={styles.metricBox}>
-              <View style={styles.metricHeader}>
-                <MapPin size={16} color="#38BDF8" style={{ marginRight: 4 }} />
-                <Text style={styles.metricLabel}>Quãng đường</Text>
-              </View>
-              <Text style={[styles.metricValue, { color: '#0284C7' }]}>{distanceKm} <Text style={styles.metricUnit}>km</Text></Text>
-            </View>
+            <Metric icon={<Flame size={16} color={Theme.colors.warning} />} label="Calo tiêu hao" value={`${caloriesBurned} kcal`} />
+            <View style={styles.verticalDivider} />
+            <Metric icon={<MapPin size={16} color="#0284C7" />} label="Quãng đường" value={`${distanceKm} km`} />
           </View>
         </View>
 
-        {/* Banner Phân tích Món ăn AI Gemini */}
-        <TouchableOpacity
-          style={styles.aiScanBanner}
-          onPress={() => navigation.navigate('FoodScan', { backendIp })}
-          activeOpacity={0.85}
-        >
-          <View style={styles.aiScanIconBox}>
-            <Camera size={24} color="#0F172A" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Sparkles size={14} color={Theme.colors.accentStrong} style={{ marginRight: 4 }} />
-              <Text style={styles.aiScanTitle}>Phân tích Món ăn AI</Text>
+        <TouchableOpacity style={styles.aiBanner} onPress={() => navigation.navigate('TabFoodScan')} activeOpacity={0.85}>
+          <View style={styles.aiIcon}><Camera size={24} color="#0F172A" /></View>
+          <View style={styles.aiContent}>
+            <View style={styles.inlineRow}>
+              <Sparkles size={14} color={Theme.colors.accentStrong} />
+              <Text style={styles.aiTitle}>Phân tích món ăn AI</Text>
             </View>
-            <Text style={styles.aiScanSub}>Chụp ảnh đĩa thức ăn để Gemini AI tính Calo & Macros</Text>
+            <Text style={styles.aiSubtitle}>Chụp ảnh món ăn để ước tính năng lượng và dinh dưỡng</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Nút Đồng bộ */}
         <View style={styles.syncCard}>
-          <View style={styles.cardHeaderRow}>
-            <CloudUpload size={20} color={Theme.colors.accentStrong} style={{ marginRight: 8 }} />
-            <Text style={styles.syncTitle}>Đồng bộ lên Web Dashboard</Text>
+          <View style={styles.inlineRow}>
+            <CloudUpload size={20} color={Theme.colors.accentStrong} />
+            <Text style={styles.sectionHeading}>Đồng bộ hoạt động</Text>
           </View>
-          <Text style={styles.syncDesc}>
-            Gửi số bước & calo hôm nay. Web sẽ cập nhật mục "Đã tiêu hao" tức thì.
-          </Text>
-          <TouchableOpacity
-            style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
-            onPress={handleSync}
-            disabled={isSyncing}
-            activeOpacity={0.8}
-          >
-            {isSyncing ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <RefreshCw size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.syncButtonText}>Đồng bộ ngay</Text>
-              </>
+          <Text style={styles.sectionDescription}>Gửi số bước và calo tiêu hao hôm nay lên tài khoản của bạn.</Text>
+          <TouchableOpacity style={[styles.primaryButton, isSyncing && styles.buttonDisabled]} onPress={handleSync} disabled={isSyncing}>
+            {isSyncing ? <ActivityIndicator color="#FFFFFF" /> : (
+              <><RefreshCw size={16} color="#FFFFFF" /><Text style={styles.primaryButtonText}>Đồng bộ ngay</Text></>
             )}
           </TouchableOpacity>
-          {syncStatus ? <Text style={styles.syncStatusText}>{syncStatus}</Text> : null}
+          <Text style={styles.syncStatus}>{syncStatus}</Text>
         </View>
 
-        {/* Cảm biến */}
         <View style={styles.infoCard}>
-          <View style={styles.cardHeaderRow}>
-            <Cpu size={18} color={Theme.colors.text} style={{ marginRight: 8 }} />
-            <Text style={styles.infoTitle}>Cảm biến: {isPedometerAvailable}</Text>
+          <View style={styles.inlineRow}>
+            <Cpu size={18} color={Theme.colors.text} />
+            <Text style={styles.sectionHeading}>Cảm biến: {sensorStatus}</Text>
           </View>
-          {motionIntensity > 0 && (
-            <View style={styles.motionRow}>
-              <Activity size={14} color="#38BDF8" style={{ marginRight: 6 }} />
+          <Text style={styles.sensorNote}>Bước chân chỉ được cập nhật khi ứng dụng đang mở.</Text>
+          {motionIntensity > 0 ? (
+            <View style={styles.inlineRow}>
+              <Activity size={14} color="#0284C7" />
               <Text style={styles.motionText}>Gia tốc thiết bị: {motionIntensity} G</Text>
             </View>
-          )}
-          <TouchableOpacity
-            style={styles.simButton}
-            onPress={() => {
-              setStepCount((prev) => {
-                const next = prev + 100;
-                stepCountRef.current = next;
-                saveSteps(next);
-                return next;
-              });
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.simButtonText}>+ 100 bước (Test nhanh)</Text>
-          </TouchableOpacity>
+          ) : null}
+          {__DEV__ ? (
+            <TouchableOpacity style={styles.testButton} onPress={() => {
+              const next = stepCountRef.current + 100;
+              stepCountRef.current = next;
+              setStepCount(next);
+              saveSteps(next);
+            }}>
+              <Text style={styles.testButtonText}>+ 100 bước (kiểm thử)</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Chỉ số cá nhân */}
         <View style={styles.configCard}>
-          <View style={styles.cardHeaderRow}>
-            <User size={18} color={Theme.colors.text} style={{ marginRight: 8 }} />
-            <Text style={styles.configTitle}>Chỉ số cá nhân</Text>
+          <View style={styles.inlineRow}>
+            <User size={18} color={Theme.colors.text} />
+            <Text style={styles.sectionHeading}>Chỉ số dùng để ước tính</Text>
           </View>
           <View style={styles.inputGroup}>
-            <View style={styles.inputItem}>
-              <Text style={styles.inputLabel}>Cân nặng (kg)</Text>
-              <TextInput style={styles.textInput} value={weight} onChangeText={setWeight} keyboardType="numeric" />
-            </View>
-            <View style={styles.inputItem}>
-              <Text style={styles.inputLabel}>Chiều cao (cm)</Text>
-              <TextInput style={styles.textInput} value={height} onChangeText={setHeight} keyboardType="numeric" />
-            </View>
+            <MetricInput label="Cân nặng (kg)" value={weight} onChangeText={setWeight} />
+            <MetricInput label="Chiều cao (cm)" value={height} onChangeText={setHeight} />
           </View>
         </View>
 
-        {/* Nút Đăng xuất ở dưới cùng bên phải */}
-        <View style={styles.footerRow}>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtnBottom} activeOpacity={0.7}>
-            <LogOut size={14} color={Theme.colors.danger} style={{ marginRight: 6 }} />
-            <Text style={styles.logoutTextBottom}>Đăng xuất</Text>
-          </TouchableOpacity>
-        </View>
-
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <LogOut size={15} color={Theme.colors.danger} />
+          <Text style={styles.logoutText}>Đăng xuất</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SummaryMetric({ label, value, color }) {
+  return (
+    <View style={styles.summaryMetric}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, { color }]}>{Math.round(Number(value || 0)).toLocaleString()}</Text>
+      <Text style={styles.summaryUnit}>kcal</Text>
+    </View>
+  );
+}
+
+function Metric({ icon, label, value }) {
+  return (
+    <View style={styles.metricBox}>
+      <View style={styles.inlineRow}>{icon}<Text style={styles.metricLabel}>{label}</Text></View>
+      <Text style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
+
+function MetricInput({ label, value, onChangeText }) {
+  return (
+    <View style={styles.inputItem}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TextInput style={styles.textInput} value={value} onChangeText={onChangeText} keyboardType="decimal-pad" />
+    </View>
+  );
+}
+
+function QuickAction({ icon: Icon, label, onPress, badge = 0 }) {
+  return (
+    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.quickIcon}>
+        <Icon size={20} color={Theme.colors.accentStrong} />
+        {badge ? <View style={styles.quickBadge}><Text style={styles.quickBadgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
+      </View>
+      <Text style={styles.quickLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Theme.colors.background },
   container: { padding: 20, paddingBottom: 40 },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 24, marginTop: 4,
-  },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: Theme.colors.text, letterSpacing: -0.5 },
-  headerEmail: { fontSize: 13, color: Theme.colors.textMuted, marginTop: 2, fontWeight: '500' },
-  syncBadgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    backgroundColor: Theme.colors.accentSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Theme.radius.full,
-    alignSelf: 'flex-start',
-  },
-  syncBadge: {
-    fontSize: 11, color: Theme.colors.accentStrong, fontWeight: '600'
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Theme.colors.card,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: Theme.radius.sm,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  logoutText: { color: Theme.colors.textMuted, fontSize: 13, fontWeight: '600' },
-
-  mainCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.radius.lg,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 2,
-  },
-  cardIcon: {
-    marginBottom: 12,
-  },
-  cardLabel: { fontSize: 12, fontWeight: '800', color: Theme.colors.accentStrong, letterSpacing: 1.5 },
-  stepNumber: { fontSize: 56, fontWeight: '900', color: Theme.colors.text, marginVertical: 4, letterSpacing: -1 },
-  stepUnit: { fontSize: 14, fontWeight: '600', color: Theme.colors.textMuted, marginBottom: 20 },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: Theme.colors.border,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  identity: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  identityText: { marginLeft: 10, flex: 1 },
+  headerTitle: { fontSize: 25, fontWeight: '900', color: Theme.colors.text },
+  headerEmail: { color: Theme.colors.textMuted, fontSize: 12, marginTop: 2 },
+  syncBadge: { color: Theme.colors.accentStrong, fontSize: 10, fontWeight: '800', backgroundColor: Theme.colors.accentSoft, padding: 6, borderRadius: 12 },
+  summaryCard: { flexDirection: 'row', backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, borderWidth: 1, borderColor: Theme.colors.border, padding: 14, marginBottom: 16 },
+  summaryMetric: { flex: 1, alignItems: 'center' },
+  summaryLabel: { color: Theme.colors.textMuted, fontSize: 10, fontWeight: '700' },
+  summaryValue: { fontSize: 18, fontWeight: '900', marginTop: 4 },
+  summaryUnit: { color: Theme.colors.textMuted, fontSize: 10 },
+  quickTitle: { color: Theme.colors.text, fontSize: 14, fontWeight: '900', marginBottom: 9 },
+  quickGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  quickAction: { flex: 1, alignItems: 'center', backgroundColor: Theme.colors.card, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.radius.md, paddingVertical: 12, paddingHorizontal: 3 },
+  quickIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: Theme.colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  quickBadge: { position: 'absolute', right: -5, top: -5, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: Theme.colors.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  quickBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  quickLabel: { color: Theme.colors.textSecondary, fontSize: 10, fontWeight: '800', marginTop: 7, textAlign: 'center' },
+  mainCard: { backgroundColor: Theme.colors.card, borderRadius: Theme.radius.lg, padding: 24, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: Theme.colors.border },
+  cardLabel: { fontSize: 12, fontWeight: '800', color: Theme.colors.accentStrong, letterSpacing: 1.4, marginTop: 10 },
+  stepNumber: { fontSize: 54, fontWeight: '900', color: Theme.colors.text, marginTop: 3 },
+  stepUnit: { color: Theme.colors.textMuted, fontSize: 13, marginBottom: 18 },
+  metricsRow: { flexDirection: 'row', alignItems: 'center', width: '100%', borderTopWidth: 1, borderTopColor: Theme.colors.border, paddingTop: 17 },
   metricBox: { flex: 1, alignItems: 'center' },
-  metricHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  divider: { width: 1, height: 40, backgroundColor: Theme.colors.border },
-  metricValue: { fontSize: 20, fontWeight: '800' },
-  metricUnit: { fontSize: 12, fontWeight: '500', color: Theme.colors.textMuted },
-  metricLabel: { fontSize: 12, fontWeight: '600', color: Theme.colors.textMuted },
-
-  syncCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.radius.md,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  syncTitle: { color: Theme.colors.text, fontSize: 16, fontWeight: '700' },
-  syncDesc: { color: Theme.colors.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 18, fontWeight: '500' },
-  syncButton: {
-    backgroundColor: Theme.colors.accentStrong,
-    paddingVertical: 13,
-    borderRadius: Theme.radius.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Theme.colors.accentStrong,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  syncButtonDisabled: { backgroundColor: '#A7F3D0' },
-  syncButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 },
-  syncStatusText: { color: Theme.colors.textSecondary, fontSize: 13, marginTop: 12, textAlign: 'center', fontWeight: '600' },
-
-  infoCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.radius.md,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-  },
-  infoTitle: { color: Theme.colors.text, fontSize: 14, fontWeight: '700' },
-  motionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  motionText: { color: '#0284C7', fontSize: 13, fontWeight: '600' },
-  simButton: {
-    backgroundColor: Theme.colors.cardSecondary,
-    paddingVertical: 12,
-    borderRadius: Theme.radius.sm,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-  },
-  simButtonText: { color: Theme.colors.accentStrong, fontWeight: '700', fontSize: 14 },
-
-  configCard: {
-    backgroundColor: Theme.colors.card,
-    borderRadius: Theme.radius.md,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-  },
-  configTitle: { color: Theme.colors.text, fontSize: 15, fontWeight: '700' },
+  metricLabel: { color: Theme.colors.textMuted, fontSize: 11, marginLeft: 4 },
+  metricValue: { color: Theme.colors.text, fontSize: 17, fontWeight: '900', marginTop: 5 },
+  verticalDivider: { width: 1, height: 38, backgroundColor: Theme.colors.border },
+  aiBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B98112', borderRadius: Theme.radius.md, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#10B98135' },
+  aiIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: Theme.colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
+  aiContent: { flex: 1, marginLeft: 12 },
+  aiTitle: { color: Theme.colors.text, fontSize: 16, fontWeight: '800', marginLeft: 5 },
+  aiSubtitle: { color: Theme.colors.textSecondary, fontSize: 12, marginTop: 3 },
+  syncCard: { backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, padding: 18, borderWidth: 1, borderColor: Theme.colors.border, marginBottom: 16 },
+  infoCard: { backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, padding: 16, borderWidth: 1, borderColor: Theme.colors.border, marginBottom: 16 },
+  configCard: { backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md, padding: 16, borderWidth: 1, borderColor: Theme.colors.border, marginBottom: 16 },
+  inlineRow: { flexDirection: 'row', alignItems: 'center' },
+  sectionHeading: { color: Theme.colors.text, fontSize: 15, fontWeight: '800', marginLeft: 7 },
+  sectionDescription: { color: Theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginVertical: 10 },
+  primaryButton: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.colors.accentStrong, borderRadius: Theme.radius.sm, paddingVertical: 13 },
+  buttonDisabled: { opacity: 0.55 },
+  primaryButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  syncStatus: { color: Theme.colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 9 },
+  sensorNote: { color: Theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginVertical: 8 },
+  motionText: { color: '#0284C7', fontSize: 12, fontWeight: '700', marginLeft: 5 },
+  testButton: { backgroundColor: Theme.colors.cardSecondary, paddingVertical: 10, borderRadius: Theme.radius.sm, alignItems: 'center', marginTop: 12 },
+  testButtonText: { color: Theme.colors.accentStrong, fontWeight: '800', fontSize: 12 },
   inputGroup: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   inputItem: { width: '47%' },
-  inputLabel: { color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 6, fontWeight: '600' },
-  textInput: {
-    backgroundColor: '#FFFFFF', color: Theme.colors.text, borderRadius: Theme.radius.sm,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 16,
-    borderWidth: 1, borderColor: Theme.colors.border,
-    fontWeight: '600',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  logoutBtnBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Theme.colors.card,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: Theme.radius.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)', // light red outline
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  logoutTextBottom: {
-    color: Theme.colors.danger,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  aiScanBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10B98112',
-    borderRadius: Theme.radius.md,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#10B98135',
-  },
-  aiScanIconBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: Theme.colors.accentStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiScanTitle: {
-    color: Theme.colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  aiScanSub: {
-    color: Theme.colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
+  inputLabel: { color: Theme.colors.textMuted, fontSize: 11, marginBottom: 6 },
+  textInput: { backgroundColor: '#FFFFFF', borderRadius: Theme.radius.sm, borderWidth: 1, borderColor: Theme.colors.border, paddingHorizontal: 12, paddingVertical: 9, color: Theme.colors.text, fontWeight: '700' },
+  logoutButton: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-end', padding: 10 },
+  logoutText: { color: Theme.colors.danger, fontSize: 13, fontWeight: '700' },
 });
-
-

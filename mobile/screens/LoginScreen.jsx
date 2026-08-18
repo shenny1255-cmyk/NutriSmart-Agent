@@ -1,31 +1,40 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
   SafeAreaView, StatusBar, KeyboardAvoidingView, Platform,
   ActivityIndicator, ScrollView,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { Mail, Lock, Server, AlertCircle } from 'lucide-react-native';
+import { Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react-native';
 import { Theme } from '../theme';
 import { LogoMark } from '../components/Logo';
+import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
-export default function LoginScreen({ navigation, route }) {
-  let rawIp = route?.params?.backendIp ?? '10.251.3.81';
-  if (rawIp === '172.16.162' || rawIp === '172.16.1.162') rawIp = '10.251.3.81';
-  const backendIp = rawIp.trim();
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export default function LoginScreen() {
+  const { signIn, sessionNotice, clearSessionNotice } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  useEffect(() => {
+    if (sessionNotice) setError(sessionNotice);
+  }, [sessionNotice]);
+
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
       setError('Vui lòng nhập email và mật khẩu');
+      return;
+    }
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
+      setError('Email chưa đúng định dạng');
       return;
     }
 
@@ -33,29 +42,15 @@ export default function LoginScreen({ navigation, route }) {
     setError('');
 
     try {
-      const url = `http://${backendIp.trim()}:8000/api/v1/auth/login`;
-      const res = await axios.post(
-        url,
-        { email: email.trim().toLowerCase(), password },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
-      );
-
-      const token = res.data?.access_token;
+      const response = await api.login(normalizedEmail, password);
+      const token = response?.access_token;
       if (token) {
-        await AsyncStorage.setItem('access_token', token);
-        await AsyncStorage.setItem('backend_ip', backendIp.trim());
-        navigation.replace('Main', { backendIp: backendIp.trim() });
+        await signIn(token);
       } else {
-        setError('Không nhận được token từ server');
+        setError('Máy chủ không trả về phiên đăng nhập hợp lệ');
       }
     } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 400) {
-        setError('Email hoặc mật khẩu không đúng');
-      } else if (err.code === 'ECONNABORTED') {
-        setError('Kết nối timeout — kiểm tra IP và Backend đang chạy');
-      } else {
-        setError(`Lỗi kết nối: ${err.message}`);
-      }
+      setError(err.userMessage || 'Không thể đăng nhập. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -94,7 +89,11 @@ export default function LoginScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  if (error) setError('');
+                  if (sessionNotice) clearSessionNotice();
+                }}
                 placeholder="example@email.com"
                 placeholderTextColor={Theme.colors.textMuted}
                 autoCapitalize="none"
@@ -111,26 +110,30 @@ export default function LoginScreen({ navigation, route }) {
               <TextInput
                 style={styles.input}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  if (error) setError('');
+                  if (sessionNotice) clearSessionNotice();
+                }}
                 placeholder="Nhập mật khẩu"
                 placeholderTextColor={Theme.colors.textMuted}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
                 onFocus={() => setPasswordFocused(true)}
                 onBlur={() => setPasswordFocused(false)}
               />
-            </View>
-
-            <Text style={styles.label}>IP Máy chủ Backend</Text>
-            <View style={[styles.inputContainer, styles.inputContainerDisabled]}>
-              <Server size={18} color={Theme.colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.inputDisabled]}
-                value={backendIp}
-                editable={false}
-                selectTextOnFocus={false}
-                placeholderTextColor={Theme.colors.textMuted}
-              />
+              <TouchableOpacity
+                onPress={() => setShowPassword((value) => !value)}
+                style={styles.eyeButton}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                {showPassword
+                  ? <EyeOff size={19} color={Theme.colors.textMuted} />
+                  : <Eye size={19} color={Theme.colors.textMuted} />}
+              </TouchableOpacity>
             </View>
 
             {error !== '' && (
@@ -247,9 +250,6 @@ const styles = StyleSheet.create({
   inputContainerFocused: {
     borderColor: Theme.colors.accentStrong,
   },
-  inputContainerDisabled: {
-    backgroundColor: Theme.colors.cardSecondary,
-  },
   inputIcon: {
     marginRight: 10,
   },
@@ -259,9 +259,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     height: '100%',
   },
-  inputDisabled: {
-    color: Theme.colors.textMuted,
-  },
+  eyeButton: { padding: 8, marginRight: -6 },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
