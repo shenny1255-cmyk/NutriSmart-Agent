@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import date, timedelta
 
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -18,6 +19,21 @@ logger = logging.getLogger(__name__)
 
 PLAN_DAYS = 7
 PLAN_VALID_DAYS = 14
+
+
+class PlanMealOutput(BaseModel):
+    type: str = Field(min_length=1, max_length=30)
+    name: str = Field(min_length=2, max_length=200)
+    kcal: int = Field(ge=1, le=5000)
+
+
+class PlanDayOutput(BaseModel):
+    meals: list[PlanMealOutput] = Field(min_length=3, max_length=3)
+    exercise: str = Field(min_length=2, max_length=300)
+
+
+class PlanOutput(BaseModel):
+    days: list[PlanDayOutput] = Field(min_length=PLAN_DAYS, max_length=PLAN_DAYS)
 
 
 def build_prompt(profile_data: dict, target: int, note: str | None = None) -> str:
@@ -79,25 +95,49 @@ def _strip_fence(reply: str) -> str:
 
 
 def _llm_days(prompt: str, timeout: float | None = None) -> list | None:
-    """Gọi LLM và trả về mảng days; None nếu lỗi hoặc JSON không hợp lệ."""
-    try:
-        content = json.loads(_strip_fence(
-            ollama_client.chat(
-                [{"role": "user", "content": prompt}],
+    """Ép JSON Schema, kiểm tra đủ 7 ngày và thử sửa một lần nếu model trả sai."""
+    messages = [{"role": "user", "content": prompt}]
+    schema = PlanOutput.model_json_schema()
+    last_error: Exception | None = None
+
+    for attempt in range(2):
+        try:
+            reply = ollama_client.chat(
+                messages,
                 model=settings.OLLAMA_MODEL,
                 timeout=timeout or settings.PLAN_LLM_TIMEOUT_SECONDS,
-                # JSON 7 ngày dài hơn nhiều so với 1 câu trả lời chat → nới cửa sổ sinh,
-                # temperature thấp cho JSON ổn định
-                options={"num_ctx": 4096, "num_predict": 2048, "temperature": 0.4},
+                response_format=schema,
+                # JSON dài cần cửa sổ rộng; temperature 0 giúp model nhỏ ổn định hơn.
+                options={"num_ctx": 4096, "num_predict": 2048, "temperature": 0},
             )
-        ))
-        days = content.get("days")
-        if not isinstance(days, list) or not days:
-            raise ValueError("Thiếu mảng 'days' trong JSON")
-        return days
-    except Exception as e:
-        logger.warning("Lỗi khi sinh lộ trình bằng AI: %s. Dùng dữ liệu mẫu.", e)
-        return None
+        except Exception as exc:
+            logger.warning("Không gọi được AI khi sinh lộ trình: %s. Dùng dữ liệu mẫu.", exc)
+            return None
+
+        try:
+            validated = PlanOutput.model_validate_json(_strip_fence(reply))
+            return [day.model_dump() for day in validated.days]
+        except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+            if attempt == 0:
+                messages = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": reply},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Kết quả trên không đúng cấu trúc bắt buộc. Hãy sửa và trả lại "
+                            "đúng JSON Schema: đủ 7 ngày, mỗi ngày đúng 3 bữa và một bài tập. "
+                            "Không thêm giải thích hoặc markdown."
+                        ),
+                    },
+                ]
+
+    logger.warning(
+        "AI trả lộ trình không hợp lệ sau 2 lần: %s. Dùng dữ liệu mẫu.",
+        last_error,
+    )
+    return None
 
 
 def fallback_content(target: int) -> dict:

@@ -45,6 +45,15 @@ Nếu không phải ảnh món ăn hoặc không đủ rõ:
 
 MIN_FOOD_PROBABILITY = 0.70
 
+# Ưu tiên model Flash-Lite ổn định, phù hợp tác vụ nhận diện ảnh và xuất JSON.
+# Các model 2.0 đã ngừng phục vụ nên không được dùng làm phương án dự phòng.
+GEMINI_VISION_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+)
+
 
 def _rejected_analysis(reason: str, probability: float = 0.0) -> dict:
     return {
@@ -103,11 +112,9 @@ def analyze_food_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
     client = genai.Client(api_key=api_key)
 
-    # Ưu tiên gemini-flash-latest (model khả dụng nhất trên Google AI Studio)
-    candidate_models = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash']
     last_exception = None
 
-    for model_name in candidate_models:
+    for model_name in GEMINI_VISION_MODELS:
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -119,7 +126,6 @@ def analyze_food_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
                     FOOD_ANALYSIS_PROMPT
                 ],
                 config=types.GenerateContentConfig(  # type: ignore
-                    temperature=0.2,  # type: ignore
                     response_mime_type="application/json",  # type: ignore
                 ),
             )
@@ -142,5 +148,5 @@ def analyze_food_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             last_exception = e
             continue
 
-    logger.error(f"Tất cả các model Gemini đều thất bại: {last_exception}", exc_info=True)
+    logger.error(f"Tất cả các model Gemini đều thất bại: {last_exception}")
     raise RuntimeError("Gemini Vision tạm thời không phản hồi") from last_exception

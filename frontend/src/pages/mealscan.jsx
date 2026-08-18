@@ -33,45 +33,18 @@ const SAMPLE_FOODS = [
   {
     name: 'Phở bò',
     img: samplePho,
-    mockResult: {
-      food_name: 'Phở bò Việt Nam',
-      confidence: 0.95,
-      calories_kcal: 450,
-      protein_g: 22.5,
-      carb_g: 65.0,
-      fat_g: 10.2,
-      suitability_note: 'Món ăn giàu dinh dưỡng. Chú ý lượng muối trong nước dùng nếu có bệnh huyết áp.',
-    },
   },
   {
     name: 'Salad Gà & Bơ',
     img: sampleSalad,
-    mockResult: {
-      food_name: 'Salad Gà & Bơ',
-      confidence: 0.92,
-      calories_kcal: 380,
-      protein_g: 28.0,
-      carb_g: 15.0,
-      fat_g: 22.0,
-      suitability_note: 'Món ăn rất lành mạnh, giàu protein và chất xơ. Phù hợp cho mục tiêu giảm cân.',
-    },
   },
   {
     name: 'Cơm Gà',
     img: sampleChickenRice,
-    mockResult: {
-      food_name: 'Cơm Gà Xối Mỡ',
-      confidence: 0.89,
-      calories_kcal: 620,
-      protein_g: 32.0,
-      carb_g: 72.0,
-      fat_g: 21.0,
-      suitability_note: 'Lượng calo và tinh bột khá cao. Phù hợp cho ngày có hoạt động thể chất nhiều.',
-    },
   },
 ];
 
-const MEAL_SCAN_SESSION_KEY = 'nutrismart_meal_scan';
+const MEAL_SCAN_SESSION_KEY = 'nutrismart_meal_scan_v2';
 
 function loadMealScanSession() {
   try {
@@ -157,8 +130,8 @@ export default function MealScan() {
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
       const apiResult = await api.analyzeMeal(file);
       setResult(apiResult);
-    } catch {
-      setResult(sample.mockResult);
+    } catch (error) {
+      setResult({ error: error.detail || 'Dịch vụ phân tích ảnh chưa sẵn sàng. Vui lòng thử lại sau.' });
     } finally {
       setLoading(false);
     }

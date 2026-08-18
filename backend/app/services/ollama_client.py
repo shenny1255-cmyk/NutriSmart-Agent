@@ -38,11 +38,13 @@ def chat(
     base_url: str | None = None,
     timeout: float = 180.0,   # rộng rãi cho lần gọi đầu (model phải nạp vào RAM)
     options: dict | None = None,
+    response_format: str | dict | None = None,
 ) -> str:
     """Gửi danh sách messages tới Ollama, trả về nội dung câu trả lời (text).
 
     messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
     options:  ghi đè tham số sinh của Ollama (vd num_predict lớn hơn cho JSON dài).
+    response_format: "json" hoặc JSON Schema để Ollama ép đầu ra có cấu trúc.
     """
     model = model or settings.OLLAMA_MODEL
     base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
@@ -59,6 +61,8 @@ def chat(
             **(options or {}),
         },
     }
+    if response_format is not None:
+        payload["format"] = response_format
 
     try:
         resp = httpx.post(f"{base_url}/api/chat", json=payload, timeout=timeout)

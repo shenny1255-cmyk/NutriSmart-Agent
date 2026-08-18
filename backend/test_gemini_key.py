@@ -1,24 +1,14 @@
-import sys
-import io
 import os
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
 from app.config import settings
+from app.services.gemini_vision import GEMINI_VISION_MODELS
 from google import genai
 
-def test_key():
+def check_key():
     api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
     client = genai.Client(api_key=api_key)
 
-    models_to_test = [
-        "gemini-2.0-flash-lite",
-        "gemini-flash-latest",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-001",
-    ]
-
-    for model_name in models_to_test:
+    for model_name in GEMINI_VISION_MODELS:
         print(f"\n🔄 Thử model '{model_name}'...")
         try:
             res = client.models.generate_content(
@@ -32,4 +22,4 @@ def test_key():
             print(f"   ❌ Lỗi {model_name}: {e}")
 
 if __name__ == "__main__":
-    test_key()
+    check_key()
