@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, Platform } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Footprints, Camera, Calendar, User } from 'lucide-react-native';
 
@@ -11,9 +11,7 @@ import { Theme } from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-export default function MainTabNavigator({ route }) {
-  const backendIp = route?.params?.backendIp ?? '10.251.3.81';
-
+export default function MainTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -42,25 +40,21 @@ export default function MainTabNavigator({ route }) {
         name="TabHome"
         component={HomeScreen}
         options={{ tabBarLabel: 'Tổng quan' }}
-        initialParams={{ backendIp }}
       />
       <Tab.Screen
         name="TabFoodScan"
         component={FoodScanScreen}
         options={{ tabBarLabel: 'Quét AI' }}
-        initialParams={{ backendIp }}
       />
       <Tab.Screen
         name="TabPlan"
         component={PlanScreen}
         options={{ tabBarLabel: 'Lộ trình' }}
-        initialParams={{ backendIp }}
       />
       <Tab.Screen
         name="TabProfile"
         component={ProfileScreen}
         options={{ tabBarLabel: 'Cá nhân' }}
-        initialParams={{ backendIp }}
       />
     </Tab.Navigator>
   );

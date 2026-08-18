@@ -9,7 +9,7 @@ CREATE INDEX idx_chunks_content_trgm ON doc_chunks
 CREATE INDEX idx_foods_name_trgm ON foods USING gin (name gin_trgm_ops);
 
 -- Index thường
-CREATE INDEX idx_users_role       ON users(role) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_role       ON users(role);
 CREATE INDEX idx_documents_status ON documents(status);
 CREATE INDEX idx_meal_logs_user   ON meal_logs(user_id, log_date);
 CREATE INDEX idx_activity_user    ON activity_logs(user_id, log_date);

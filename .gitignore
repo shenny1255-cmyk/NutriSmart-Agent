@@ -5,6 +5,7 @@ backend/.venv/
 *.pyc
 *.pyo
 *.pyd
+.runtime-*.log
 
 # Environment files
 .env

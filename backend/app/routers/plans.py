@@ -8,9 +8,40 @@ from app.deps import get_db, get_current_user, require_role
 from app.config import settings
 from app.models import User, NutritionPlan, PlanCheckin, PlanEvaluation
 from app.schemas import CheckinDecisionIn, CheckinSubmitIn, PlanCheckinOut
-from app.services import plan_checkin, plan_evaluator, plan_generator, plan_jobs
+from app.services import body_metrics, plan_checkin, plan_evaluator, plan_generator, plan_jobs
 
 router = APIRouter(prefix="/plans", tags=["plans"])
+
+PLAN_PROFILE_FIELDS = (
+    ("profile", "gender", "giới tính"),
+    ("profile", "birth_date", "ngày sinh"),
+    ("metric", "height_cm", "chiều cao"),
+    ("metric", "weight_kg", "cân nặng"),
+    ("profile", "activity_level", "mức vận động"),
+    ("profile", "goal", "mục tiêu"),
+)
+
+
+def _join_vietnamese(items: list[str]) -> str:
+    if len(items) <= 1:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} và {items[-1]}"
+
+
+def _require_complete_profile_for_plan(db: Session, user: User) -> None:
+    profile = user.profile
+    metric = body_metrics.latest_body_metric(db, user.id)
+    sources = {"profile": profile, "metric": metric}
+    missing = [
+        label for source, field, label in PLAN_PROFILE_FIELDS
+        if sources[source] is None or getattr(sources[source], field, None) in (None, "")
+    ]
+    if missing:
+        raise HTTPException(
+            422,
+            f"Bạn chưa cập nhật {_join_vietnamese(missing)}. "
+            "Vui lòng hoàn thiện hồ sơ trước khi tạo lộ trình.",
+        )
 
 
 def _active_plan_or_404(db: Session, user: User) -> NutritionPlan:
@@ -47,8 +78,7 @@ def generate_plan(
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
-    if not user.profile:
-        raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
+    _require_complete_profile_for_plan(db, user)
 
     job = plan_jobs.enqueue(user.id)
     return {"job_id": job.id, "status": job.status}

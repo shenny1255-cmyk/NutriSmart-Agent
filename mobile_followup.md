@@ -1,5 +1,13 @@
 # Kế hoạch cải thiện App NutriSmart
 
+> **Trạng thái triển khai ngày 18/08/2026:** Các hạng mục ưu tiên 1–4 đã được triển khai
+> trên nhánh `feature/mobile-followup-ai-reliability`: API client chung, cấu hình môi trường,
+> SecureStore, xử lý 401 toàn cục, refactor 5 màn hình, hoàn thiện FoodScan và các trạng
+> thái loading/error/retry/offline; đồng thời bổ sung nhật ký, check-in 14 ngày, cập nhật
+> hồ sơ sức khỏe, thông báo và trợ lý AI trên mobile. Kiểm tra kiến trúc và Android
+> JavaScript bundle đều đạt. Việc còn lại trước khi phát hành là điền URL HTTPS chính thức
+> và kiểm thử tích hợp thủ công trên thiết bị thật với backend, Gemini và Ollama đang chạy.
+
 ## 1. Hiện trạng
 
 App mobile hiện có các màn:
@@ -9,10 +17,16 @@ App mobile hiện có các màn:
 - Phân tích ảnh món ăn.
 - Xem lộ trình.
 - Xem hồ sơ và đăng xuất.
+- Nhật ký bữa ăn, vận động và cân nặng.
+- Check-in tiến độ 14 ngày.
+- Cập nhật hồ sơ sức khỏe.
+- Thông báo và nhắc check-in.
+- Trợ lý dinh dưỡng AI.
 
 Backend đã kiểm tra tên người dùng, tên món ăn và tên danh mục; emoji hoặc ký tự đặc biệt không hợp lệ sẽ bị từ chối. Màn phân tích ảnh mobile cũng đã xử lý ảnh không phải món ăn: không hiển thị kcal và không cho lưu vào nhật ký.
 
-Các vấn đề chính còn lại là cấu hình API bị lặp, IP máy chủ viết cứng, token lưu chưa an toàn và một số tính năng chưa đồng bộ với web.
+Các vấn đề kỹ thuật ban đầu đã được xử lý trong code. Hai việc phụ thuộc môi trường phát
+hành còn lại là cấu hình URL HTTPS chính thức và chạy checklist thủ công trên thiết bị thật.
 
 ## 2. Mức ưu tiên 1 — Hạ tầng API và bảo mật
 
@@ -109,35 +123,39 @@ Cần bổ sung:
 
 Triển khai lần lượt:
 
-1. Nhật ký bữa ăn, vận động và cân nặng.
-2. Check-in tiến độ 14 ngày.
-3. Cập nhật hồ sơ sức khỏe.
-4. Thông báo và nhắc check-in.
-5. Trợ lý AI nếu trải nghiệm mobile thực sự cần.
+1. [x] Nhật ký bữa ăn, vận động và cân nặng.
+2. [x] Check-in tiến độ 14 ngày.
+3. [x] Cập nhật hồ sơ sức khỏe.
+4. [x] Thông báo và nhắc check-in.
+5. [x] Trợ lý AI trên mobile.
 
 Không nên đưa toàn bộ trang quản trị lên mobile. Admin và chuyên gia có thể tiếp tục dùng web cho các bảng dữ liệu lớn.
 
 ## 6. Tiêu chí hoàn thành
 
-- Không còn IP backend lặp trong các màn hình.
-- Mọi request đi qua API client dùng chung.
-- JWT được lưu bằng SecureStore.
-- HTTP 401 luôn kết thúc phiên đúng cách.
-- Không lưu trùng bữa ăn khi bấm nhiều lần.
-- Ảnh không phải món ăn không thể tạo nhật ký hoặc kcal.
-- Chuyển tab không làm mất kết quả phân tích đang xem.
-- Mỗi màn có đầy đủ loading, empty, error và retry state.
-- Android bundle export thành công với Expo SDK 54.
-- Kiểm tra thủ công trên Expo Go hoặc thiết bị Android thật.
+- [x] Không còn IP backend lặp trong các màn hình.
+- [x] Mọi request đi qua API client dùng chung.
+- [x] JWT được lưu bằng SecureStore.
+- [x] HTTP 401 luôn kết thúc phiên đúng cách.
+- [x] Không lưu trùng bữa ăn khi bấm nhiều lần.
+- [x] Ảnh không phải món ăn không thể tạo nhật ký hoặc kcal.
+- [x] Chuyển tab không làm mất kết quả phân tích đang xem.
+- [x] Mỗi màn có loading, empty, error và retry state phù hợp.
+- [x] Android bundle export thành công với Expo SDK 54.
+- [ ] Kiểm tra thủ công trên Expo Go hoặc thiết bị Android thật.
+- [ ] Điền `EXPO_PUBLIC_API_URL` bằng URL HTTPS của môi trường phát hành.
 
-## 7. Thứ tự triển khai đề xuất cho buổi tiếp theo
+## 7. Thứ tự đã triển khai
 
 1. Tạo cấu hình môi trường và API client.
 2. Chuyển token sang SecureStore.
 3. Refactor Login, Home, Profile, Plan và FoodScan dùng API client.
 4. Hoàn thiện luồng FoodScan và loại bữa ăn.
 5. Thêm loading, retry và offline UX dùng chung.
-6. Export Android bundle và kiểm thử trên thiết bị thật.
+6. Export Android bundle; giữ kiểm thử thiết bị thật làm bước xác nhận trước phát hành.
+
+Các bước 1–5 và phần export của bước 6 đã hoàn thành. Phần kiểm thử thiết bị thật cần
+điện thoại/Expo Go cùng backend đang chạy và được giữ lại như bước xác nhận trước phát hành.
 
 ## 8. Checklist kiểm thử nhanh
 
@@ -149,5 +167,10 @@ Không nên đưa toàn bộ trang quản trị lên mobile. Admin và chuyên g
 - Gemini không phản hồi.
 - Bấm nút lưu nhiều lần liên tiếp.
 - Chuyển tab trong lúc đang phân tích.
+- Thêm và xóa bữa ăn, vận động; cập nhật cân nặng ở ngày đã chọn.
+- Gửi check-in khi đến hạn, sửa báo cáo và chọn bước tiếp theo.
+- Cập nhật hồ sơ, tình trạng sức khỏe và dị ứng.
+- Đọc thông báo và mở đúng màn check-in từ lời nhắc.
+- Gửi câu hỏi, xem nguồn tham khảo và xóa lịch sử trợ lý AI.
 - Đóng và mở lại App sau khi đăng nhập.
 - Đăng xuất và xác nhận token đã bị xóa.

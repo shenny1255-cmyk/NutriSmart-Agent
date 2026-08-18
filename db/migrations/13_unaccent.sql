@@ -9,5 +9,5 @@ RETURNS text
 LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
 AS $$ SELECT public.unaccent('public.unaccent', $1) $$;
 
-CREATE INDEX IF NOT EXISTS idx_users_full_name_unaccent_trgm
-    ON users USING gin (f_unaccent(coalesce(full_name, '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_user_info_full_name_unaccent_trgm
+    ON user_info USING gin (f_unaccent(coalesce(full_name, '')) gin_trgm_ops);
