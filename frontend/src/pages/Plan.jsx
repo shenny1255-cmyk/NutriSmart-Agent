@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   RefreshCw, Sparkles, Footprints, Sunrise, Sun, Moon, Cookie, UtensilsCrossed, Check,
   ClipboardCheck, History, CalendarClock, ShieldAlert, CheckCircle2,
@@ -106,6 +107,7 @@ export default function Plan() {
   };
 
   const toggle = (key) => setDone((d) => ({ ...d, [key]: !d[key] }));
+  const needsProfile = typeof err === 'string' && err.includes('Vui lòng hoàn thiện hồ sơ');
 
   if (err && !plan) {
     return (
@@ -115,9 +117,18 @@ export default function Plan() {
         </span>
         <h2 className="font-display text-xl font-bold">Chưa có lộ trình nào</h2>
         <p className="text-sm text-muted">Hệ thống chưa tạo lộ trình dinh dưỡng cho bạn.</p>
-        <GenerateButton primary loading={isGenerating} onClick={handleGeneratePlan}>
-          Tạo lộ trình cá nhân hóa mới
-        </GenerateButton>
+        {needsProfile ? (
+          <Link
+            to="/profile"
+            className="inline-flex min-h-11 items-center justify-center rounded-sm bg-accent-strong px-4 py-2 text-sm font-semibold text-accent-ink shadow-whisper"
+          >
+            Cập nhật hồ sơ sức khỏe
+          </Link>
+        ) : (
+          <GenerateButton primary loading={isGenerating} onClick={handleGeneratePlan}>
+            Tạo lộ trình cá nhân hóa mới
+          </GenerateButton>
+        )}
         {err && !err.includes('HTTP 404') && (
           <p className="rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>
         )}
@@ -152,7 +163,14 @@ export default function Plan() {
       </header>
 
       {err && (
-        <p className="rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>
+        <div className="space-y-2">
+          <p className="rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>
+          {needsProfile && (
+            <Link to="/profile" className="inline-flex min-h-11 items-center rounded-sm bg-accent-strong px-4 py-2 text-sm font-semibold text-accent-ink">
+              Cập nhật hồ sơ sức khỏe
+            </Link>
+          )}
+        </div>
       )}
 
       {/* Thẻ meta */}

@@ -12,6 +12,35 @@ from app.services import plan_checkin, plan_evaluator, plan_generator, plan_jobs
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
+PLAN_PROFILE_FIELDS = (
+    ("gender", "giới tính"),
+    ("birth_date", "ngày sinh"),
+    ("height_cm", "chiều cao"),
+    ("weight_kg", "cân nặng"),
+    ("activity_level", "mức vận động"),
+    ("goal", "mục tiêu"),
+)
+
+
+def _join_vietnamese(items: list[str]) -> str:
+    if len(items) <= 1:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} và {items[-1]}"
+
+
+def _require_complete_profile_for_plan(user: User) -> None:
+    info = user.info
+    missing = [
+        label for field, label in PLAN_PROFILE_FIELDS
+        if info is None or getattr(info, field, None) in (None, "")
+    ]
+    if missing:
+        raise HTTPException(
+            422,
+            f"Bạn chưa cập nhật {_join_vietnamese(missing)}. "
+            "Vui lòng hoàn thiện hồ sơ trước khi tạo lộ trình.",
+        )
+
 
 def _active_plan_or_404(db: Session, user: User) -> NutritionPlan:
     plan = plan_evaluator.active_plan(db, user)
@@ -47,8 +76,7 @@ def generate_plan(
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
-    if not user.info:
-        raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
+    _require_complete_profile_for_plan(user)
 
     job = plan_jobs.enqueue(user.id)
     return {"job_id": job.id, "status": job.status}
