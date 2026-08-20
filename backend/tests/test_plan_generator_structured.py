@@ -12,7 +12,11 @@ def _valid_plan_json() -> str:
                     {"type": "Trưa", "name": f"Bữa trưa {day}", "kcal": 700},
                     {"type": "Tối", "name": f"Bữa tối {day}", "kcal": 600},
                 ],
-                "exercise": f"Đi bộ ngày {day} trong 30 phút",
+                "exercise": {
+                    "name": f"Đi bộ ngày {day}",
+                    "duration_min": 30,
+                    "calories_kcal": 180,
+                },
             }
             for day in range(1, 8)
         ]
@@ -31,6 +35,7 @@ def test_llm_days_ep_json_schema_va_nhiet_do_thap(monkeypatch):
 
     days = plan_generator._llm_days("prompt kiểm thử")
 
+    assert days is not None
     assert len(days) == 7
     assert captured["kwargs"]["options"]["temperature"] == 0
     schema = captured["kwargs"]["response_format"]
@@ -51,6 +56,7 @@ def test_llm_days_thu_lai_mot_lan_khi_cau_truc_khong_hop_le(monkeypatch):
 
     days = plan_generator._llm_days("prompt kiểm thử")
 
+    assert days is not None
     assert len(days) == 7
     assert len(calls) == 2
     assert "không đúng cấu trúc" in calls[1][-1]["content"]
@@ -67,3 +73,14 @@ def test_llm_days_dung_fallback_sau_hai_ket_qua_khong_hop_le(monkeypatch):
 
     assert plan_generator._llm_days("prompt kiểm thử") is None
     assert len(calls) == 2
+
+
+def test_fallback_cung_tra_ve_van_dong_co_cau_truc():
+    content = plan_generator.fallback_content(2000)
+
+    exercise = content["days"][0]["exercise"]
+    assert exercise == {
+        "name": "Đi bộ",
+        "duration_min": 30,
+        "calories_kcal": 120,
+    }

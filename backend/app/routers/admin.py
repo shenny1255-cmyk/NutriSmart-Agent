@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import date
+from typing import Any, cast
 
 from sqlalchemy import func, text, String
 from sqlalchemy.orm import Session
@@ -340,7 +341,15 @@ def list_audit(
         )
 
     total = query.count()
-    rows = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()  # type: ignore
+    # AuditLog dùng khai báo SQLAlchemy legacy; chốt kiểu tại biên query để Pylance
+    # hiểu các thuộc tính bên dưới là giá trị bản ghi, không phải Column.
+    rows = cast(
+        list[Any],
+        query.order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all(),  # type: ignore
+    )
     actor_ids = {row.actor_id for row in rows if row.actor_id}
     actors = {str(user.id): user for user in db.query(User).filter(User.id.in_(actor_ids)).all()} if actor_ids else {}  # type: ignore
     target_ids = []

@@ -234,9 +234,9 @@ def update_me(
             db.add(UserAllergen(user_id=user.id, allergen_id=aid))
 
     if payload.custom_conditions is not None:
-        info.custom_conditions = payload.custom_conditions
+        setattr(info, "custom_conditions", payload.custom_conditions)
     if payload.custom_allergens is not None:
-        info.custom_allergens = [item.model_dump() for item in payload.custom_allergens]
+        setattr(info, "custom_allergens", [item.model_dump() for item in payload.custom_allergens])
 
     db.commit()
     db.refresh(user)

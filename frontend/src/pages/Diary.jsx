@@ -14,6 +14,12 @@ const MEAL_TYPES = [
   ['SNACK', 'Bữa phụ'],
 ];
 const MEAL_LABEL = Object.fromEntries(MEAL_TYPES);
+const SOURCE_LABEL = {
+  PLAN: 'Lộ trình',
+  VISION: 'Phân tích ảnh',
+  MOBILE: 'Thiết bị',
+  MANUAL: 'Thủ công',
+};
 
 const homNay = () => {
   const d = new Date();
@@ -131,12 +137,19 @@ function KhungThe({ icon: Icon, title, subtitle, children }) {
   );
 }
 
-function DongNhatKy({ chinh, phu, tri, onDelete, dangXoa }) {
+function DongNhatKy({ chinh, phu, tri, nguon, onDelete, dangXoa }) {
   return (
     <li className="flex items-center gap-3 rounded-sm px-3 py-2 transition-colors duration-short ease-out hover:bg-paper-3">
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-ink">{chinh}</span>
-        <span className="block text-xs text-muted">{phu}</span>
+        <span className="flex flex-wrap items-center gap-1 text-xs text-muted">
+          {phu}
+          {nguon && (
+            <span className="rounded-full bg-paper-3 px-2 py-0.5 font-medium text-ink-2">
+              {SOURCE_LABEL[nguon] || nguon}
+            </span>
+          )}
+        </span>
       </span>
       <span className="shrink-0 text-sm text-ink-2 [font-variant-numeric:tabular-nums]">{tri}</span>
       <Btn variant="danger-subtle" size="sm" onClick={onDelete} disabled={dangXoa} aria-label="Xóa khỏi nhật ký">
@@ -273,6 +286,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
               key={m.id}
               chinh={m.food_name}
               phu={`${MEAL_LABEL[m.meal_type] ?? m.meal_type} · ${m.quantity} phần`}
+              nguon={m.source_type}
               tri={`${Math.round(m.calories_kcal)} kcal`}
               onDelete={async () => {
                 try {
@@ -369,6 +383,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
               key={a.id}
               chinh={a.exercise_name}
               phu={`${a.duration_min} phút`}
+              nguon={a.source_type}
               tri={`${Math.round(a.calories_burned)} kcal`}
               onDelete={async () => {
                 try {

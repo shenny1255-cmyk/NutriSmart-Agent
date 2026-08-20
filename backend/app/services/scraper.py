@@ -8,6 +8,7 @@ import asyncio
 from html.parser import HTMLParser
 import logging
 import ssl
+from typing import Any, TypedDict, cast
 from urllib.parse import urlparse
 import httpx
 from sqlalchemy.orm import Session
@@ -15,6 +16,13 @@ from sqlalchemy.orm import Session
 from app.models import Document
 
 logger = logging.getLogger(__name__)
+
+
+class ScrapedPage(TypedDict):
+    title: str
+    source_name: str
+    source_url: str
+    raw_text: str
 
 # Các thẻ tự đóng (void tags) không có thẻ đóng trong HTML5 — không được push vào ignore_stack
 VOID_TAGS = {
@@ -39,7 +47,7 @@ class HTMLTextExtractor(HTMLParser):
         }
         self.ignore_stack = []
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_lower = tag.lower()
         if tag_lower in VOID_TAGS:
             return
@@ -51,8 +59,8 @@ class HTMLTextExtractor(HTMLParser):
         is_ignored = tag_lower in self.ignored_tags
         if not is_ignored:
             attr_dict = dict(attrs)
-            class_val = attr_dict.get("class", "").lower()
-            id_val = attr_dict.get("id", "").lower()
+            class_val = (attr_dict.get("class") or "").lower()
+            id_val = (attr_dict.get("id") or "").lower()
             
             if any(ignored in class_val.split() for ignored in self.ignored_classes) or \
                any(ignored in id_val.split() for ignored in self.ignored_classes):
@@ -142,7 +150,11 @@ def _kiem_tra_trang_rac(url: str, title: str, raw_text: str, url_cuoi: str | Non
         )
 
 
-async def fetch_and_parse_url_async(url: str, timeout: float = 15.0, max_retries: int = 3) -> dict:
+async def fetch_and_parse_url_async(
+    url: str,
+    timeout: float = 15.0,
+    max_retries: int = 3,
+) -> ScrapedPage:
     """Tải bất đồng bộ nội dung trang web từ URL với cơ chế retry exponential backoff."""
     headers = {
         "User-Agent": (
@@ -196,7 +208,7 @@ async def fetch_and_parse_url_async(url: str, timeout: float = 15.0, max_retries
     }
 
 
-def fetch_and_parse_url(url: str, timeout: float = 15.0) -> dict:
+def fetch_and_parse_url(url: str, timeout: float = 15.0) -> ScrapedPage:
     """Wrapper đồng bộ tương thích ngược cho fetch_and_parse_url_async."""
     try:
         loop = asyncio.get_event_loop()
@@ -244,8 +256,8 @@ async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None) ->
     errors = []
 
     existing_urls = set(
-        row[0] for row in db.query(Document.source_url)
-        .filter(Document.source_url.in_(clean_urls), Document.deleted_at.is_(None))
+        row[0] for row in db.query(cast(Any, Document.source_url))
+        .filter(cast(Any, Document.source_url).in_(clean_urls), Document.deleted_at.is_(None))
         .all()
     )
 
@@ -260,7 +272,7 @@ async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None) ->
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     for url, res in zip(urls_to_fetch, results):
-        if isinstance(res, Exception):
+        if isinstance(res, BaseException):
             logger.error(f"[AsyncScraper] Lỗi cào {url}: {res}")
             errors.append({"url": url, "error": str(res)})
         else:
@@ -300,7 +312,7 @@ def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
                 url_clean = url.strip()
                 if not url_clean:
                     continue
-                existing = db.query(Document).filter(Document.source_url == url_clean, Document.deleted_at.is_(None)).first()
+                existing = db.query(Document).filter(Document.source_url == url_clean, Document.deleted_at.is_(None)).first()  # type: ignore
                 if existing:
                     skipped_count += 1
                     continue
@@ -368,6 +380,8 @@ BI_DANH_NGUON = {"who": "vinmec"}
 
 async def crawl_preset_sources_async(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None) -> dict:
     """Cào bài viết tự động theo nguồn uy tín có sẵn (bất đồng bộ)."""
+    if db is None:
+        raise ValueError("Cần kết nối cơ sở dữ liệu để lưu tài liệu")
     target_urls = []
     source_key = BI_DANH_NGUON.get(source_key, source_key)
 
@@ -386,6 +400,8 @@ async def crawl_preset_sources_async(source_key: str = "moh", limit: int = 10, d
 
 def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None) -> dict:
     """Wrapper đồng bộ cho crawl_preset_sources_async."""
+    if db is None:
+        raise ValueError("Cần kết nối cơ sở dữ liệu để lưu tài liệu")
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():

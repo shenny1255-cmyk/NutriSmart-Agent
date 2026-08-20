@@ -117,7 +117,7 @@ def list_crawl_sources(
 ):
     """Lấy danh sách các nguồn cào tự động động."""
     try:
-        sources = db.query(CrawlSource).filter(CrawlSource.is_active == True).order_by(CrawlSource.created_at).all()
+        sources = db.query(CrawlSource).filter(CrawlSource.is_active == True).order_by(CrawlSource.created_at).all()  # type: ignore
         return sources
     except Exception:
         return []
@@ -130,7 +130,7 @@ def create_crawl_source(
     actor: User = expert_or_admin,
 ):
     """Thêm nguồn cào dữ liệu y khoa mới."""
-    existing = db.query(CrawlSource).filter(CrawlSource.source_key == payload.source_key).first()
+    existing = db.query(CrawlSource).filter(CrawlSource.source_key == payload.source_key).first()  # type: ignore
     if existing:
         raise HTTPException(400, f"Mã nguồn '{payload.source_key}' đã tồn tại.")
 
@@ -154,7 +154,7 @@ def delete_crawl_source(
     actor: User = expert_or_admin,
 ):
     """Xóa / ẩn nguồn cào."""
-    source = db.query(CrawlSource).filter(CrawlSource.id == source_id).first()
+    source = db.query(CrawlSource).filter(CrawlSource.id == source_id).first()  # type: ignore
     if not source:
         raise HTTPException(404, "Không tìm thấy nguồn cào")
 

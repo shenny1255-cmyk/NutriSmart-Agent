@@ -272,6 +272,38 @@ class UserProfileUpdateIn(BaseModel):
         return self
 
 
+# ---------- Tạo chương trình dinh dưỡng ----------
+class PlanGenerateIn(BaseModel):
+    height_cm: float = Field(gt=50, lt=250, allow_inf_nan=False)
+    weight_kg: float = Field(ge=20, le=300, allow_inf_nan=False)
+    duration_months: int = Field(default=3, ge=1, le=12)
+    confirm_recreate: bool = False
+    expected_active_plan_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_metrics(self):
+        validate_body_metrics(self.height_cm, self.weight_kg)
+        return self
+
+
+class PlanExtendIn(BaseModel):
+    additional_months: int = Field(ge=1, le=11)
+
+
+PlanItemKey = Literal["meal:0", "meal:1", "meal:2", "exercise"]
+
+
+class PlanProgressIn(BaseModel):
+    checked_items: list[PlanItemKey] = Field(default_factory=list, max_length=4)
+
+    @field_validator("checked_items")
+    @classmethod
+    def unique_items(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)):
+            raise ValueError("Danh sách mục hoàn thành không được trùng")
+        return values
+
+
 # ---------- Check-in tiến độ 14 ngày ----------
 class CheckinSubmitIn(BaseModel):
     actual_weight_kg: float = Field(ge=20, le=300, allow_inf_nan=False)
@@ -400,6 +432,7 @@ class MealLogOut(BaseModel):
     quantity: float
     calories_kcal: float
     log_date: date
+    source_type: str | None = None
 
 
 class ManualActivityIn(BaseModel):
@@ -422,6 +455,7 @@ class ActivityLogOut(BaseModel):
     started_at: datetime | None = None
     ended_at: datetime | None = None
     logged_at: datetime
+    source_type: str | None = None
 
 
 class WeightIn(BaseModel):

@@ -1,4 +1,5 @@
 from datetime import date
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,9 +7,27 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user, require_role
 from app.config import settings
-from app.models import User, NutritionPlan, PlanCheckin, PlanEvaluation
-from app.schemas import CheckinDecisionIn, CheckinSubmitIn, PlanCheckinOut
-from app.services import body_metrics, plan_checkin, plan_evaluator, plan_generator, plan_jobs
+from app.models import User, NutritionPlan, PlanCheckin, PlanCheckinSeries, PlanEvaluation
+from app.schemas import (
+    CheckinDecisionIn,
+    CheckinSubmitIn,
+    PlanCheckinOut,
+    PlanExtendIn,
+    PlanGenerateIn,
+    PlanProgressIn,
+)
+from app.services import (
+    body_metrics,
+    plan_checkin,
+    plan_evaluator,
+    plan_generator,
+    plan_jobs,
+    plan_progress,
+)
+from app.services.activity_levels import get_activity_level
+from app.services.calorie import daily_calorie_target
+from app.services.nutrition_context import gather_context
+from app.schemas import validate_body_metrics
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
@@ -51,37 +70,295 @@ def _active_plan_or_404(db: Session, user: User) -> NutritionPlan:
     return plan
 
 
+def _visible_plan_or_404(db: Session, user: User) -> NutritionPlan:
+    plan = plan_evaluator.active_plan(db, user)
+    if plan is None:
+        plan = (
+            db.query(NutritionPlan)
+            .filter(
+                NutritionPlan.user_id == user.id,
+                NutritionPlan.status == "COMPLETED",  # type: ignore
+            )
+            .order_by(NutritionPlan.version.desc())  # type: ignore
+            .first()
+        )
+    if plan is None:
+        raise HTTPException(404, "Chưa có lộ trình nào")
+    return plan
+
+
+def _program_to_dict(db: Session, series, current: PlanCheckin) -> dict:
+    completed_periods = db.query(PlanCheckin).filter(
+        PlanCheckin.series_id == series.id,
+        PlanCheckin.decision.isnot(None),  # type: ignore
+    ).count()
+    return {
+        "id": series.id,
+        "status": series.status,
+        "duration_months": series.duration_months,
+        "started_at": series.started_at,
+        "planned_end_date": series.planned_end_date,
+        "total_periods": plan_checkin.total_program_periods(int(series.duration_months)),
+        "completed_periods": completed_periods,
+        "is_final_period": current.period_number >= plan_checkin.total_program_periods(
+            int(series.duration_months)
+        ),
+    }
+
+
 @router.get("/active")
 def active_plan(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    plan = _active_plan_or_404(db, user)
+    plan = _visible_plan_or_404(db, user)
 
     res = plan_generator.plan_to_dict(db, plan, user)
     res["days_elapsed"] = (date.today() - plan.start_date).days  # type: ignore
     try:
-        current = plan_checkin.get_current_checkin(db, user)
-        if current is None:
+        current = (
+            plan_checkin.get_current_checkin(db, user)
+            if plan.status == "ACTIVE"
+            else db.query(PlanCheckin).filter(
+                PlanCheckin.user_id == user.id,
+                PlanCheckin.plan_id == plan.id,
+            ).order_by(PlanCheckin.period_number.desc()).first()  # type: ignore
+        )
+        if current is None and plan.status == "ACTIVE":
             current = plan_checkin.start_new_series(db, user, plan)
         db.commit()
     except ValueError as exc:
         db.rollback()
         raise HTTPException(400, str(exc)) from exc
-    res["current_checkin"] = plan_checkin.checkin_to_dict(current)
+    if current is None:
+        res["current_checkin"] = None
+        res["program"] = None
+        res["daily_progress"] = []
+        return res
+    series = db.query(PlanCheckinSeries).filter(
+        PlanCheckinSeries.id == current.series_id  # type: ignore
+    ).one()
+    current_data = plan_checkin.checkin_to_dict(current)
+    program_data = _program_to_dict(db, series, current)
+    current_data["total_periods"] = program_data["total_periods"]
+    current_data["is_final_period"] = program_data["is_final_period"]
+    res["current_checkin"] = current_data
+    res["program"] = program_data
+    res["daily_progress"] = plan_progress.list_progress(db, user, current)
+    res["program_summary"] = (
+        plan_checkin.program_summary(db, user, series)
+        if series.status == "COMPLETED" else None
+    )
     return res
+
+
+def _latest_series_or_404(db: Session, user: User) -> PlanCheckinSeries:
+    series = (
+        db.query(PlanCheckinSeries)
+        .filter(PlanCheckinSeries.user_id == user.id)
+        .order_by(
+            PlanCheckinSeries.started_at.desc(),  # type: ignore
+            PlanCheckinSeries.created_at.desc(),  # type: ignore
+        )
+        .first()
+    )
+    if series is None:
+        raise HTTPException(404, "Không tìm thấy chương trình")
+    return series
+
+
+@router.get("/programs/current/summary")
+def current_program_summary(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return plan_checkin.program_summary(db, user, _latest_series_or_404(db, user))
+
+
+@router.post("/programs/current/extend")
+def extend_current_program(
+    payload: PlanExtendIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        series, next_period = plan_checkin.extend_program(
+            db, user, payload.additional_months
+        )
+        db.commit()
+        return {
+            "program": _program_to_dict(db, series, next_period),
+            "next_checkin": plan_checkin.checkin_to_dict(next_period),
+        }
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(409, str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _progress_call(db: Session, action):
+    try:
+        return action()
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(409, str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.get("/{plan_id}/days/{progress_date}/progress")
+def day_progress(
+    plan_id: UUID,
+    progress_date: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return _progress_call(db,
+        lambda: plan_progress.get_progress(db, user, plan_id, progress_date)
+    )
+
+
+@router.put("/{plan_id}/days/{progress_date}/progress")
+def save_day_progress(
+    plan_id: UUID,
+    progress_date: date,
+    payload: PlanProgressIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    def action():
+        result = plan_progress.save_progress(
+            db, user, plan_id, progress_date, cast(list[str], payload.checked_items)
+        )
+        db.commit()
+        return result
+    return _progress_call(db, action)
+
+
+@router.post("/{plan_id}/days/{progress_date}/complete")
+def complete_day_progress(
+    plan_id: UUID,
+    progress_date: date,
+    payload: PlanProgressIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    def action():
+        result = plan_progress.complete_progress(
+            db, user, plan_id, progress_date, cast(list[str], payload.checked_items)
+        )
+        db.commit()
+        return result
+    return _progress_call(db, action)
+
+
+@router.delete("/{plan_id}/days/{progress_date}/progress")
+def reset_day_progress(
+    plan_id: UUID,
+    progress_date: date,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    def action():
+        result = plan_progress.reset_progress(db, user, plan_id, progress_date)
+        db.commit()
+        return result
+    return _progress_call(db, action)
 
 
 @router.post("/generate", status_code=202)
 def generate_plan(
+    payload: PlanGenerateIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Sinh thực đơn bằng LLM dựa trên profile + bệnh nền + dị ứng + calo mục tiêu."""
     _require_complete_profile_for_plan(db, user)
+    baseline = body_metrics.latest_body_metric(db, user.id)
+    active = plan_evaluator.active_plan(db, user)
 
-    job = plan_jobs.enqueue(user.id)
+    if active is not None:
+        if not payload.confirm_recreate:
+            raise HTTPException(409, "Bạn cần xác nhận trước khi kết thúc chương trình hiện tại")
+        if payload.expected_active_plan_id != active.id:
+            raise HTTPException(409, "Lộ trình hiện tại đã thay đổi; vui lòng tải lại trang")
+
+        current = plan_checkin.get_current_checkin(db, user)
+        if current and current.status == "COMPLETED" and not current.decision:
+            raise HTTPException(409, "Vui lòng chốt quyết định check-in trước khi tạo chương trình mới")
+
+    if baseline and baseline.weight_kg is not None:
+        previous_weight = float(baseline.weight_kg)
+        if abs(payload.weight_kg - previous_weight) / previous_weight > 0.10:
+            raise HTTPException(
+                422,
+                f"Cân nặng thay đổi quá 10% so với lần gần nhất ({previous_weight:g} kg). "
+                "Vui lòng kiểm tra hoặc cập nhật số đo tại Hồ sơ.",
+            )
+
+    target, profile_snapshot = _save_generation_metrics(db, user, payload)
+    job = plan_jobs.enqueue(
+        user.id,
+        target_kcal=target,
+        duration_months=payload.duration_months,
+        expected_active_plan_id=active.id if active else None,
+        profile_data=profile_snapshot,
+        baseline_weight_kg=payload.weight_kg,
+    )
     return {"job_id": job.id, "status": job.status}
+
+
+def _save_generation_metrics(
+    db: Session,
+    user: User,
+    payload: PlanGenerateIn,
+) -> tuple[int, dict]:
+    """Lưu số đo đã xác nhận và trả calorie target làm snapshot cho job."""
+    info = user.profile
+    if info is None or info.gender is None or info.birth_date is None or info.activity_level is None:
+        raise HTTPException(422, "Vui lòng hoàn thiện hồ sơ trước khi tạo lộ trình")
+
+    validate_body_metrics(payload.height_cm, payload.weight_kg)
+    activity = get_activity_level(db, int(info.activity_level))
+    target = daily_calorie_target(
+        gender=str(info.gender),
+        birth_date=info.birth_date,
+        height_cm=payload.height_cm,
+        weight_kg=payload.weight_kg,
+        activity_multiplier=float(activity.calorie_multiplier),
+        goal=str(info.goal),
+    )
+    body_metrics.upsert_body_metric(
+        db,
+        user.id,
+        height_cm=payload.height_cm,
+        weight_kg=payload.weight_kg,
+    )
+    info.daily_calorie_target = target  # type: ignore
+    db.commit()
+    profile_snapshot = dict(gather_context(db, user).get("profile") or {})
+    profile_snapshot.update({
+        "height_cm": payload.height_cm,
+        "weight_kg": payload.weight_kg,
+        "bmi": round(payload.weight_kg / ((payload.height_cm / 100) ** 2), 2),
+        "goal": str(info.goal),
+    })
+    return target, profile_snapshot
 
 
 @router.get("/generate/{job_id}")
@@ -228,7 +505,9 @@ def decide_checkin(
         db.commit()
         return {
             "checkin": plan_checkin.checkin_to_dict(checkin),
-            "next_checkin": plan_checkin.checkin_to_dict(next_period),
+            "next_checkin": (
+                plan_checkin.checkin_to_dict(next_period) if next_period is not None else None
+            ),
         }
     except LookupError as exc:
         db.rollback()

@@ -157,7 +157,7 @@ def test_upload_tai_lieu_tao_ban_ghi_cho_duyet(db, admin):
     try:
         assert doc.status == "PENDING"          # phải qua duyệt mới vào RAG
         assert doc.uploaded_by == admin.id
-        assert "chuyên gia" in doc.raw_text
+        assert doc.raw_text is not None and "chuyên gia" in doc.raw_text
     finally:
         db.execute(text("DELETE FROM documents WHERE id = :i"), {"i": str(doc.id)})
         db.commit()

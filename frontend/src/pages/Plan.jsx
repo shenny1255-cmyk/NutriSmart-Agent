@@ -5,6 +5,7 @@ import {
   ClipboardCheck, History, CalendarClock, ShieldAlert, CheckCircle2,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import PlanProgram from '../components/PlanProgram.jsx';
 
 const PLAN_JOB_KEY = 'nutrismart_plan_job';
 
@@ -20,6 +21,11 @@ function mealIcon(type = '') {
 }
 
 export default function Plan() {
+  return <PlanProgram CheckinPanel={CheckinPanel} CheckinHistory={CheckinHistory} />;
+}
+
+// Giữ tạm phần trình bày cũ để đối chiếu trong lúc chuyển toàn bộ tiến độ sang ngày thực.
+function LegacyPlan() {
   const [plan, setPlan] = useState(null);
   const [err, setErr] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -432,7 +438,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
           <CalendarClock size={19} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-display font-semibold">Báo cáo tiến độ 14 ngày · Kỳ {checkin.period_number}</h2>
+          <h2 className="font-display font-semibold">Check-in Đợt {checkin.period_number} · 14 ngày</h2>
           <p className="text-sm text-muted">{checkin.start_date} → {checkin.period_end}</p>
         </div>
         <span className="rounded-full bg-paper-3 px-3 py-1 text-xs font-semibold text-ink-2">
@@ -522,8 +528,8 @@ function CheckinPanel({ checkin, onChanged, onError }) {
       )}
 
       {checkin.status === 'COMPLETED' && <CheckinResult checkin={checkin} busy={busy} onDecide={decide} onReopen={reopen} />}
-      {checkin.status === 'MISSED' && <p className="text-sm text-danger">Kỳ này đã quá thời gian check-in.</p>}
-      {checkin.status === 'CANCELLED' && <p className="text-sm text-muted">Kỳ này đã bị hủy do lộ trình thay đổi.</p>}
+      {checkin.status === 'MISSED' && <p className="text-sm text-danger">Đợt này đã quá thời gian check-in.</p>}
+      {checkin.status === 'CANCELLED' && <p className="text-sm text-muted">Đợt này đã bị hủy do lộ trình thay đổi.</p>}
     </section>
   );
 }
@@ -617,7 +623,7 @@ function CheckinHistory({ items }) {
         {items.map((item) => (
           <div key={item.id} className="space-y-2 rounded-md bg-paper-3 p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span><strong>Kỳ {item.period_number}</strong> · {item.start_date} → {item.period_end}</span>
+              <span><strong>Đợt {item.period_number}</strong> · {item.start_date} → {item.period_end}</span>
               <span className="text-ink-2">{item.status === 'COMPLETED' ? RECOMMENDATION_LABELS[item.recommendation] : 'Đã bỏ lỡ'}</span>
             </div>
             {item.status === 'COMPLETED' && (

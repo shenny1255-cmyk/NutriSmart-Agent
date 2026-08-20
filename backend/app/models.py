@@ -210,7 +210,11 @@ class PlanCheckinSeries(Base):
     goal: str     = Column(goal_enum, nullable=False)  # type: ignore
     status: str   = Column(String(20), nullable=False, default="ACTIVE")  # type: ignore
     started_at: date = Column(Date, nullable=False)  # type: ignore
+    duration_months: int = Column(SmallInteger, nullable=False, default=3)  # type: ignore
+    planned_end_date: date = Column(Date, nullable=False)  # type: ignore
     closed_at: date | None = Column(Date)  # type: ignore
+    completed_at           = Column(DateTime(timezone=True))
+    completion_reason: str | None = Column(String(30))  # type: ignore
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -264,6 +268,23 @@ class PlanCheckin(Base):
     adjustment_applied_at   = Column(DateTime(timezone=True))
     created_at              = Column(DateTime(timezone=True), server_default=func.now())
     updated_at              = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PlanDailyProgress(Base):
+    """Tiến độ bốn mục của một ngày thực tế trong một Đợt."""
+    __tablename__ = "plan_daily_progress"
+    id: uuid.UUID             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    user_id                   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    series_id                 = Column(UUID(as_uuid=True), ForeignKey("plan_checkin_series.id", ondelete="CASCADE"), nullable=False)
+    checkin_id                = Column(UUID(as_uuid=True), ForeignKey("plan_checkins.id", ondelete="CASCADE"), nullable=False)
+    plan_id                   = Column(UUID(as_uuid=True), ForeignKey("nutrition_plans.id", ondelete="CASCADE"), nullable=False)
+    progress_date: date       = Column(Date, nullable=False)  # type: ignore
+    template_day_index: int   = Column(SmallInteger, nullable=False)  # type: ignore
+    checked_items             = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
+    status: str               = Column(String(20), nullable=False, default="IN_PROGRESS")  # type: ignore
+    completed_at              = Column(DateTime(timezone=True))
+    created_at                = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at                = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Notification(Base):
@@ -385,6 +406,10 @@ class ActivityLog(Base):
     started_at           = Column(DateTime(timezone=True))
     ended_at             = Column(DateTime(timezone=True))
     logged_at            = Column(DateTime(timezone=True), server_default=func.now())
+    source_type: str | None = Column(String(20))  # type: ignore
+    source_progress_id    = Column(UUID(as_uuid=True), ForeignKey("plan_daily_progress.id", ondelete="SET NULL"))
+    source_item_key: str | None = Column(String(30))  # type: ignore
+    item_name_snapshot: str | None = Column(String(200))  # type: ignore
 
 
 meal_type_enum = SAEnum("BREAKFAST", "LUNCH", "DINNER", "SNACK", name="meal_type", create_type=False)
@@ -430,6 +455,10 @@ class MealLog(Base):
     calories_kcal: float = Column(Numeric(7, 2), nullable=False)  # type: ignore
     logged_at          = Column(DateTime(timezone=True), server_default=func.now())
     log_date: date     = Column(Date, nullable=False, server_default=func.current_date())  # type: ignore
+    source_type: str | None = Column(String(20))  # type: ignore
+    source_progress_id = Column(UUID(as_uuid=True), ForeignKey("plan_daily_progress.id", ondelete="SET NULL"))
+    source_item_key: str | None = Column(String(30))  # type: ignore
+    item_name_snapshot: str | None = Column(String(200))  # type: ignore
 
 
 class CrawlSource(Base):

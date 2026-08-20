@@ -1,12 +1,16 @@
 from datetime import date, datetime, timedelta
 import logging
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
-from app.models import User, ActivityLog, MealLog, Food, Exercise, BodyMetricHistory
+from app.models import (
+    User, ActivityLog, MealLog, Food, Exercise, BodyMetricHistory,
+    PlanDailyProgress,
+)
 from app.schemas import (
     DailySummaryOut, ActivityIn, TodayActivityOut,
     ManualMealIn, MealLogOut, ManualActivityIn, ActivityLogOut, WeightIn, WeightOut,
@@ -17,6 +21,21 @@ from app.services.body_metrics import latest_body_metric, upsert_body_metric
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
+
+
+def _bo_tick_lien_ket(db: Session, progress_id, item_key: str | None) -> None:
+    """Giữ tiến độ và nhật ký đồng nhất khi người dùng xóa mục do lộ trình tạo."""
+    if progress_id is None or not item_key:
+        return
+    progress = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.id == progress_id
+    ).with_for_update().first()
+    if progress is None:
+        return
+    if progress.status == "COMPLETED":
+        raise HTTPException(409, "Ngày này đã hoàn thành nên không thể xóa riêng mục nhật ký")
+    stored_items = cast(list[str], progress.checked_items)
+    setattr(progress, "checked_items", [key for key in stored_items if key != item_key])
 
 
 def _ngay_viet_nam(column):
@@ -71,7 +90,11 @@ def upsert_daily_activity(
             .filter(
                 ActivityLog.user_id == user.id,  # type: ignore
                 _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == log_date,  # type: ignore
-                ActivityLog.exercise_id.is_(None)  # type: ignore
+                or_(
+                    ActivityLog.source_type == "MOBILE",  # type: ignore
+                    ActivityLog.source_type.is_(None),  # type: ignore
+                ),
+                ActivityLog.exercise_id.is_(None),  # type: ignore
             )
             .first()
         )
@@ -84,6 +107,8 @@ def upsert_daily_activity(
                 user_id=user.id,
                 steps=payload.steps,
                 calories_burned=payload.calories_burned,
+                source_type="MOBILE",
+                item_name_snapshot="Dữ liệu vận động từ thiết bị",
             )
             db.add(existing)
 
@@ -115,7 +140,11 @@ def get_today_activity(
         .filter(
             ActivityLog.user_id == user.id,  # type: ignore
             _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == today,  # type: ignore
-            ActivityLog.exercise_id.is_(None)  # type: ignore
+            or_(
+                ActivityLog.source_type == "MOBILE",  # type: ignore
+                ActivityLog.source_type.is_(None),  # type: ignore
+            ),
+            ActivityLog.exercise_id.is_(None),  # type: ignore
         )
         .first()
     )
@@ -170,6 +199,8 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
         quantity=payload.quantity,
         calories_kcal=tong_kcal,
         log_date=log_date,
+        source_type="MANUAL",
+        item_name_snapshot=str(food.name),
     )
     db.add(log)
     db.commit()
@@ -179,6 +210,7 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
         id=int(log.id), food_name=str(food.name), meal_type=str(log.meal_type),  # type: ignore
         quantity=float(log.quantity), calories_kcal=float(log.calories_kcal),
         log_date=log.log_date,  # type: ignore
+        source_type=cast(str | None, log.source_type),
     )
 
 
@@ -192,9 +224,10 @@ def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     )
     return [
         MealLogOut(
-            id=int(m.id), food_name=str(ten) if ten else "Món không rõ", meal_type=str(m.meal_type),  # type: ignore
+            id=int(m.id), food_name=str(ten or cast(str | None, m.item_name_snapshot) or "Món không rõ"), meal_type=str(m.meal_type),  # type: ignore
             quantity=float(m.quantity), calories_kcal=float(m.calories_kcal),
             log_date=m.log_date,  # type: ignore
+            source_type=cast(str | None, m.source_type),
         )
         for m, ten in rows
     ]
@@ -208,6 +241,11 @@ def xoa_bua_an(db: Session, user: User, log_id: int) -> None:
     )
     if not log:
         raise HTTPException(404, "Không tìm thấy bữa ăn trong nhật ký")
+    _bo_tick_lien_ket(
+        db,
+        cast(Any, log.source_progress_id),
+        cast(str | None, log.source_item_key),
+    )
     db.delete(log)
     db.commit()
 
@@ -278,6 +316,8 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
         calories_burned=kcal,
         started_at=started_at,
         ended_at=ended_at,
+        source_type="MANUAL",
+        item_name_snapshot=str(bai_tap.name),
     )
     db.add(log)
     db.commit()
@@ -287,6 +327,7 @@ def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> Activit
         id=int(log.id), exercise_name=str(bai_tap.name), duration_min=int(log.duration_min or 0),  # type: ignore
         calories_burned=float(log.calories_burned or 0), steps=int(log.steps or 0),  # type: ignore
         started_at=log.started_at, ended_at=log.ended_at, logged_at=log.logged_at,  # type: ignore
+        source_type=cast(str | None, log.source_type),
     )
 
 
@@ -298,16 +339,20 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
         .filter(
             ActivityLog.user_id == user.id,
             _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == ngay,
-            ActivityLog.exercise_id.isnot(None)
+            or_(
+                ActivityLog.exercise_id.isnot(None),  # type: ignore
+                ActivityLog.source_type == "PLAN",  # type: ignore
+            ),
         )
         .order_by(ActivityLog.id)  # type: ignore
         .all()
     )
     return [
         ActivityLogOut(
-            id=int(a.id), exercise_name=str(ten) if ten else "Vận động", duration_min=int(a.duration_min or 0),  # type: ignore
+            id=int(a.id), exercise_name=str(ten or cast(str | None, a.item_name_snapshot) or "Vận động"), duration_min=int(a.duration_min or 0),  # type: ignore
             calories_burned=float(a.calories_burned or 0), steps=int(a.steps or 0),  # type: ignore
             started_at=a.started_at, ended_at=a.ended_at, logged_at=a.logged_at,  # type: ignore
+            source_type=cast(str | None, a.source_type),
         )
         for a, ten in rows
     ]
@@ -321,6 +366,11 @@ def xoa_van_dong(db: Session, user: User, log_id: int) -> None:
     )
     if not log:
         raise HTTPException(404, "Không tìm thấy buổi tập trong nhật ký")
+    _bo_tick_lien_ket(
+        db,
+        cast(Any, log.source_progress_id),
+        cast(str | None, log.source_item_key),
+    )
     db.delete(log)
     db.commit()
 

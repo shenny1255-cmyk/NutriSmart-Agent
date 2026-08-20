@@ -28,9 +28,15 @@ class PlanMealOutput(BaseModel):
     kcal: int = Field(ge=1, le=5000)
 
 
+class PlanExerciseOutput(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    duration_min: int = Field(ge=1, le=600)
+    calories_kcal: int = Field(ge=1, le=5000)
+
+
 class PlanDayOutput(BaseModel):
     meals: list[PlanMealOutput] = Field(min_length=3, max_length=3)
-    exercise: str = Field(min_length=2, max_length=300)
+    exercise: PlanExerciseOutput
 
 
 class PlanOutput(BaseModel):
@@ -75,7 +81,11 @@ YÊU CẦU BẮT BUỘC:
         {{"type": "Trưa", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}},
         {{"type": "Tối", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}}
       ],
-      "exercise": "Mô tả bài tập chi tiết (vd: Chạy bộ - 30 phút - đốt 300 kcal)"
+      "exercise": {{
+        "name": "Tên bài tập",
+        "duration_min": số_phút,
+        "calories_kcal": số_kcal_ước_tính
+      }}
     }}
   ]
 }}
@@ -151,17 +161,28 @@ def fallback_content(target: int) -> dict:
                     {"type": "Trưa", "name": "Cơm gà (Mẫu)", "kcal": int(target * 0.4)},
                     {"type": "Tối", "name": "Salad (Mẫu)", "kcal": int(target * 0.3)},
                 ],
-                "exercise": "Đi bộ 30 phút",
+                "exercise": {
+                    "name": "Đi bộ",
+                    "duration_min": 30,
+                    "calories_kcal": 120,
+                },
             }
             for _ in range(PLAN_DAYS)
         ]
     }
 
 
-def generate_content(db: Session, user: User, target: int, note: str | None = None) -> dict:
+def generate_content(
+    db: Session,
+    user: User,
+    target: int,
+    note: str | None = None,
+    profile_data: dict | None = None,
+) -> dict:
     """Trả về content JSON — có fallback khi LLM lỗi."""
-    ctx = gather_context(db, user)
-    profile_data = ctx.get("profile") or {}
+    if profile_data is None:
+        ctx = gather_context(db, user)
+        profile_data = ctx.get("profile") or {}
 
     days = _llm_days(build_prompt(profile_data, target, note))
     if days is None:
@@ -190,6 +211,9 @@ def create_plan(
     target: int | None = None,
     note: str | None = None,
     old_status: str = "REVISED",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    profile_data: dict | None = None,
 ) -> NutritionPlan:
     """Sinh lộ trình mới version+1 và hạ lộ trình đang chạy xuống old_status.
 
@@ -199,29 +223,42 @@ def create_plan(
     if target is None:
         target = int((info.daily_calorie_target if info else None) or 2000)
 
-    content = generate_content(db, user, target, note)
+    content = (
+        generate_content(db, user, target, note)
+        if profile_data is None
+        else generate_content(db, user, target, note, profile_data=profile_data)
+    )
 
-    old = (
+    effective_start = start_date or date.today()
+    active = (
         db.query(NutritionPlan)
         .filter(NutritionPlan.user_id == user.id, NutritionPlan.status == "ACTIVE")  # type: ignore
         .order_by(NutritionPlan.version.desc())  # type: ignore
         .first()
     )
-    if old:
-        old.status = old_status  # type: ignore
+    latest = (
+        db.query(NutritionPlan)
+        .filter(NutritionPlan.user_id == user.id)  # type: ignore
+        .order_by(NutritionPlan.version.desc())  # type: ignore
+        .first()
+    )
+    if active:
+        active.status = old_status  # type: ignore
+        active.end_date = max(active.start_date, effective_start - timedelta(days=1))  # type: ignore
 
     plan = NutritionPlan(
         user_id=user.id,
-        version=(int(old.version) + 1) if old else 1,  # type: ignore
-        start_date=date.today(),
-        end_date=date.today() + timedelta(days=PLAN_VALID_DAYS - 1),
+        version=(int(latest.version) + 1) if latest else 1,  # type: ignore
+        start_date=effective_start,
+        end_date=end_date or (effective_start + timedelta(days=PLAN_VALID_DAYS - 1)),
         daily_kcal_target=target,
-        goal=info.goal if info else "MAINTAIN",
+        goal=(profile_data or {}).get("goal") or (info.goal if info else "MAINTAIN"),
         content=content,
         status="ACTIVE",
     )
     db.add(plan)
-    record_weight_snapshot(db, user)
+    if profile_data is None:
+        record_weight_snapshot(db, user)
     return plan
 
 
