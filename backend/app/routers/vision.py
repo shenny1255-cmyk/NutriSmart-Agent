@@ -75,6 +75,8 @@ def log_meal(
             quantity=payload.quantity,
             calories_kcal=total_calories,
             log_date=log_date,
+            source_type="VISION",
+            item_name_snapshot=payload.food_name,
         )
         db.add(meal_log)
         db.commit()

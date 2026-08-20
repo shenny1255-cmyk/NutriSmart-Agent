@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 import random
+from typing import TypedDict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -18,6 +19,16 @@ router = APIRouter(prefix="/demo", tags=["demo"])
 
 DEMO_EMAIL = "demo@nutrismart.vn"
 DEMO_PASSWORD = "demo1234"
+DEMO_NAME = "Người dùng Demo"
+
+
+class DemoProfileArgs(TypedDict):
+    gender: str
+    birth_date: date
+    height_cm: float
+    weight_kg: float
+    activity_level: int
+    goal: str
 
 # Tài khoản phụ để Admin quản lý
 EXTRA_DEMO_USERS = [
@@ -86,14 +97,14 @@ def seed_demo(db: Session = Depends(get_db)):
     db.flush()
 
     # 3. Hồ sơ sức khỏe (nằm trong user_profile)
-    profile_args = dict(
-        gender="MALE",
-        birth_date=date(2000, 1, 1),
-        height_cm=170,
-        weight_kg=68,
-        activity_level=3,
-        goal="LOSE_WEIGHT",
-    )
+    profile_args: DemoProfileArgs = {
+        "gender": "MALE",
+        "birth_date": date(2000, 1, 1),
+        "height_cm": 170.0,
+        "weight_kg": 68.0,
+        "activity_level": 3,
+        "goal": "LOSE_WEIGHT",
+    }
     target = daily_calorie_target(  # type: ignore
         gender=str(profile_args["gender"]),
         birth_date=profile_args["birth_date"],  # type: ignore

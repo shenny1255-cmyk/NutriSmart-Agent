@@ -16,7 +16,7 @@ def check_key():
                 contents="Hello, reply with 'OK' if working."
             )
             print(f"   ✅ MODEL '{model_name}' THÀNH CÔNG VỚI API KEY CỦA BẠN!")
-            print(f"   👉 Phản hồi: {res.text.strip()}")
+            print(f"   👉 Phản hồi: {(res.text or '').strip()}")
             return model_name
         except Exception as e:
             print(f"   ❌ Lỗi {model_name}: {e}")

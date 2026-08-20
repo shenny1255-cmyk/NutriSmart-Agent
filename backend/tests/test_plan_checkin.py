@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from typing import Any
 import uuid
 
 import pytest
@@ -124,7 +125,7 @@ def test_chi_de_xuat_kcal_khi_duoc_phep_dieu_chinh():
     ],
 )
 def test_schema_tu_choi_du_lieu_checkin_phi_logic(payload):
-    valid = {
+    valid: dict[str, Any] = {
         "actual_weight_kg": 70,
         "actual_activity_level": 3,
         "adherence_pct": 80,
@@ -209,7 +210,7 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
     db.commit()
     assert first.id == second.id
     assert db.query(BodyMetricHistory).filter(
-        BodyMetricHistory.user_id == user.id,
+        BodyMetricHistory.user_id == user.id,  # type: ignore
         BodyMetricHistory.recorded_at == date.today(),  # type: ignore
     ).count() == 1
 
@@ -217,6 +218,8 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
     db.commit()
     _, next_second = decide_checkin(db, user, checkin.id, "CONTINUE")
     db.commit()
+    assert next_first is not None
+    assert next_second is not None
     assert next_first.id == next_second.id
     assert db.query(PlanCheckin).filter(
         PlanCheckin.previous_checkin_id == checkin.id  # type: ignore
@@ -225,7 +228,9 @@ def test_submit_va_decision_lap_khong_tao_du_lieu_trung():
     # Demo có thể mô phỏng nhiều kỳ về cùng một khoảng ngày; vẫn phải lấy kỳ mới nhất.
     simulate_due_checkin(db, user, today=date.today())
     db.commit()
-    assert get_current_checkin(db, user, today=date.today()).id == next_first.id
+    current = get_current_checkin(db, user, today=date.today())
+    assert current is not None
+    assert current.id == next_first.id
 
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
@@ -274,11 +279,13 @@ def test_adjustment_lap_chi_tao_mot_plan_version(monkeypatch):
     second, next_second = decide_checkin(db, user, checkin.id, "APPLY_ADJUSTMENT")
     db.commit()
 
-    assert first.adjusted_plan_id == second.adjusted_plan_id
+    assert str(first.adjusted_plan_id) == str(second.adjusted_plan_id)
+    assert next_first is not None
+    assert next_second is not None
     assert next_first.id == next_second.id
     assert db.query(NutritionPlan).filter(NutritionPlan.user_id == user.id).count() == 2  # type: ignore
-    adjusted = db.query(NutritionPlan).filter(NutritionPlan.id == first.adjusted_plan_id).one()
-    assert adjusted.parent_plan_id == plan.id
+    adjusted = db.query(NutritionPlan).filter(NutritionPlan.id == first.adjusted_plan_id).one()  # type: ignore
+    assert str(adjusted.parent_plan_id) == str(plan.id)
     assert adjusted.daily_kcal_target == 1800
     assert db.query(PlanCheckin).filter(
         PlanCheckin.previous_checkin_id == checkin.id  # type: ignore

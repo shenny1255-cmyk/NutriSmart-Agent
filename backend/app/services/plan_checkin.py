@@ -6,15 +6,19 @@ AI chỉ diễn giải kết quả đã được hệ thống tính sẵn.
 import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
+from typing import Any, cast
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
     NutritionPlan,
+    ActivityLog,
+    MealLog,
     PlanCheckin,
     PlanCheckinSeries,
+    PlanDailyProgress,
     Notification,
     User,
 )
@@ -23,6 +27,7 @@ from app.services import ollama_client
 
 
 PERIOD_DAYS = 14
+PROGRAM_MONTH_DAYS = 28
 GRACE_DAYS = 3
 MIN_MEAL_LOG_DAYS = 7
 MIN_KCAL = 1200
@@ -43,6 +48,18 @@ RECOMMENDATION_REASONS = {
     "CONTINUE_AND_MONITOR": "Tiến độ lệch kỳ vọng lần đầu; nên theo dõi thêm một kỳ trước khi điều chỉnh.",
     "ADJUST_PLAN": "Tiến độ lệch kỳ vọng hai kỳ liên tiếp dù mức tuân thủ cao.",
 }
+
+
+def total_program_periods(duration_months: int) -> int:
+    """Mỗi tháng chương trình có đúng hai Đợt 14 ngày."""
+    if not 1 <= duration_months <= 12:
+        raise ValueError("Thời gian chương trình phải từ 1 đến 12 tháng")
+    return duration_months * 2
+
+
+def program_end_date(start_date: date, duration_months: int) -> date:
+    """Ngày cuối chương trình, với một tháng quy ước là bốn tuần."""
+    return start_date + timedelta(days=duration_months * PROGRAM_MONTH_DAYS - 1)
 
 
 def display_status(status: str, due_date: date, grace_until: date, today: date | None = None) -> str:
@@ -243,10 +260,17 @@ def _new_period(
     )
 
 
-def start_new_series(db: Session, user: User, plan: NutritionPlan, today: date | None = None) -> PlanCheckin:
+def start_new_series(
+    db: Session,
+    user: User,
+    plan: NutritionPlan,
+    today: date | None = None,
+    duration_months: int = 3,
+    baseline_weight_kg: float | None = None,
+) -> PlanCheckin:
     """Đóng chuỗi/kỳ cũ và tạo kỳ đầu tiên cho plan vừa áp dụng."""
     today = today or date.today()
-    baseline = _latest_weight(db, user)
+    baseline = baseline_weight_kg if baseline_weight_kg is not None else _latest_weight(db, user)
     if baseline is None:
         raise ValueError("Cần cập nhật cân nặng trước khi tạo lộ trình")
 
@@ -264,13 +288,20 @@ def start_new_series(db: Session, user: User, plan: NutritionPlan, today: date |
         series.closed_at = today  # type: ignore
     db.flush()
 
-    series = PlanCheckinSeries(user_id=user.id, goal=plan.goal, status="ACTIVE", started_at=today)
+    series = PlanCheckinSeries(
+        user_id=user.id,
+        goal=plan.goal,
+        status="ACTIVE",
+        started_at=today,
+        duration_months=duration_months,
+        planned_end_date=program_end_date(today, duration_months),
+    )
     db.add(series)
     db.flush()
     checkin = _new_period(series, user, plan, 1, today, baseline)
     db.add(checkin)
-    if plan.end_date < checkin.period_end:
-        plan.end_date = checkin.period_end  # type: ignore
+    plan.start_date = today  # type: ignore
+    plan.end_date = series.planned_end_date  # type: ignore
     db.flush()
     return checkin
 
@@ -281,10 +312,26 @@ def create_next_period(
     previous: PlanCheckin,
     plan: NutritionPlan,
     today: date | None = None,
-) -> PlanCheckin:
+) -> PlanCheckin | None:
     """Tạo đúng một kỳ kế tiếp, bắt đầu từ ngày ra quyết định."""
+    series = db.query(PlanCheckinSeries).filter(PlanCheckinSeries.id == previous.series_id).one()  # type: ignore
+    if series.status == "COMPLETED" or previous.period_number >= total_program_periods(
+        int(series.duration_months)
+    ):
+        series.status = "COMPLETED"  # type: ignore
+        series.closed_at = series.planned_end_date  # type: ignore
+        series.completed_at = datetime.now(timezone.utc)  # type: ignore
+        series.completion_reason = "DURATION_REACHED"  # type: ignore
+        if plan.status == "ACTIVE":
+            plan.status = "COMPLETED"  # type: ignore
+        plan.end_date = series.planned_end_date  # type: ignore
+        db.flush()
+        return None
+
     existing = db.query(PlanCheckin).filter(
-        PlanCheckin.user_id == user.id, PlanCheckin.status == "OPEN"  # type: ignore
+        PlanCheckin.user_id == user.id,
+        PlanCheckin.series_id == series.id,
+        PlanCheckin.status == "OPEN",  # type: ignore
     ).first()
     if existing:
         return existing
@@ -295,15 +342,143 @@ def create_next_period(
     )
     if baseline is None:
         raise ValueError("Cần cập nhật cân nặng trước khi bắt đầu kỳ tiếp theo")
-    series = db.query(PlanCheckinSeries).filter(PlanCheckinSeries.id == previous.series_id).one()
     checkin = _new_period(
         series, user, plan, previous.period_number + 1, today or date.today(), baseline, previous.id
     )
     db.add(checkin)
-    if plan.end_date < checkin.period_end:
-        plan.end_date = checkin.period_end  # type: ignore
+    plan.end_date = series.planned_end_date  # type: ignore
     db.flush()
     return checkin
+
+
+def program_summary(
+    db: Session,
+    user: User,
+    series: PlanCheckinSeries,
+) -> dict:
+    """Tổng hợp kết quả của một chương trình mà không làm thay đổi dữ liệu."""
+    if str(series.user_id) != str(user.id):
+        raise LookupError("Không tìm thấy chương trình")
+    checkins = (
+        db.query(PlanCheckin)
+        .filter(PlanCheckin.series_id == series.id, PlanCheckin.user_id == user.id)
+        .order_by(PlanCheckin.period_number)  # type: ignore
+        .all()
+    )
+    first = checkins[0] if checkins else None
+    last_weight = next(
+        (float(row.actual_weight_kg) for row in reversed(checkins) if row.actual_weight_kg is not None),
+        _latest_weight(db, user),
+    )
+    progress_rows = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.series_id == series.id,
+        PlanDailyProgress.user_id == user.id,
+    ).all()
+    checked_count = sum(len(cast(list[str], row.checked_items)) for row in progress_rows)
+    planned_item_count = int(series.duration_months) * PROGRAM_MONTH_DAYS * len(
+        ("meal:0", "meal:1", "meal:2", "exercise")
+    )
+
+    meal_rows = db.query(
+        cast(Any, MealLog.log_date),
+        cast(Any, MealLog.calories_kcal),
+    ).filter(
+        MealLog.user_id == user.id,  # type: ignore
+        cast(Any, MealLog.log_date).between(series.started_at, series.planned_end_date),
+    ).all()
+    activity_rows = db.query(
+        func.date(func.timezone(
+            "Asia/Bangkok",
+            func.coalesce(ActivityLog.started_at, ActivityLog.logged_at),
+        )),
+        cast(Any, ActivityLog.calories_burned),
+    ).filter(
+        ActivityLog.user_id == user.id,  # type: ignore
+        func.date(func.timezone(
+            "Asia/Bangkok",
+            func.coalesce(ActivityLog.started_at, ActivityLog.logged_at),
+        )).between(series.started_at, series.planned_end_date),
+    ).all()
+    meal_days = {row[0] for row in meal_rows}
+    activity_days = {row[0] for row in activity_rows}
+    logged_days = meal_days | activity_days
+    return {
+        "series_id": series.id,
+        "status": series.status,
+        "duration_months": int(series.duration_months),
+        "started_at": series.started_at,
+        "planned_end_date": series.planned_end_date,
+        "total_periods": total_program_periods(int(series.duration_months)),
+        "start_weight_kg": float(first.baseline_weight_kg) if first else None,
+        "end_weight_kg": last_weight,
+        "logged_days": len(logged_days),
+        "completed_days": sum(row.status == "COMPLETED" for row in progress_rows),
+        "checked_item_count": checked_count,
+        "planned_item_count": planned_item_count,
+        "completion_rate_pct": round(checked_count / planned_item_count * 100, 1)
+        if planned_item_count else 0,
+        "avg_kcal_intake": round(
+            sum(float(row[1] or 0) for row in meal_rows) / len(meal_days), 2
+        ) if meal_days else 0,
+        "avg_kcal_burned": round(
+            sum(float(row[1] or 0) for row in activity_rows) / len(activity_days), 2
+        ) if activity_days else 0,
+        "checkins": [checkin_to_dict(row) for row in checkins],
+    }
+
+
+def extend_program(
+    db: Session,
+    user: User,
+    additional_months: int,
+    today: date | None = None,
+) -> tuple[PlanCheckinSeries, PlanCheckin]:
+    """Gia hạn chương trình đã hoàn thành và tiếp tục số thứ tự Đợt hiện có."""
+    if additional_months < 1:
+        raise ValueError("Số tháng gia hạn phải lớn hơn 0")
+    series = (
+        db.query(PlanCheckinSeries)
+        .filter(PlanCheckinSeries.user_id == user.id)
+        .order_by(
+            PlanCheckinSeries.started_at.desc(),  # type: ignore
+            PlanCheckinSeries.created_at.desc(),  # type: ignore
+        )
+        .with_for_update()
+        .first()
+    )
+    if series is None:
+        raise LookupError("Không tìm thấy chương trình")
+    if series.status != "COMPLETED":
+        raise RuntimeError("Chỉ có thể gia hạn chương trình đã hoàn thành")
+    new_duration = int(series.duration_months) + additional_months
+    if new_duration > 12:
+        raise ValueError("Tổng thời gian một chương trình không được vượt quá 12 tháng")
+    previous = (
+        db.query(PlanCheckin)
+        .filter(PlanCheckin.series_id == series.id, PlanCheckin.user_id == user.id)
+        .order_by(PlanCheckin.period_number.desc())  # type: ignore
+        .with_for_update()
+        .first()
+    )
+    if previous is None:
+        raise RuntimeError("Chương trình chưa có Đợt để tiếp tục")
+    plan = db.query(NutritionPlan).filter(NutritionPlan.id == previous.plan_id).one()  # type: ignore
+
+    series.duration_months = new_duration  # type: ignore
+    series.planned_end_date = series.planned_end_date + timedelta(  # type: ignore
+        days=additional_months * PROGRAM_MONTH_DAYS
+    )
+    series.status = "ACTIVE"  # type: ignore
+    series.closed_at = None  # type: ignore
+    series.completed_at = None  # type: ignore
+    series.completion_reason = None  # type: ignore
+    plan.status = "ACTIVE"  # type: ignore
+    plan.end_date = series.planned_end_date  # type: ignore
+    db.flush()
+    next_period = create_next_period(db, user, previous, plan, today=today)
+    if next_period is None:
+        raise RuntimeError("Không thể mở Đợt tiếp theo sau khi gia hạn")
+    return series, next_period
 
 
 def simulate_due_checkin(
@@ -340,7 +515,7 @@ def get_current_checkin(db: Session, user: User, today: date | None = None) -> P
         db.query(PlanCheckin)
         .filter(PlanCheckin.user_id == user.id)  # type: ignore
         .order_by(
-            (PlanCheckin.status == "OPEN").desc(),
+            cast(Any, PlanCheckin.status == "OPEN").desc(),
             PlanCheckin.period_number.desc(),  # type: ignore
             PlanCheckin.start_date.desc(),  # type: ignore
         )
@@ -362,7 +537,7 @@ def reconcile_overdue_checkin(db: Session, user: User, today: date | None = None
     current.status = "MISSED"  # type: ignore
     current.completed_at = datetime.now(timezone.utc)  # type: ignore
     db.flush()
-    plan = db.query(NutritionPlan).filter(NutritionPlan.id == current.plan_id).one()
+    plan = db.query(NutritionPlan).filter(NutritionPlan.id == current.plan_id).one()  # type: ignore
     return create_next_period(db, user, current, plan, today)
 
 
@@ -377,7 +552,7 @@ def _tracking_metrics(db: Session, checkin: PlanCheckin) -> tuple[int, float | N
         "end": checkin.period_end,
     }).mappings().first()
     days = int(row["days"] or 0) if row else 0
-    avg = float(row["total"] or 0) / PERIOD_DAYS if days else None
+    avg = float(row["total"] or 0) / PERIOD_DAYS if row and days else None
     return days, round(avg, 2) if avg is not None else None
 
 
@@ -500,7 +675,12 @@ def reopen_checkin(db: Session, user: User, checkin_id) -> PlanCheckin:
     return checkin
 
 
-def decide_checkin(db: Session, user: User, checkin_id, action: str) -> tuple[PlanCheckin, PlanCheckin]:
+def decide_checkin(
+    db: Session,
+    user: User,
+    checkin_id,
+    action: str,
+) -> tuple[PlanCheckin, PlanCheckin | None]:
     """Ghi quyết định một lần và tạo kỳ tiếp theo; adjustment tạo plan version mới."""
     checkin = (
         db.query(PlanCheckin)
@@ -516,13 +696,18 @@ def decide_checkin(db: Session, user: User, checkin_id, action: str) -> tuple[Pl
         next_period = db.query(PlanCheckin).filter(
             PlanCheckin.previous_checkin_id == checkin.id  # type: ignore
         ).first()
-        if not next_period:
+        series = db.query(PlanCheckinSeries).filter(PlanCheckinSeries.id == checkin.series_id).one()  # type: ignore
+        if not next_period and series.status != "COMPLETED":
             raise RuntimeError("Quyết định cũ chưa tạo được kỳ tiếp theo")
         return checkin, next_period
 
-    plan = db.query(NutritionPlan).filter(NutritionPlan.id == checkin.plan_id).one()
+    plan = db.query(NutritionPlan).filter(NutritionPlan.id == checkin.plan_id).one()  # type: ignore
+    series = db.query(PlanCheckinSeries).filter(PlanCheckinSeries.id == checkin.series_id).one()  # type: ignore
+    is_final_period = checkin.period_number >= total_program_periods(int(series.duration_months))
     next_plan = plan
     if action == "APPLY_ADJUSTMENT":
+        if is_final_period:
+            raise RuntimeError("Chương trình đã đến Đợt cuối; không thể áp dụng thêm điều chỉnh")
         if checkin.recommendation != "ADJUST_PLAN" or checkin.proposed_kcal_target is None:
             raise RuntimeError("Kết quả hiện tại không cho phép điều chỉnh tự động")
         from app.services import plan_generator

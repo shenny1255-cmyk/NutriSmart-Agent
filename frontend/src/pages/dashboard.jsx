@@ -49,7 +49,10 @@ export default function Dashboard() {
 
   const fetchSummary = () => {
     api.dailySummary(7)
-      .then(setData)
+      .then((result) => {
+        setData(result);
+        setOffline(false);
+      })
       .catch(() => setOffline(true));   // backend chưa chạy → giữ MOCK
   };
 
@@ -105,8 +108,10 @@ export default function Dashboard() {
     kcal_burned: 0,
   };
   const target = today.daily_calorie_target ?? 2000;
-  // Sử dụng kcal_burned từ activity (Mobile sync) hoặc từ backend summary
-  const burnedKcal = activity.calories_burned || today.kcal_burned || 0;
+  // Summary đã cộng toàn bộ nguồn Mobile, nhập tay và lộ trình; activity chỉ làm fallback offline.
+  const burnedKcal = Number(offline
+    ? (activity.calories_burned || today.kcal_burned || 0)
+    : (today.kcal_burned ?? 0));
   const intake = today.kcal_intake ?? 0;
   const remaining = target - intake + burnedKcal;
   const over = remaining < 0;

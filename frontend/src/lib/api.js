@@ -50,7 +50,7 @@ async function request(path, { method = 'GET', body, isForm } = {}) {
 export const api = {
   dailySummary: (days = 7) => request(`/tracking/summary?days=${days}`),
   activePlan: () => request('/plans/active'),
-  generatePlan: () => request('/plans/generate', { method: 'POST' }),
+  generatePlan: (payload) => request('/plans/generate', { method: 'POST', body: payload }),
   generatePlanStatus: (jobId) => request(`/plans/generate/${jobId}`),
   activeCheckin: () => request('/plans/active/checkin'),
   checkinHistory: (limit = 10) => request(`/plans/checkins/history?limit=${limit}`),
@@ -58,6 +58,18 @@ export const api = {
   submitCheckin: (id, payload) => request(`/plans/checkins/${id}/submit`, { method: 'POST', body: payload }),
   reopenCheckin: (id) => request(`/plans/checkins/${id}/reopen`, { method: 'POST' }),
   decideCheckin: (id, action) => request(`/plans/checkins/${id}/decision`, { method: 'POST', body: { action } }),
+  planDayProgress: (planId, day) => request(`/plans/${planId}/days/${day}/progress`),
+  savePlanDayProgress: (planId, day, checkedItems) => request(`/plans/${planId}/days/${day}/progress`, {
+    method: 'PUT', body: { checked_items: checkedItems },
+  }),
+  completePlanDay: (planId, day, checkedItems) => request(`/plans/${planId}/days/${day}/complete`, {
+    method: 'POST', body: { checked_items: checkedItems },
+  }),
+  resetPlanDay: (planId, day) => request(`/plans/${planId}/days/${day}/progress`, { method: 'DELETE' }),
+  currentProgramSummary: () => request('/plans/programs/current/summary'),
+  extendProgram: (additionalMonths) => request('/plans/programs/current/extend', {
+    method: 'POST', body: { additional_months: additionalMonths },
+  }),
   notifications: (limit = 20) => request(`/notifications?limit=${limit}`),
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
   chat: (message) => request('/chat/messages', { method: 'POST', body: { message } }),

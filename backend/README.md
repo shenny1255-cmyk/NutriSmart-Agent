@@ -18,7 +18,14 @@ Di chuyển vào thư mục `db` ở thư mục gốc của dự án và chạy 
 cd db
 docker compose up -d
 ```
-*Lưu ý: Docker sẽ tự động chạy các tệp migrations trong `db/migrations` để khởi tạo các bảng và chèn dữ liệu mẫu.*
+*Lưu ý: Docker chỉ tự động chạy các tệp trong `db/migrations` khi tạo volume PostgreSQL
+mới. Với database đã tồn tại, áp dụng migration mới theo thứ tự. Ví dụ cho migration
+chương trình dài hạn (chạy tại thư mục `db` bằng PowerShell):*
+
+```powershell
+Get-Content .\migrations\27_plan_program_progress.sql -Raw |
+  docker exec -i nutrismart-db psql -U postgres -d nutrismart
+```
 
 ### Bước 2: Thiết lập môi trường ảo Python
 Quay lại thư mục `backend` và khởi tạo môi trường ảo:

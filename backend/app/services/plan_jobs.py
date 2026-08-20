@@ -4,9 +4,10 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass
+from datetime import date
 
 from app.database import SessionLocal
-from app.models import User
+from app.models import NutritionPlan, User
 from app.services import plan_checkin, plan_generator
 
 log = logging.getLogger("nutrismart.plan_jobs")
@@ -19,6 +20,11 @@ class PlanJob:
     status: str = "QUEUED"
     plan_id: uuid.UUID | None = None
     error: str | None = None
+    target_kcal: int | None = None
+    duration_months: int = 3
+    expected_active_plan_id: uuid.UUID | None = None
+    profile_data: dict | None = None
+    baseline_weight_kg: float | None = None
 
 
 _jobs: dict[str, PlanJob] = {}
@@ -37,9 +43,38 @@ def _run(job_id: str) -> None:
         user = db.query(User).filter(User.id == job.user_id).first()  # type: ignore
         if not user or not user.profile:
             raise ValueError("Chưa có hồ sơ sức khỏe")
-        plan = plan_generator.create_plan(db, user)
+        active = (
+            db.query(NutritionPlan)
+            .filter(
+                NutritionPlan.user_id == user.id,
+                NutritionPlan.status == "ACTIVE",  # type: ignore
+            )
+            .with_for_update()
+            .first()
+        )
+        actual_active_id = active.id if active else None
+        if actual_active_id != job.expected_active_plan_id:
+            raise RuntimeError("Lộ trình hiện tại đã thay đổi; vui lòng tải lại trang")
+
+        today = date.today()
+        end_date = plan_checkin.program_end_date(today, job.duration_months)
+        plan = plan_generator.create_plan(
+            db,
+            user,
+            target=job.target_kcal,
+            start_date=today,
+            end_date=end_date,
+            profile_data=job.profile_data,
+        )
         db.flush()
-        plan_checkin.start_new_series(db, user, plan)
+        plan_checkin.start_new_series(
+            db,
+            user,
+            plan,
+            today=today,
+            duration_months=job.duration_months,
+            baseline_weight_kg=job.baseline_weight_kg,
+        )
         db.commit()
         with _lock:
             job.status = "DONE"
@@ -59,12 +94,28 @@ def _run(job_id: str) -> None:
                 del _user_jobs[job.user_id]
 
 
-def enqueue(user_id: uuid.UUID) -> PlanJob:
+def enqueue(
+    user_id: uuid.UUID,
+    *,
+    target_kcal: int | None = None,
+    duration_months: int = 3,
+    expected_active_plan_id: uuid.UUID | None = None,
+    profile_data: dict | None = None,
+    baseline_weight_kg: float | None = None,
+) -> PlanJob:
     with _lock:
         existing_id = _user_jobs.get(user_id)
         if existing_id:
             return _jobs[existing_id]
-        job = PlanJob(id=uuid.uuid4().hex, user_id=user_id)
+        job = PlanJob(
+            id=uuid.uuid4().hex,
+            user_id=user_id,
+            target_kcal=target_kcal,
+            duration_months=duration_months,
+            expected_active_plan_id=expected_active_plan_id,
+            profile_data=profile_data,
+            baseline_weight_kg=baseline_weight_kg,
+        )
         _jobs[job.id] = job
         _user_jobs[user_id] = job.id
     worker = threading.Thread(target=_run, args=(job.id,), daemon=True)

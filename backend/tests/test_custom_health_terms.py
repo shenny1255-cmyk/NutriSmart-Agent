@@ -43,4 +43,4 @@ def test_di_ung_tu_khai_bao_luu_muc_do_va_doc_duoc_du_lieu_cu():
 
 def test_gioi_han_so_muc_tu_khai_bao():
     with pytest.raises(ValidationError):
-        UserProfileUpdateIn(custom_allergens=[f"Dị nguyên {i}" for i in range(11)])
+        UserProfileUpdateIn(custom_allergens=[f"Dị nguyên {i}" for i in range(11)])  # type: ignore[arg-type]

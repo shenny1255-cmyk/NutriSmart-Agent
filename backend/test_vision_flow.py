@@ -3,13 +3,14 @@ import urllib.error
 import json
 import sys
 import io
+from typing import Any
 
 # Cấu hình UTF-8 cho Windows Terminal
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 BASE_URL = "http://127.0.0.1:8000/api/v1"
 
-def http_post_json(url, data_dict, headers_dict=None):
+def http_post_json(url, data_dict, headers_dict=None) -> tuple[int, Any]:
     if headers_dict is None:
         headers_dict = {}
     headers_dict["Content-Type"] = "application/json"
@@ -26,7 +27,7 @@ def http_post_json(url, data_dict, headers_dict=None):
         except:
             return e.code, err_body
 
-def http_get(url, headers_dict=None):
+def http_get(url, headers_dict=None) -> tuple[int, Any]:
     if headers_dict is None:
         headers_dict = {}
     req = urllib.request.Request(url, headers=headers_dict, method="GET")
