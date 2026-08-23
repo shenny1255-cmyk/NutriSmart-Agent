@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, ScrollView, StatusBar, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Text, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -39,6 +39,7 @@ export default function HomeScreen({ navigation }) {
   const [syncStatus, setSyncStatus] = useState('Chưa đồng bộ');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [planExercise, setPlanExercise] = useState(null);
 
   const isPeak = useRef(false);
   const lastStepTime = useRef(Date.now());
@@ -141,13 +142,17 @@ export default function HomeScreen({ navigation }) {
     setDataStatus((current) => (current === 'success' ? 'refreshing' : 'loading'));
     setDataError('');
     try {
-      const [me, rows, notifications] = await Promise.all([
-        api.me(), api.dailySummary(1), api.notifications(20).catch(() => []),
+      const [me, rows, notifications, activity] = await Promise.all([
+        api.me(),
+        api.dailySummary(1),
+        api.notifications(20).catch(() => []),
+        api.todayActivity().catch(() => null),
       ]);
       const today = rows?.[rows.length - 1] || null;
       setUserData(me);
       setSummary(today);
       setUnreadCount(notifications.filter((item) => !item.is_read).length);
+      setPlanExercise(activity?.plan_exercise || null);
       if (me?.profile?.weight_kg) setWeight(String(me.profile.weight_kg));
       if (me?.profile?.height_cm) setHeight(String(me.profile.height_cm));
       setDataStatus('success');
@@ -172,14 +177,24 @@ export default function HomeScreen({ navigation }) {
     setIsSyncing(true);
     setSyncStatus('Đang gửi dữ liệu...');
     try {
-      await api.syncActivity({
+      const result = await api.syncActivity({
         steps: stepCountRef.current,
-        calories_burned: caloriesBurned,
-        distance_km: distanceKm,
       });
       const now = new Date();
       const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-      setSyncStatus(`Đồng bộ thành công lúc ${time}`);
+      const exercise = result?.plan_exercise;
+      setPlanExercise(exercise || null);
+      if (exercise?.reason === 'AUTO_CHECKED') {
+        setSyncStatus(`Đã đạt ${Math.round(exercise.actual_kcal)} kcal và tự hoàn thành mục vận động lúc ${time}.`);
+      } else if (exercise?.checked) {
+        setSyncStatus(`Đã đồng bộ ${Math.round(result.calories_burned)} kcal lúc ${time}. Mục vận động đã hoàn thành.`);
+      } else if (exercise?.reason === 'BELOW_TARGET') {
+        setSyncStatus(`Đã đồng bộ lúc ${time}. Còn ${Math.ceil(exercise.remaining_kcal)} kcal để tự hoàn thành mục vận động.`);
+      } else if (exercise?.reason === 'CHECKIN_CLOSED' || exercise?.reason === 'PROGRAM_INACTIVE') {
+        setSyncStatus(`Đã lưu ${Math.round(result.calories_burned)} kcal lúc ${time}; đợt lộ trình hiện không nhận thay đổi.`);
+      } else {
+        setSyncStatus(`Đồng bộ thành công ${Math.round(result.calories_burned)} kcal lúc ${time}.`);
+      }
       setLastSyncTime(time);
       await loadDashboard();
     } catch (error) {
@@ -197,6 +212,9 @@ export default function HomeScreen({ navigation }) {
   };
 
   const openRootScreen = (name) => navigation.getParent()?.navigate(name);
+  const exercisePercent = planExercise
+    ? Math.min((Number(planExercise.actual_kcal || 0) / Math.max(Number(planExercise.required_kcal || 1), 1)) * 100, 100)
+    : 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -248,7 +266,7 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.stepNumber}>{stepCount.toLocaleString()}</Text>
           <Text style={styles.stepUnit}>bước chân</Text>
           <View style={styles.metricsRow}>
-            <Metric icon={<Flame size={16} color={Theme.colors.warning} />} label="Calo tiêu hao" value={`${caloriesBurned} kcal`} />
+            <Metric icon={<Flame size={16} color={Theme.colors.warning} />} label="Calo tạm tính" value={`${caloriesBurned} kcal`} />
             <View style={styles.verticalDivider} />
             <Metric icon={<MapPin size={16} color="#0284C7" />} label="Quãng đường" value={`${distanceKm} km`} />
           </View>
@@ -270,7 +288,26 @@ export default function HomeScreen({ navigation }) {
             <CloudUpload size={20} color={Theme.colors.accentStrong} />
             <Text style={styles.sectionHeading}>Đồng bộ hoạt động</Text>
           </View>
-          <Text style={styles.sectionDescription}>Gửi số bước và calo tiêu hao hôm nay lên tài khoản của bạn.</Text>
+          <Text style={styles.sectionDescription}>Gửi số bước hôm nay; hệ thống sẽ tính lại kcal theo cân nặng trong hồ sơ.</Text>
+          {planExercise ? (
+            <View style={styles.exerciseGoal}>
+              <View style={styles.exerciseGoalHeader}>
+                <View style={styles.exerciseGoalText}>
+                  <Text style={styles.exerciseGoalTitle}>Mục vận động · {planExercise.exercise_name}</Text>
+                  <Text style={styles.exerciseGoalSubtitle}>
+                    Đã đồng bộ {Math.round(planExercise.actual_kcal)} / {Math.round(planExercise.required_kcal)} kcal
+                  </Text>
+                </View>
+                <Text style={[styles.exerciseGoalBadge, planExercise.checked && styles.exerciseGoalBadgeDone]}>
+                  {planExercise.checked ? 'Đã hoàn thành' : `Còn ${Math.ceil(planExercise.remaining_kcal)} kcal`}
+                </Text>
+              </View>
+              <View style={styles.exerciseTrack}>
+                <View style={[styles.exerciseFill, { width: `${exercisePercent}%` }]} />
+              </View>
+              <Text style={styles.exerciseGoalNote}>Đạt ngưỡng sẽ tự tick trên lộ trình; bạn vẫn cần tự ghi nhận các bữa ăn.</Text>
+            </View>
+          ) : null}
           <TouchableOpacity style={[styles.primaryButton, isSyncing && styles.buttonDisabled]} onPress={handleSync} disabled={isSyncing}>
             {isSyncing ? <ActivityIndicator color="#FFFFFF" /> : (
               <><RefreshCw size={16} color="#FFFFFF" /><Text style={styles.primaryButtonText}>Đồng bộ ngay</Text></>
@@ -306,12 +343,13 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.configCard}>
           <View style={styles.inlineRow}>
             <User size={18} color={Theme.colors.text} />
-            <Text style={styles.sectionHeading}>Chỉ số dùng để ước tính</Text>
+            <Text style={styles.sectionHeading}>Chỉ số từ hồ sơ</Text>
           </View>
           <View style={styles.inputGroup}>
-            <MetricInput label="Cân nặng (kg)" value={weight} onChangeText={setWeight} />
-            <MetricInput label="Chiều cao (cm)" value={height} onChangeText={setHeight} />
+            <ProfileMetric label="Cân nặng" value={`${weight} kg`} />
+            <ProfileMetric label="Chiều cao" value={`${height} cm`} />
           </View>
+          <Text style={styles.profileHint}>Muốn đổi số đo, hãy cập nhật tại màn Hồ sơ trước khi đồng bộ.</Text>
         </View>
 
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
@@ -342,11 +380,11 @@ function Metric({ icon, label, value }) {
   );
 }
 
-function MetricInput({ label, value, onChangeText }) {
+function ProfileMetric({ label, value }) {
   return (
     <View style={styles.inputItem}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput style={styles.textInput} value={value} onChangeText={onChangeText} keyboardType="decimal-pad" />
+      <Text style={styles.profileValue}>{value}</Text>
     </View>
   );
 }
@@ -404,6 +442,16 @@ const styles = StyleSheet.create({
   inlineRow: { flexDirection: 'row', alignItems: 'center' },
   sectionHeading: { color: Theme.colors.text, fontSize: 15, fontWeight: '800', marginLeft: 7 },
   sectionDescription: { color: Theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginVertical: 10 },
+  exerciseGoal: { backgroundColor: Theme.colors.accentSoft, borderRadius: Theme.radius.sm, padding: 12, marginBottom: 12 },
+  exerciseGoalHeader: { flexDirection: 'row', alignItems: 'center' },
+  exerciseGoalText: { flex: 1, paddingRight: 8 },
+  exerciseGoalTitle: { color: Theme.colors.text, fontSize: 12, fontWeight: '900' },
+  exerciseGoalSubtitle: { color: Theme.colors.textSecondary, fontSize: 11, marginTop: 3 },
+  exerciseGoalBadge: { color: '#92400E', backgroundColor: Theme.colors.warningSoft, borderRadius: Theme.radius.full, paddingHorizontal: 8, paddingVertical: 5, fontSize: 10, fontWeight: '800' },
+  exerciseGoalBadgeDone: { color: Theme.colors.accentStrong, backgroundColor: '#D1FAE5' },
+  exerciseTrack: { height: 7, borderRadius: Theme.radius.full, backgroundColor: '#CFE4D9', overflow: 'hidden', marginTop: 10 },
+  exerciseFill: { height: '100%', borderRadius: Theme.radius.full, backgroundColor: Theme.colors.accentStrong },
+  exerciseGoalNote: { color: Theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 7 },
   primaryButton: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.colors.accentStrong, borderRadius: Theme.radius.sm, paddingVertical: 13 },
   buttonDisabled: { opacity: 0.55 },
   primaryButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
@@ -415,7 +463,8 @@ const styles = StyleSheet.create({
   inputGroup: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   inputItem: { width: '47%' },
   inputLabel: { color: Theme.colors.textMuted, fontSize: 11, marginBottom: 6 },
-  textInput: { backgroundColor: '#FFFFFF', borderRadius: Theme.radius.sm, borderWidth: 1, borderColor: Theme.colors.border, paddingHorizontal: 12, paddingVertical: 9, color: Theme.colors.text, fontWeight: '700' },
+  profileValue: { backgroundColor: '#FFFFFF', borderRadius: Theme.radius.sm, borderWidth: 1, borderColor: Theme.colors.border, paddingHorizontal: 12, paddingVertical: 9, color: Theme.colors.text, fontWeight: '800' },
+  profileHint: { color: Theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 10 },
   logoutButton: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-end', padding: 10 },
   logoutText: { color: Theme.colors.danger, fontSize: 13, fontWeight: '700' },
 });

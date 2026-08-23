@@ -62,6 +62,13 @@ mobile/
 JWT được lưu bằng SecureStore trên Android/iOS. AsyncStorage chỉ lưu cache bước chân.
 Bản web xem trước dùng `sessionStorage` vì SecureStore không hỗ trợ web.
 
+## Đồng bộ mục vận động
+
+App chỉ gửi tổng bước chân hiện có. Backend tính lại kcal theo cân nặng trong hồ sơ và tự tick
+mục vận động của ngày hiện tại khi đạt `max(kcal của bài tập trong lộ trình, 350 kcal)`. Nhật ký
+`MOBILE` là số liệu thực tế duy nhất được cộng vào Tổng quan; hệ thống không cộng thêm kcal ước
+tính của lộ trình. Đồng bộ lặp lại trong ngày chỉ cập nhật cùng một bản ghi.
+
 ## Giới hạn cảm biến
 
 `Pedometer.watchStepCount` của Expo không phát cập nhật khi ứng dụng ở background. Mobile

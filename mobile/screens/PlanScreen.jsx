@@ -4,7 +4,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Calendar, CalendarCheck, Dumbbell, Flame, RefreshCw, Target, Utensils } from 'lucide-react-native';
+import {
+  Calendar, CalendarCheck, CheckCircle2, Circle, Dumbbell, Flame, RefreshCw,
+  Target, Utensils,
+} from 'lucide-react-native';
 
 import { Theme } from '../theme';
 import { api } from '../services/api';
@@ -12,11 +15,47 @@ import { EmptyState, ErrorState, LoadingSkeleton } from '../components/AsyncStat
 import { OfflineBanner } from '../components/OfflineBanner';
 import { LogoMark } from '../components/Logo';
 
+function localToday() {
+  const value = new Date();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${value.getFullYear()}-${month}-${day}`;
+}
+
+function dateFromIso(value) {
+  const [year, month, day] = String(value).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDays(value, amount) {
+  const date = dateFromIso(value);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function differenceInDays(value, origin) {
+  return Math.round((dateFromIso(value) - dateFromIso(origin)) / 86400000);
+}
+
+function shortDate(value) {
+  const [, month, day] = String(value).split('-');
+  return `${day}/${month}`;
+}
+
+function exerciseText(exercise) {
+  if (!exercise) return '';
+  if (typeof exercise === 'string') return exercise;
+  const details = [exercise.name || 'Vận động theo lộ trình'];
+  if (exercise.duration_min) details.push(`${exercise.duration_min} phút`);
+  if (exercise.calories_kcal) details.push(`${Number(exercise.calories_kcal).toLocaleString()} kcal`);
+  return details.join(' · ');
+}
+
 export default function PlanScreen({ navigation }) {
   const [status, setStatus] = useState('loading');
   const [plan, setPlan] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(localToday());
 
   const fetchPlan = useCallback(async () => {
     setStatus((current) => (current === 'success' ? 'refreshing' : 'loading'));
@@ -24,7 +63,14 @@ export default function PlanScreen({ navigation }) {
     try {
       const data = await api.activePlan();
       setPlan(data);
-      setSelectedDay((day) => Math.min(day, Math.max((data?.content?.days?.length || 1) - 1, 0)));
+      const start = data?.current_checkin?.start_date;
+      const end = data?.current_checkin?.period_end;
+      const today = localToday();
+      setSelectedDate((current) => {
+        if (start && end && current >= start && current <= end) return current;
+        if (start && end && today >= start && today <= end) return today;
+        return start || data?.start_date || today;
+      });
       setStatus('success');
     } catch (error) {
       if (error.status === 404) {
@@ -41,14 +87,49 @@ export default function PlanScreen({ navigation }) {
     fetchPlan();
   }, [fetchPlan]));
 
-  const days = plan?.content?.days || [];
-  const day = days[selectedDay];
   const targetKcal = Number(plan?.daily_kcal_target || 0);
   const macros = useMemo(() => ({
     protein: Math.round((targetKcal * 0.25) / 4),
     carbs: Math.round((targetKcal * 0.50) / 4),
     fat: Math.round((targetKcal * 0.25) / 9),
   }), [targetKcal]);
+  const actualDays = useMemo(() => {
+    const templates = plan?.content?.days || [];
+    const checkin = plan?.current_checkin;
+    const origin = plan?.program?.started_at || plan?.start_date;
+    if (!templates.length || !origin) return [];
+
+    const progressByDate = new Map(
+      (plan?.daily_progress || []).map((item) => [item.progress_date, item])
+    );
+    if (!checkin?.start_date || !checkin?.period_end) {
+      return templates.map((template, index) => ({
+        date: addDays(origin, index),
+        dayNumber: index + 1,
+        template,
+        progress: null,
+      }));
+    }
+
+    const count = Math.min(
+      differenceInDays(checkin.period_end, checkin.start_date) + 1,
+      14,
+    );
+    return Array.from({ length: Math.max(count, 0) }, (_, index) => {
+      const date = addDays(checkin.start_date, index);
+      const templateIndex = ((differenceInDays(date, origin) % 7) + 7) % 7;
+      return {
+        date,
+        dayNumber: index + 1,
+        template: templates[templateIndex],
+        progress: progressByDate.get(date) || null,
+      };
+    });
+  }, [plan]);
+  const selected = actualDays.find((item) => item.date === selectedDate) || actualDays[0];
+  const day = selected?.template;
+  const checkedItems = new Set(selected?.progress?.checked_items || []);
+  const today = localToday();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -111,47 +192,84 @@ export default function PlanScreen({ navigation }) {
               <MacroCard value={`${macros.fat}g`} label="Chất béo" color="#DC2626" />
             </View>
 
-            {days.length ? (
+            {actualDays.length ? (
               <>
-                <Text style={styles.sectionTitle}>Thực đơn từng ngày</Text>
+                <Text style={styles.sectionTitle}>Theo dõi Đợt {plan?.current_checkin?.period_number || 1}</Text>
+                <Text style={styles.progressHint}>Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-                  {days.map((_, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.dayChip, selectedDay === index && styles.dayChipActive]}
-                      onPress={() => setSelectedDay(index)}
-                    >
-                      <Calendar size={14} color={selectedDay === index ? '#FFFFFF' : Theme.colors.textMuted} />
-                      <Text style={[styles.dayChipText, selectedDay === index && styles.dayChipTextActive]}>
-                        Ngày {index + 1}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {actualDays.map((item) => {
+                    const active = item.date === selected?.date;
+                    const completed = item.progress?.checked_items?.length || 0;
+                    return (
+                      <TouchableOpacity
+                        key={item.date}
+                        style={[styles.dayChip, active && styles.dayChipActive]}
+                        onPress={() => setSelectedDate(item.date)}
+                      >
+                        <Text style={[styles.dayChipText, active && styles.dayChipTextActive]}>
+                          Ngày {item.dayNumber}
+                        </Text>
+                        <Text style={[styles.dayChipDate, active && styles.dayChipTextActive]}>
+                          {shortDate(item.date)}{item.date === today ? ' · Hôm nay' : ''}
+                        </Text>
+                        <Text style={[styles.dayChipProgress, active && styles.dayChipTextActive]}>
+                          {completed}/4 mục
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
 
                 <View style={styles.scheduleCard}>
-                  {(day?.meals || []).map((meal, index) => (
-                    <View key={`${meal.type}-${index}`} style={styles.scheduleRow}>
-                      <View style={styles.scheduleIcon}>
-                        <Utensils size={18} color={Theme.colors.accentStrong} />
-                      </View>
-                      <View style={styles.scheduleContent}>
-                        <Text style={styles.mealType}>{meal.type || `Bữa ${index + 1}`}</Text>
-                        <Text style={styles.mealName}>{meal.name}</Text>
-                      </View>
-                      <Text style={styles.mealKcal}>{Number(meal.kcal || 0).toLocaleString()} kcal</Text>
+                  <View style={styles.scheduleHeader}>
+                    <View style={styles.scheduleHeaderTitle}>
+                      <Calendar size={17} color={Theme.colors.accentStrong} />
+                      <Text style={styles.scheduleDate}>
+                        Ngày {selected?.dayNumber} · {shortDate(selected?.date)}{selected?.date === today ? ' · Hôm nay' : ''}
+                      </Text>
                     </View>
-                  ))}
+                    <Text style={styles.scheduleCount}>{checkedItems.size}/4 mục</Text>
+                  </View>
+
+                  {(day?.meals || []).slice(0, 3).map((meal, index) => {
+                    const itemKey = `meal:${index}`;
+                    const done = checkedItems.has(itemKey);
+                    return (
+                      <View key={`${meal.type}-${index}`} style={styles.scheduleRow}>
+                        {done
+                          ? <CheckCircle2 size={21} color={Theme.colors.accentStrong} />
+                          : <Circle size={21} color={Theme.colors.borderStrong} />}
+                        <View style={styles.scheduleIcon}>
+                          <Utensils size={18} color={Theme.colors.accentStrong} />
+                        </View>
+                        <View style={styles.scheduleContent}>
+                          <Text style={styles.mealType}>{meal.type || `Bữa ${index + 1}`}</Text>
+                          <Text style={[styles.mealName, done && styles.itemDone]}>{meal.name}</Text>
+                        </View>
+                        <Text style={styles.mealKcal}>{Number(meal.kcal || 0).toLocaleString()} kcal</Text>
+                      </View>
+                    );
+                  })}
 
                   {day?.exercise ? (
                     <View style={styles.exerciseRow}>
-                      <Dumbbell size={20} color="#7C3AED" />
+                      {checkedItems.has('exercise')
+                        ? <CheckCircle2 size={21} color={Theme.colors.accentStrong} />
+                        : <Circle size={21} color={Theme.colors.borderStrong} />}
+                      <View style={styles.exerciseIcon}>
+                        <Dumbbell size={19} color="#7C3AED" />
+                      </View>
                       <View style={styles.exerciseContent}>
                         <Text style={styles.exerciseTitle}>Vận động</Text>
-                        <Text style={styles.exerciseText}>{day.exercise}</Text>
+                        <Text style={[styles.exerciseText, checkedItems.has('exercise') && styles.itemDone]}>
+                          {exerciseText(day.exercise)}
+                        </Text>
                       </View>
                     </View>
                   ) : null}
+                  <Text style={styles.readOnlyNote}>
+                    App tự tick mục vận động sau khi đồng bộ đủ kcal. Các mục ăn uống được cập nhật trên Web.
+                  </Text>
                 </View>
               </>
             ) : (
@@ -209,27 +327,37 @@ const styles = StyleSheet.create({
   },
   macroValue: { fontSize: 18, fontWeight: '900', marginTop: 7 },
   macroLabel: { fontSize: 11, color: Theme.colors.textMuted, marginTop: 2 },
+  progressHint: { color: Theme.colors.textMuted, fontSize: 11, lineHeight: 16, marginTop: -7, marginBottom: 10 },
   dayRow: { gap: 8, paddingBottom: 14 },
   dayChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 9,
+    width: 108, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10,
     backgroundColor: Theme.colors.card, borderWidth: 1, borderColor: Theme.colors.border,
-    borderRadius: Theme.radius.full,
+    borderRadius: Theme.radius.md,
   },
   dayChipActive: { backgroundColor: Theme.colors.accentStrong, borderColor: Theme.colors.accentStrong },
-  dayChipText: { color: Theme.colors.textMuted, fontSize: 12, fontWeight: '700' },
+  dayChipText: { color: Theme.colors.text, fontSize: 12, fontWeight: '900' },
+  dayChipDate: { color: Theme.colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 3 },
+  dayChipProgress: { color: Theme.colors.textMuted, fontSize: 10, marginTop: 3 },
   dayChipTextActive: { color: '#FFFFFF' },
   scheduleCard: {
     backgroundColor: Theme.colors.card, borderRadius: Theme.radius.md,
     padding: 16, borderWidth: 1, borderColor: Theme.colors.border,
   },
+  scheduleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
+  scheduleHeaderTitle: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  scheduleDate: { color: Theme.colors.text, fontSize: 13, fontWeight: '900', marginLeft: 7 },
+  scheduleCount: { color: Theme.colors.accentStrong, backgroundColor: Theme.colors.accentSoft, borderRadius: Theme.radius.full, paddingHorizontal: 8, paddingVertical: 5, fontSize: 10, fontWeight: '900' },
   scheduleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  scheduleIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.colors.accentSoft },
+  scheduleIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.colors.accentSoft, marginLeft: 9 },
   scheduleContent: { flex: 1, marginLeft: 10 },
   mealType: { color: Theme.colors.accentStrong, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   mealName: { color: Theme.colors.text, fontSize: 13, fontWeight: '700', marginTop: 2 },
   mealKcal: { color: Theme.colors.textSecondary, fontSize: 12, fontWeight: '800', marginLeft: 8 },
-  exerciseRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 16 },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 14 },
+  exerciseIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDE9FE', marginLeft: 9 },
   exerciseContent: { flex: 1, marginLeft: 10 },
   exerciseTitle: { color: '#7C3AED', fontSize: 12, fontWeight: '800' },
   exerciseText: { color: Theme.colors.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  itemDone: { textDecorationLine: 'line-through', color: Theme.colors.textMuted },
+  readOnlyNote: { color: Theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 15, paddingTop: 12, borderTopWidth: 1, borderTopColor: Theme.colors.border },
 });

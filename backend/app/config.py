@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     PLAN_EVAL_INTERVAL_MINUTES: int = 0
     PLAN_EVAL_DELAY_SECONDS: int = 60
 
+    # App chỉ tự tick mục vận động khi kcal thiết bị đạt ít nhất ngưỡng này.
+    MOBILE_EXERCISE_MIN_KCAL: float = 350.0
+
     # Xác minh email — SMTP (để trống SMTP_HOST → ghi link ra console thay vì gửi thật)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

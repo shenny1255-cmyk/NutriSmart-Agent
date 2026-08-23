@@ -2,9 +2,12 @@
 
 from datetime import date, datetime, time, timedelta, timezone
 import re
+from typing import Any, cast
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import (
     ActivityLog,
     MealLog,
@@ -124,6 +127,162 @@ def _source_logs(db: Session, progress_id) -> tuple[list[MealLog], list[Activity
     return meals, activities
 
 
+def _mobile_activity_for_date(
+    db: Session,
+    user: User,
+    progress_date: date,
+) -> ActivityLog | None:
+    """Lấy log App của ngày thực tế; log này được giữ lại dù người dùng bỏ tick."""
+    local_start = datetime.combine(progress_date, time.min, tzinfo=LOCAL_TIMEZONE)
+    local_end = local_start + timedelta(days=1)
+    return db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+        func.coalesce(ActivityLog.started_at, ActivityLog.logged_at) >= local_start,
+        func.coalesce(ActivityLog.started_at, ActivityLog.logged_at) < local_end,
+    ).order_by(ActivityLog.id.desc()).first()  # type: ignore[arg-type]
+
+
+def _mobile_plan_context(
+    db: Session,
+    user: User,
+    progress_date: date,
+) -> tuple[NutritionPlan, PlanCheckin, PlanCheckinSeries, dict] | None:
+    checkin = db.query(PlanCheckin).filter(
+        PlanCheckin.user_id == user.id,
+        PlanCheckin.start_date <= progress_date,  # type: ignore[arg-type]
+        PlanCheckin.period_end >= progress_date,  # type: ignore[arg-type]
+    ).order_by(PlanCheckin.period_number.desc()).first()  # type: ignore[arg-type]
+    if checkin is None:
+        return None
+
+    series = db.query(PlanCheckinSeries).filter(
+        PlanCheckinSeries.id == cast(Any, checkin.series_id)
+    ).first()
+    plan = db.query(NutritionPlan).filter(
+        NutritionPlan.id == cast(Any, checkin.plan_id),
+        NutritionPlan.user_id == user.id,
+    ).first()
+    if series is None or plan is None:
+        return None
+
+    days = (plan.content or {}).get("days") or []
+    if len(days) != 7:
+        return None
+    template_index = (progress_date - series.started_at).days % 7
+    return plan, checkin, series, days[template_index]
+
+
+def mobile_exercise_status(
+    db: Session,
+    user: User,
+    progress_date: date,
+    actual_kcal: float,
+    *,
+    auto_checked: bool = False,
+) -> dict | None:
+    """Trả trạng thái mục vận động để App hiển thị, không tự ghi dữ liệu."""
+    context = _mobile_plan_context(db, user, progress_date)
+    if context is None:
+        return None
+    plan, checkin, series, day = context
+    exercise_name, _, plan_kcal = _exercise_data(day)
+    required_kcal = max(float(settings.MOBILE_EXERCISE_MIN_KCAL), plan_kcal)
+
+    progress = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id,
+        PlanDailyProgress.plan_id == plan.id,
+        PlanDailyProgress.checkin_id == checkin.id,
+        PlanDailyProgress.progress_date == progress_date,  # type: ignore[arg-type]
+    ).first()
+    checked = bool(progress and "exercise" in (progress.checked_items or []))
+    source: str | None = None
+    if progress is not None and checked:
+        linked_mobile = db.query(ActivityLog).filter(
+            ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+            ActivityLog.source_progress_id == progress.id,
+            ActivityLog.source_item_key == "exercise",  # type: ignore[arg-type]
+        ).first()
+        source = "MOBILE" if linked_mobile is not None else "PLAN"
+
+    eligible = checkin.status == "OPEN" and series.status == "ACTIVE"
+    if series.status != "ACTIVE":
+        reason = "PROGRAM_INACTIVE"
+    elif checkin.status != "OPEN":
+        reason = "CHECKIN_CLOSED"
+    elif auto_checked:
+        reason = "AUTO_CHECKED"
+    elif checked:
+        reason = "ALREADY_CHECKED"
+    elif actual_kcal >= required_kcal:
+        reason = "TARGET_REACHED"
+    else:
+        reason = "BELOW_TARGET"
+
+    return {
+        "exercise_name": exercise_name,
+        "required_kcal": round(required_kcal, 1),
+        "actual_kcal": round(actual_kcal, 1),
+        "remaining_kcal": round(max(required_kcal - actual_kcal, 0), 1),
+        "progress_date": progress_date,
+        "checked": checked,
+        "auto_checked": auto_checked,
+        "eligible": eligible,
+        "reason": reason,
+        "source": source,
+    }
+
+
+def sync_mobile_exercise(
+    db: Session,
+    user: User,
+    mobile_log: ActivityLog,
+    progress_date: date,
+) -> dict | None:
+    """Dùng kcal App làm bằng chứng và tự tick khi đạt ngưỡng, trong transaction caller."""
+    initial = mobile_exercise_status(
+        db, user, progress_date, float(mobile_log.calories_burned or 0)
+    )
+    if initial is None or not initial["eligible"]:
+        return initial
+
+    should_auto_check = (
+        not initial["checked"]
+        and initial["actual_kcal"] >= initial["required_kcal"]
+    )
+    if initial["checked"] or should_auto_check:
+        context = _mobile_plan_context(db, user, progress_date)
+        if context is None:
+            return initial
+        plan, checkin, _, _ = context
+        progress = db.query(PlanDailyProgress).filter(
+            PlanDailyProgress.checkin_id == checkin.id,
+            PlanDailyProgress.progress_date == progress_date,  # type: ignore[arg-type]
+        ).with_for_update().first()
+        checked_items = (
+            list(cast(list[str], progress.checked_items))
+            if progress is not None else []
+        )
+        if should_auto_check:
+            checked_items.append("exercise")
+        save_progress(
+            db,
+            user,
+            plan.id,
+            progress_date,
+            checked_items,
+            today=progress_date,
+        )
+
+    return mobile_exercise_status(
+        db,
+        user,
+        progress_date,
+        float(mobile_log.calories_burned or 0),
+        auto_checked=should_auto_check,
+    )
+
+
 def _to_dict(
     progress: PlanDailyProgress,
     *,
@@ -183,6 +342,14 @@ def save_progress(
     activity_by_key = {str(row.source_item_key): row for row in old_activities}
 
     desired_set = set(desired)
+    linked_mobile = db.query(ActivityLog).filter(
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+        ActivityLog.source_progress_id == progress.id,
+        ActivityLog.source_item_key == "exercise",  # type: ignore[arg-type]
+    ).first()
+    if "exercise" not in desired_set and linked_mobile is not None:
+        setattr(linked_mobile, "source_progress_id", None)
+        linked_mobile.source_item_key = None
     for row in old_meals:
         if row.source_item_key not in desired_set:
             db.delete(row)
@@ -211,7 +378,13 @@ def save_progress(
         name, duration, calories = _exercise_data(day)
         started_at = datetime.combine(progress_date, time(hour=12), tzinfo=LOCAL_TIMEZONE)
         existing_activity = activity_by_key.get("exercise")
-        if existing_activity is not None:
+        mobile_activity = _mobile_activity_for_date(db, user, progress_date)
+        if mobile_activity is not None and float(mobile_activity.calories_burned or 0) > 0:
+            if existing_activity is not None:
+                db.delete(existing_activity)
+            setattr(mobile_activity, "source_progress_id", progress.id)
+            mobile_activity.source_item_key = "exercise"
+        elif existing_activity is not None:
             existing_activity.duration_min = duration
             existing_activity.calories_burned = calories
             existing_activity.item_name_snapshot = name
@@ -298,10 +471,18 @@ def reset_progress(
         db.flush()
         return _to_dict(progress)
     meals, activities = _source_logs(db, progress.id)
+    linked_mobile = db.query(ActivityLog).filter(
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+        ActivityLog.source_progress_id == progress.id,
+        ActivityLog.source_item_key == "exercise",  # type: ignore[arg-type]
+    ).first()
     intake = sum(float(row.calories_kcal or 0) for row in meals)
     burned = sum(float(row.calories_burned or 0) for row in activities)
     for row in [*meals, *activities]:
         db.delete(row)
+    if linked_mobile is not None:
+        setattr(linked_mobile, "source_progress_id", None)
+        linked_mobile.source_item_key = None
     progress.checked_items = []  # type: ignore
     progress.status = "IN_PROGRESS"  # type: ignore
     progress.completed_at = None  # type: ignore
