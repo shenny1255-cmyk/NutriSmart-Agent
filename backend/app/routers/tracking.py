@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import logging
 from typing import Any, cast
 
@@ -9,18 +9,20 @@ from sqlalchemy.orm import Session
 from app.deps import get_db, get_current_user
 from app.models import (
     User, ActivityLog, MealLog, Food, Exercise, BodyMetricHistory,
-    PlanDailyProgress,
+    PlanCheckin, PlanDailyProgress,
 )
 from app.schemas import (
-    DailySummaryOut, ActivityIn, TodayActivityOut,
+    DailySummaryOut, ActivityIn, TodayActivityOut, PlanExerciseSyncOut,
     ManualMealIn, MealLogOut, ManualActivityIn, ActivityLogOut, WeightIn, WeightOut,
 )
 from app.services.calorie import calories_burned, manual_calories_limit
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
+from app.services import plan_progress
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
+LOCAL_TIMEZONE = timezone(timedelta(hours=7))
 
 
 def _bo_tick_lien_ket(db: Session, progress_id, item_key: str | None) -> None:
@@ -32,8 +34,11 @@ def _bo_tick_lien_ket(db: Session, progress_id, item_key: str | None) -> None:
     ).with_for_update().first()
     if progress is None:
         return
-    if progress.status == "COMPLETED":
-        raise HTTPException(409, "Ngày này đã hoàn thành nên không thể xóa riêng mục nhật ký")
+    checkin = db.query(PlanCheckin).filter(
+        PlanCheckin.id == cast(Any, progress.checkin_id)
+    ).first()
+    if checkin is not None and checkin.status != "OPEN":
+        raise HTTPException(409, "Đợt này đã khóa và không còn nhận thay đổi")
     stored_items = cast(list[str], progress.checked_items)
     setattr(progress, "checked_items", [key for key in stored_items if key != item_key])
 
@@ -42,6 +47,16 @@ def _ngay_viet_nam(column):
     """Đổi TIMESTAMPTZ sang ngày Việt Nam trước khi lọc theo lịch địa phương."""
     from sqlalchemy import func
     return func.date(func.timezone("Asia/Bangkok", column))
+
+
+def _device_estimates(db: Session, user: User, steps: int) -> tuple[float, float]:
+    """Tính lại kcal và quãng đường bằng số đo đã lưu, không tin số client tự khai."""
+    metric = latest_body_metric(db, user.id)
+    weight_kg = float(metric.weight_kg) if metric and metric.weight_kg else 60.0
+    height_cm = float(metric.height_cm) if metric and metric.height_cm else 170.0
+    calories = round(steps * 0.04 * (weight_kg / 60), 1)
+    distance = round(steps * ((height_cm * 0.414) / 100) / 1000, 2)
+    return calories, distance
 
 
 @router.get("/summary", response_model=list[DailySummaryOut])
@@ -61,13 +76,23 @@ def summary(
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
     today = date.today()
     if not any(r["day"] == today for r in rows):
+        from sqlalchemy import func
+
         target = (user.profile.daily_calorie_target if user.profile else None) or 2000
+        kcal_intake = float(db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0)).filter(
+            MealLog.user_id == user.id,  # type: ignore[arg-type]
+            MealLog.log_date == today,  # type: ignore[arg-type]
+        ).scalar() or 0)
+        kcal_burned = float(db.query(func.coalesce(func.sum(ActivityLog.calories_burned), 0)).filter(
+            ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+            _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) == today,
+        ).scalar() or 0)
         rows.append({
             "day": today,
-            "kcal_intake": 0.0,
-            "kcal_burned": 0.0,
+            "kcal_intake": kcal_intake,
+            "kcal_burned": kcal_burned,
             "daily_calorie_target": target,
-            "kcal_remaining": float(target),
+            "kcal_remaining": float(target) - kcal_intake + kcal_burned,
         })
         rows.sort(key=lambda x: x["day"])
     return rows
@@ -79,10 +104,15 @@ def upsert_daily_activity(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Mobile gửi số bước + calo tiêu hao lên. UPSERT theo (user_id, date)."""
+    """Mobile gửi bước chân; backend tính kcal và tự tick vận động khi đủ ngưỡng."""
+    log_date = payload.log_date or date.today()
+    if log_date != date.today():
+        raise HTTPException(422, "Ứng dụng chỉ được đồng bộ hoạt động của ngày hôm nay")
     try:
         from sqlalchemy import func
-        log_date = payload.log_date or date.today()
+
+        # Khóa ngắn theo user để hai lần bấm đồng bộ đồng thời không tạo hai log MOBILE.
+        db.query(User.id).filter(User.id == user.id).with_for_update().one()  # type: ignore[arg-type]
 
         # Tìm bản ghi hiện có cho ngày hôm đó (exercise_id IS NULL -> log từ Mobile)
         existing = (
@@ -100,17 +130,36 @@ def upsert_daily_activity(
         )
 
         if existing:
-            existing.steps = payload.steps  # type: ignore
-            existing.calories_burned = payload.calories_burned  # type: ignore
+            effective_steps = max(int(existing.steps or 0), payload.steps)
+            existing.steps = effective_steps  # type: ignore
+            existing.source_type = "MOBILE"
+            if existing.started_at is None:
+                setattr(
+                    existing,
+                    "started_at",
+                    datetime.combine(log_date, time(hour=12), tzinfo=LOCAL_TIMEZONE),
+                )
         else:
+            effective_steps = payload.steps
             existing = ActivityLog(
                 user_id=user.id,
-                steps=payload.steps,
-                calories_burned=payload.calories_burned,
+                steps=effective_steps,
+                started_at=datetime.combine(
+                    log_date, time(hour=12), tzinfo=LOCAL_TIMEZONE
+                ),
                 source_type="MOBILE",
-                item_name_snapshot="Dữ liệu vận động từ thiết bị",
+                item_name_snapshot="Hoạt động đồng bộ từ ứng dụng",
             )
             db.add(existing)
+
+        trusted_calories, trusted_distance = _device_estimates(
+            db, user, effective_steps
+        )
+        existing.calories_burned = trusted_calories
+        db.flush()
+        exercise_status = plan_progress.sync_mobile_exercise(
+            db, user, existing, log_date
+        )
 
         db.commit()
         db.refresh(existing)
@@ -118,9 +167,16 @@ def upsert_daily_activity(
         return TodayActivityOut(
             steps=int(existing.steps or 0),  # type: ignore
             calories_burned=float(existing.calories_burned or 0),  # type: ignore
-            distance_km=payload.distance_km,
+            distance_km=trusted_distance,
             log_date=log_date,
+            plan_exercise=(
+                PlanExerciseSyncOut.model_validate(exercise_status)
+                if exercise_status is not None else None
+            ),
         )
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Lỗi upsert_daily_activity: {e}", exc_info=True)
@@ -148,12 +204,21 @@ def get_today_activity(
         )
         .first()
     )
+    steps = int(log.steps) if log and log.steps else 0  # type: ignore
+    calories = float(log.calories_burned) if log and log.calories_burned else 0.0  # type: ignore
+    _, distance = _device_estimates(db, user, steps)
 
     return TodayActivityOut(
-        steps=int(log.steps) if log and log.steps else 0,  # type: ignore
-        calories_burned=float(log.calories_burned) if log and log.calories_burned else 0.0,  # type: ignore
-        distance_km=0.0,
+        steps=steps,
+        calories_burned=calories,
+        distance_km=distance,
         log_date=today,
+        plan_exercise=(
+            PlanExerciseSyncOut.model_validate(exercise_status)
+            if (exercise_status := plan_progress.mobile_exercise_status(
+                db, user, today, calories
+            )) is not None else None
+        ),
     )
 
 
@@ -342,6 +407,7 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
             or_(
                 ActivityLog.exercise_id.isnot(None),  # type: ignore
                 ActivityLog.source_type == "PLAN",  # type: ignore
+                ActivityLog.source_type == "MOBILE",  # type: ignore
             ),
         )
         .order_by(ActivityLog.id)  # type: ignore

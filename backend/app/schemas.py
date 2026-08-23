@@ -379,10 +379,30 @@ class DailySummaryOut(BaseModel):
 
 
 class ActivityIn(BaseModel):
-    steps: int = Field(ge=0, default=0)
-    calories_burned: float = Field(ge=0, default=0.0)
-    distance_km: float = Field(ge=0, default=0.0)
+    steps: int = Field(ge=0, le=100_000, default=0)
+    calories_burned: float = Field(ge=0, le=10_000, default=0.0)
+    distance_km: float = Field(ge=0, le=200, default=0.0)
     log_date: date | None = None  # None = hôm nay
+
+
+class PlanExerciseSyncOut(BaseModel):
+    exercise_name: str
+    required_kcal: float
+    actual_kcal: float
+    remaining_kcal: float
+    progress_date: date
+    checked: bool
+    auto_checked: bool
+    eligible: bool
+    reason: Literal[
+        "BELOW_TARGET",
+        "TARGET_REACHED",
+        "AUTO_CHECKED",
+        "ALREADY_CHECKED",
+        "CHECKIN_CLOSED",
+        "PROGRAM_INACTIVE",
+    ]
+    source: Literal["MOBILE", "PLAN"] | None = None
 
 
 class TodayActivityOut(BaseModel):
@@ -390,6 +410,7 @@ class TodayActivityOut(BaseModel):
     calories_burned: float
     distance_km: float
     log_date: date
+    plan_exercise: PlanExerciseSyncOut | None = None
 
 
 # ---------- Nhật ký thủ công (bữa ăn / vận động / cân nặng) ----------

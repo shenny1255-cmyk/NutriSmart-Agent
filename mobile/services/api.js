@@ -172,6 +172,7 @@ export const api = {
   foods: (query = '') => request(`/catalog/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
   exercises: () => request('/catalog/exercises'),
   dailySummary: (days = 1) => request(`/tracking/summary?days=${days}`),
+  todayActivity: () => request('/tracking/today-activity'),
   syncActivity: (payload) => request('/tracking/daily-activity', {
     method: 'POST',
     data: payload,

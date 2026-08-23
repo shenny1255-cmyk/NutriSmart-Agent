@@ -134,7 +134,7 @@ def test_luu_progress_lap_lai_khong_nhan_doi_nhat_ky_va_dat_lai_khong_xoa_log_ta
     assert db.query(ActivityLog).filter(
         ActivityLog.user_id == user.id,  # type: ignore[arg-type]
         ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
-    ).count() == 1
+    ).count() == 0
     assert db.query(ActivityLog).filter(
         ActivityLog.user_id == user.id,  # type: ignore[arg-type]
         ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
@@ -269,6 +269,188 @@ def test_luu_lai_tu_sua_log_zero_cua_van_dong_plan_cu():
     assert activity.duration_min == 30
     assert float(activity.calories_burned) == 200
     assert activity.item_name_snapshot == "Yoga"
+
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+    db.commit()
+    db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_mobile_chi_tu_tick_khi_dat_nguong_va_dong_bo_lap_khong_cong_trung():
+    from app.models import ActivityLog, PlanDailyProgress
+    from app.routers.tracking import (
+        danh_sach_van_dong,
+        get_today_activity,
+        summary,
+        upsert_daily_activity,
+    )
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+
+    initial = get_today_activity(db, user)
+    assert initial.plan_exercise is not None
+    assert initial.plan_exercise.required_kcal == 350
+    assert initial.plan_exercise.actual_kcal == 0
+
+    below = upsert_daily_activity(
+        ActivityIn(steps=7000, calories_burned=9999, log_date=date.today()), db, user
+    )
+    assert below.calories_burned == pytest.approx(326.7)
+    assert below.plan_exercise is not None
+    assert below.plan_exercise.required_kcal == 350
+    assert below.plan_exercise.remaining_kcal == pytest.approx(23.3)
+    assert below.plan_exercise.checked is False
+    assert below.plan_exercise.auto_checked is False
+    assert below.plan_exercise.reason == "BELOW_TARGET"
+    assert db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id  # type: ignore[arg-type]
+    ).count() == 0
+
+    reached = upsert_daily_activity(
+        ActivityIn(steps=8000, calories_burned=9999, log_date=date.today()), db, user
+    )
+    assert reached.calories_burned == pytest.approx(373.3)
+    assert reached.plan_exercise is not None
+    assert reached.plan_exercise.checked is True
+    assert reached.plan_exercise.auto_checked is True
+    assert reached.plan_exercise.source == "MOBILE"
+    assert reached.plan_exercise.reason == "AUTO_CHECKED"
+
+    repeated = upsert_daily_activity(
+        ActivityIn(steps=9000, calories_burned=0, log_date=date.today()), db, user
+    )
+    assert repeated.calories_burned == pytest.approx(420)
+    assert repeated.plan_exercise is not None
+    assert repeated.plan_exercise.checked is True
+    assert repeated.plan_exercise.auto_checked is False
+    assert repeated.plan_exercise.reason == "ALREADY_CHECKED"
+
+    progress = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id  # type: ignore[arg-type]
+    ).one()
+    assert cast(list[str], progress.checked_items) == ["exercise"]
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+    ).count() == 1
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
+    ).count() == 0
+
+    save_progress(
+        db, user, plan.id, date.today(), ["meal:0", "exercise"], today=date.today()
+    )
+    db.commit()
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
+    ).count() == 0
+    activities = danh_sach_van_dong(db, user, date.today())
+    assert len(activities) == 1
+    assert activities[0].source_type == "MOBILE"
+    assert activities[0].calories_burned == pytest.approx(420)
+    assert summary(days=1, db=db, user=user)[-1]["kcal_burned"] == pytest.approx(420)
+
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+    db.commit()
+    db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_mobile_van_luu_nhat_ky_nhung_khong_tick_khi_dot_da_khoa():
+    from app.models import ActivityLog, PlanDailyProgress
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+
+    db = SessionLocal()
+    user, _, checkin = _create_program(
+        db,
+        exercise_data={"name": "Chạy bộ", "duration_min": 30, "calories_kcal": 300},
+    )
+    checkin.status = "COMPLETED"  # type: ignore
+    db.commit()
+
+    result = upsert_daily_activity(
+        ActivityIn(steps=9000, calories_burned=0, log_date=date.today()), db, user
+    )
+    assert result.plan_exercise is not None
+    assert result.plan_exercise.eligible is False
+    assert result.plan_exercise.reason == "CHECKIN_CLOSED"
+    assert result.plan_exercise.checked is False
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+    ).count() == 1
+    assert db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id  # type: ignore[arg-type]
+    ).count() == 0
+
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+    db.commit()
+    db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_mobile_thay_log_uoc_tinh_web_va_reset_chi_bo_lien_ket():
+    from app.models import ActivityLog, PlanDailyProgress
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import reset_progress, save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+    save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+    db.commit()
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
+    ).count() == 1
+
+    synced = upsert_daily_activity(
+        ActivityIn(steps=8000, calories_burned=373.3, log_date=date.today()), db, user
+    )
+    assert synced.plan_exercise is not None
+    assert synced.plan_exercise.checked is True
+    assert synced.plan_exercise.auto_checked is False
+    assert db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
+    ).count() == 0
+    mobile = db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "MOBILE",  # type: ignore[arg-type]
+    ).one()
+    assert mobile.source_item_key == "exercise"
+    assert cast(Any, mobile.source_progress_id) is not None
+
+    reset_progress(db, user, plan.id, date.today(), today=date.today())
+    db.commit()
+    db.refresh(mobile)
+    progress = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id  # type: ignore[arg-type]
+    ).one()
+    assert cast(list[str], progress.checked_items) == []
+    assert cast(Any, mobile.source_progress_id) is None
+    assert mobile.source_item_key is None
+    assert db.query(ActivityLog).filter(ActivityLog.id == mobile.id).count() == 1  # type: ignore[arg-type]
+
+    resynced = upsert_daily_activity(
+        ActivityIn(steps=8000, calories_burned=373.3, log_date=date.today()), db, user
+    )
+    assert resynced.plan_exercise is not None
+    assert resynced.plan_exercise.auto_checked is True
+    db.refresh(progress)
+    assert cast(list[str], progress.checked_items) == ["exercise"]
 
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
