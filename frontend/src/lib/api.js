@@ -185,6 +185,15 @@ export const api = {
     if (file) fd.append('file', file);
     return request('/expert/documents/upload', { method: 'POST', body: fd, isForm: true });
   },
+  // Kho bài viết
+  articles: (params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== '' && value != null) query.set(key, value);
+    });
+    return request(`/articles?${query.toString()}`);
+  },
+  articleCategories: () => request('/articles/categories'),
   me: () => request('/auth/me'),
   updateProfile: (payload) => request('/auth/me', { method: 'PUT', body: payload }),
 

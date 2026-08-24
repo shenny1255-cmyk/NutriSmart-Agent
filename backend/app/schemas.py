@@ -705,3 +705,34 @@ class MealLogIn(BaseModel):
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
     quantity: float = Field(default=1.0, gt=0)
     log_date: date | None = None
+
+
+# ---------- Kho bài viết (Articles) ----------
+class ArticleCategoryBrief(BaseModel):
+    id: int
+    name: str
+    slug: str
+
+
+class ArticleOut(BaseModel):
+    id: UUID
+    title: str
+    excerpt: str
+    source_name: str | None = None
+    source_url: str | None = None
+    category: ArticleCategoryBrief | None = None
+    approved_at: datetime | None = None
+
+
+class ArticleListOut(BaseModel):
+    items: list[ArticleOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class ArticleCategoryOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    article_count: int

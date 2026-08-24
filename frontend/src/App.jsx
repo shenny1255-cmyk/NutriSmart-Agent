@@ -8,12 +8,13 @@ import MealScan from './pages/mealscan.jsx';
 import Chat from './pages/Chat.jsx';
 import Login from './pages/login.jsx';
 import Register from './pages/register.jsx';
-import { Shield, FileCheck, FolderTree } from 'lucide-react';
+import { Shield, FileCheck, FolderTree, BookOpen } from 'lucide-react';
 import AdminUsers from './pages/AdminUsers.jsx';
 import AdminDrugs from './pages/AdminDrugs.jsx';
 import AdminAudit from './pages/AdminAudit.jsx';
 import AdminCategories from './pages/AdminCategories.jsx';
 import ExpertReview from './pages/ExpertReview.jsx';
+import Articles from './pages/Articles.jsx';
 import Profile from './pages/Profile.jsx';
 import Verify from './pages/Verify.jsx';
 import { Logo, LogoMark } from './components/Logo.jsx';
@@ -27,6 +28,7 @@ const baseNav = [
   { to: '/diary', label: 'Nhật ký', icon: NotebookPen, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/scan', label: 'Phân tích món ăn', icon: Camera, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/chat', label: 'Trợ lý AI', icon: MessageSquare, roles: ['USER', 'EXPERT', 'ADMIN'] },
+  { to: '/articles', label: 'Kho bài viết', icon: BookOpen, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/expert/review', label: 'Duyệt tài liệu', icon: FileCheck, roles: ['EXPERT', 'ADMIN'] },
   { to: '/admin/users', label: 'Người dùng', icon: Shield, roles: ['ADMIN'] },
   { to: '/admin/categories', label: 'Danh mục', icon: FolderTree, roles: ['ADMIN'] },
@@ -228,6 +230,7 @@ export default function App() {
           <Route path="/diary" element={<Diary />} />
           <Route path="/scan" element={<MealScan />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/articles" element={<Articles />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/expert/review" element={<ExpertReview />} />
           <Route path="/admin/users" element={<AdminUsers />} />

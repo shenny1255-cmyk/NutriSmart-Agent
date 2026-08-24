@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.config import settings
-from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision, notifications
+from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision, notifications, articles
 from app.services import plan_checkin
 from app.services import ollama_client
 
@@ -60,6 +60,7 @@ app.include_router(admin.router,    prefix=API)
 app.include_router(expert.router,   prefix=API)
 app.include_router(vision.router,   prefix=API)
 app.include_router(notifications.router, prefix=API)
+app.include_router(articles.router, prefix=API)
 
 
 @app.get("/", include_in_schema=False)
