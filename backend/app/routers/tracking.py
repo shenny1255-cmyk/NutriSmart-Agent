@@ -65,6 +65,29 @@ def summary(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    from sqlalchemy import func
+    since = date.today() - timedelta(days=days - 1)
+    zero_plan_logs = (
+        db.query(ActivityLog)
+        .filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "PLAN",
+            ActivityLog.calories_burned <= 0,
+            ActivityLog.duration_min > 0,
+            _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) >= since,
+        )
+        .all()
+    )
+    if zero_plan_logs:
+        for log in zero_plan_logs:
+            name = str(log.item_name_snapshot or "Đi bộ")
+            _, _, calc_kcal = plan_progress._resolve_exercise_data(
+                db, user, {"exercise": {"name": name, "duration_min": log.duration_min, "calories_kcal": 0}}
+            )
+            if calc_kcal > 0:
+                log.calories_burned = calc_kcal
+        db.commit()
+
     sql = text("""
         SELECT day, kcal_intake, kcal_burned,
                daily_calorie_target, kcal_remaining
@@ -72,12 +95,9 @@ def summary(
         WHERE user_id = :uid AND day >= :since
         ORDER BY day
     """)
-    since = date.today() - timedelta(days=days - 1)
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
     today = date.today()
     if not any(r["day"] == today for r in rows):
-        from sqlalchemy import func
-
         target = (user.profile.daily_calorie_target if user.profile else None) or 2000
         kcal_intake = float(db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0)).filter(
             MealLog.user_id == user.id,  # type: ignore[arg-type]
@@ -342,6 +362,8 @@ def api_xoa_bua_an(
     xoa_bua_an(db, user, log_id)
 
 
+
+
 # ---------- Nhật ký vận động thủ công ----------
 
 def them_van_dong(db: Session, user: User, payload: ManualActivityIn) -> ActivityLogOut:
@@ -413,6 +435,19 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
         .order_by(ActivityLog.id)  # type: ignore
         .all()
     )
+    has_repair = False
+    for a, ten in rows:
+        if a.source_type == "PLAN" and float(a.calories_burned or 0) <= 0 and (a.duration_min or 0) > 0:
+            name = str(ten or a.item_name_snapshot or "Đi bộ")
+            _, _, calc_kcal = plan_progress._resolve_exercise_data(
+                db, user, {"exercise": {"name": name, "duration_min": a.duration_min, "calories_kcal": 0}}
+            )
+            if calc_kcal > 0:
+                a.calories_burned = calc_kcal
+                has_repair = True
+    if has_repair:
+        db.commit()
+
     return [
         ActivityLogOut(
             id=int(a.id), exercise_name=str(ten or cast(str | None, a.item_name_snapshot) or "Vận động"), duration_min=int(a.duration_min or 0),  # type: ignore

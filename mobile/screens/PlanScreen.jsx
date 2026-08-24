@@ -44,10 +44,23 @@ function shortDate(value) {
 
 function exerciseText(exercise) {
   if (!exercise) return '';
-  if (typeof exercise === 'string') return exercise;
+  if (typeof exercise === 'string') {
+    const durationMatch = exercise.match(/(\d+(?:[.,]\d+)?)\s*(?:phút|phut|minutes?|mins?)/i);
+    const caloriesMatch = exercise.match(/(\d+(?:[.,]\d+)?)\s*kcal/i);
+    if (durationMatch && !caloriesMatch) {
+      const dur = Math.trunc(Number(durationMatch[1].replace(',', '.')));
+      const estKcal = Math.round((3.5 * 3.5 * 60 / 200) * dur);
+      return `${exercise} · ${estKcal} kcal`;
+    }
+    return exercise;
+  }
   const details = [exercise.name || 'Vận động theo lộ trình'];
   if (exercise.duration_min) details.push(`${exercise.duration_min} phút`);
-  if (exercise.calories_kcal) details.push(`${Number(exercise.calories_kcal).toLocaleString()} kcal`);
+  let kcal = exercise.calories_kcal;
+  if (!kcal && exercise.duration_min) {
+    kcal = Math.round((3.5 * 3.5 * 60 / 200) * exercise.duration_min);
+  }
+  if (kcal) details.push(`${Number(kcal).toLocaleString()} kcal`);
   return details.join(' · ');
 }
 

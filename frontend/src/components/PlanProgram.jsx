@@ -69,10 +69,15 @@ function mealIcon(type = '') {
 
 function exerciseData(value) {
   if (value && typeof value === 'object') {
+    const duration = Number(value.duration_min || 0);
+    let calories = Number(value.calories_kcal || 0);
+    if (!calories && duration) {
+      calories = Math.round((3.5 * 3.5 * 60 / 200) * duration);
+    }
     return {
       name: value.name || 'Vận động theo lộ trình',
-      duration: Number(value.duration_min || 0),
-      calories: Number(value.calories_kcal || 0),
+      duration,
+      calories,
     };
   }
   const text = String(value || '').trim();
@@ -84,10 +89,15 @@ function exerciseData(value) {
   const name = metricStarts.length
     ? text.slice(0, Math.min(...metricStarts)).replace(/[\s\-–—·,:]+$/u, '')
     : text;
+  const duration = durationMatch ? Math.trunc(Number(durationMatch[1].replace(',', '.'))) : 0;
+  let calories = caloriesMatch ? Number(caloriesMatch[1].replace(',', '.')) : 0;
+  if (!calories && duration) {
+    calories = Math.round((3.5 * 3.5 * 60 / 200) * duration);
+  }
   return {
     name: name || 'Vận động theo lộ trình',
-    duration: durationMatch ? Math.trunc(Number(durationMatch[1].replace(',', '.'))) : 0,
-    calories: caloriesMatch ? Number(caloriesMatch[1].replace(',', '.')) : 0,
+    duration,
+    calories,
   };
 }
 

@@ -455,3 +455,44 @@ def test_mobile_thay_log_uoc_tinh_web_va_reset_chi_bo_lien_ket():
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
     db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_bai_tap_plan_thieu_kcal_tu_dong_tinh_met_va_sua_log_zero():
+    from app.models import ActivityLog
+    from app.routers.tracking import danh_sach_van_dong, summary
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    # Plan chỉ có chuỗi "Đi bộ 30 phút" (không có chữ kcal)
+    user, plan, _ = _create_program(db, exercise_data="Đi bộ 30 phút")
+
+    result = save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+    db.commit()
+
+    # User nặng 60kg, đi bộ 30 phút theo MET -> > 0 kcal
+    assert result["kcal_burned_delta"] > 0
+    activity = db.query(ActivityLog).filter(
+        ActivityLog.user_id == user.id,  # type: ignore[arg-type]
+        ActivityLog.source_type == "PLAN",  # type: ignore[arg-type]
+    ).one()
+    assert float(activity.calories_burned or 0) > 0
+    assert activity.duration_min == 30
+
+    # Giả lập bản ghi cũ bị 0 kcal và kiểm tra danh_sach_van_dong / summary tự sửa
+    activity.calories_burned = 0  # type: ignore
+    db.commit()
+
+    acts = danh_sach_van_dong(db, user, date.today())
+    assert acts[0].calories_burned > 0
+    db.refresh(activity)
+    assert float(activity.calories_burned or 0) > 0
+
+    activity.calories_burned = 0  # type: ignore
+    db.commit()
+    sums = summary(days=1, db=db, user=user)
+    assert sums[-1]["kcal_burned"] > 0
+
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+    db.commit()
+    db.close()

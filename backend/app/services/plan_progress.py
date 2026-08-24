@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import (
     ActivityLog,
+    Exercise,
     MealLog,
     NutritionPlan,
     PlanCheckin,
@@ -17,6 +18,8 @@ from app.models import (
     PlanDailyProgress,
     User,
 )
+from app.services.body_metrics import latest_body_metric
+from app.services.calorie import calories_burned
 
 
 ITEM_KEYS = ("meal:0", "meal:1", "meal:2", "exercise")
@@ -74,6 +77,49 @@ def _exercise_data(day: dict) -> tuple[str, int, float]:
     ]
     name = text[:min(metric_starts)].rstrip(" -–—·,:") if metric_starts else text
     return name or "Vận động theo lộ trình", duration, calories
+
+
+def _resolve_exercise_data(
+    db: Session,
+    user: User,
+    day: dict,
+) -> tuple[str, int, float]:
+    """Bóc tách thông tin bài tập và tự ước tính kcal từ MET nếu dữ liệu thiếu calo."""
+    name, duration, calories = _exercise_data(day)
+    if calories > 0 or duration <= 0:
+        return name, duration, calories
+
+    # Tìm MET phù hợp theo tên bài tập
+    met: float = 3.5  # Mặc định mức vận động vừa phải (đi bộ vừa)
+    normalized_name = name.strip().casefold()
+    exercise_row = (
+        db.query(Exercise)
+        .filter(func.lower(Exercise.name) == normalized_name)
+        .first()
+    )
+    if exercise_row is None:
+        all_exercises = db.query(Exercise).all()
+        for ex in all_exercises:
+            ex_name = (ex.name or "").casefold()
+            if ex_name and (ex_name in normalized_name or normalized_name in ex_name):
+                exercise_row = ex
+                break
+
+    if exercise_row is not None and exercise_row.met_value:
+        met = float(exercise_row.met_value)
+
+    # Lấy cân nặng người dùng
+    metric = latest_body_metric(db, user.id)
+    weight_kg: float | None = None
+    if metric and metric.weight_kg is not None:
+        weight_kg = float(metric.weight_kg)
+    elif user.profile and user.profile.weight_kg is not None:
+        weight_kg = float(user.profile.weight_kg)
+    else:
+        weight_kg = 60.0
+
+    computed_kcal = calories_burned(met, weight_kg, duration)
+    return name, duration, computed_kcal
 
 
 def _context(
@@ -186,7 +232,7 @@ def mobile_exercise_status(
     if context is None:
         return None
     plan, checkin, series, day = context
-    exercise_name, _, plan_kcal = _exercise_data(day)
+    exercise_name, _, plan_kcal = _resolve_exercise_data(db, user, day)
     required_kcal = max(float(settings.MOBILE_EXERCISE_MIN_KCAL), plan_kcal)
 
     progress = db.query(PlanDailyProgress).filter(
@@ -375,7 +421,7 @@ def save_progress(
         ))
 
     if "exercise" in desired_set:
-        name, duration, calories = _exercise_data(day)
+        name, duration, calories = _resolve_exercise_data(db, user, day)
         started_at = datetime.combine(progress_date, time(hour=12), tzinfo=LOCAL_TIMEZONE)
         existing_activity = activity_by_key.get("exercise")
         mobile_activity = _mobile_activity_for_date(db, user, progress_date)
