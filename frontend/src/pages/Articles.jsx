@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Search, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { ExternalLink, Search, X, Tag } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Alert, Btn, Card, Field, Select } from '../components/ui.jsx';
 
@@ -26,15 +27,37 @@ function SkeletonCard() {
   );
 }
 
-function ArticleCard({ article }) {
+function ArticleCard({ article, categories, isStaff, onUpdateCategory }) {
   const approved = formatApprovedDate(article.approved_at);
   return (
     <Card className="flex flex-col gap-3 p-5 transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card">
-      {article.category && (
-        <span className="w-max rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-strong">
-          {article.category.name}
-        </span>
-      )}
+      <div className="flex items-center justify-between gap-2">
+        {isStaff ? (
+          <div className="flex items-center gap-1.5">
+            <Tag size={13} className="text-accent-strong shrink-0" />
+            <select
+              value={article.category?.id || ''}
+              onChange={(e) => onUpdateCategory(article.id, e.target.value)}
+              className="rounded border border-paper-3 bg-paper px-2 py-1 text-xs font-semibold text-accent-strong transition-colors hover:border-accent-strong focus:border-accent-strong focus:outline-none"
+              title="Đổi danh mục cho bài viết này"
+            >
+              <option value="">— Chưa phân loại —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : article.category ? (
+          <span className="w-max rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-strong">
+            {article.category.name}
+          </span>
+        ) : (
+          <span className="text-xs text-muted">Chưa phân loại</span>
+        )}
+      </div>
+
       <h3 className="font-display text-base font-bold leading-snug text-ink">{article.title}</h3>
       {article.excerpt && <p className="text-sm leading-relaxed text-ink-2">{article.excerpt}</p>}
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
@@ -61,14 +84,20 @@ function ArticleCard({ article }) {
 }
 
 export default function Articles() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const catParam = searchParams.get('category_id') || '';
   const [qInput, setQInput] = useState('');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = useState({ q: '', category_id: catParam });
   const [page, setPage] = useState(1);
   const [result, setResult] = useState({ items: [], total: 0, page: 1, page_size: PAGE_SIZE });
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState(null);
+  const [updateMsg, setUpdateMsg] = useState(null);
+
+  const role = localStorage.getItem('role') || 'USER';
+  const isStaff = role === 'ADMIN' || role === 'EXPERT';
 
   useEffect(() => { api.articleCategories().then(setCategories).catch(() => setCategories([])); }, []);
 
@@ -87,7 +116,12 @@ export default function Articles() {
     }
   }
 
-  useEffect(() => { load(1, EMPTY_FILTERS); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const currentCat = searchParams.get('category_id') || '';
+    const nextFilters = { q: qInput.trim(), category_id: currentCat };
+    setFilters(nextFilters);
+    load(1, nextFilters);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function submitSearch(e) {
     e.preventDefault();
@@ -99,13 +133,43 @@ export default function Articles() {
   function changeCategory(categoryId) {
     const next = { ...filters, category_id: categoryId };
     setFilters(next);
-    load(1, next);
+    if (categoryId) {
+      setSearchParams({ category_id: categoryId });
+    } else {
+      setSearchParams({});
+    }
   }
 
   function clearFilters() {
     setQInput('');
     setFilters(EMPTY_FILTERS);
-    load(1, EMPTY_FILTERS);
+    setSearchParams({});
+  }
+
+  async function handleUpdateCategory(articleId, newCategoryId) {
+    try {
+      await api.updateDocCategoryAssignment(articleId, newCategoryId || null);
+      // Reload categories list to update article counts
+      api.articleCategories().then(setCategories).catch(() => {});
+      // Update local state smoothly
+      setResult((prev) => ({
+        ...prev,
+        items: prev.items.map((item) => {
+          if (item.id === articleId) {
+            const foundCat = categories.find((c) => String(c.id) === String(newCategoryId));
+            return {
+              ...item,
+              category: foundCat ? { id: foundCat.id, name: foundCat.name, slug: foundCat.slug } : null,
+            };
+          }
+          return item;
+        }),
+      }));
+      setUpdateMsg('Đã cập nhật danh mục bài viết.');
+      setTimeout(() => setUpdateMsg(null), 3000);
+    } catch (e) {
+      setError(`Không thể cập nhật danh mục: ${e.message}`);
+    }
   }
 
   const pageCount = Math.max(1, Math.ceil(result.total / result.page_size));
@@ -155,6 +219,8 @@ export default function Articles() {
         )}
       </form>
 
+      {updateMsg && <Alert tone="success">{updateMsg}</Alert>}
+
       {error && (
         <div className="space-y-2">
           <Alert tone="danger">{error}</Alert>
@@ -182,7 +248,15 @@ export default function Articles() {
         </Card>
       ) : (
         <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
-          {result.items.map((article) => <ArticleCard key={article.id} article={article} />)}
+          {result.items.map((article) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              categories={categories}
+              isStaff={isStaff}
+              onUpdateCategory={handleUpdateCategory}
+            />
+          ))}
         </div>
       )}
 

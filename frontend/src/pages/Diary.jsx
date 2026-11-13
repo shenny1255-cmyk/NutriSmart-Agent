@@ -1,11 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine,
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
 } from 'recharts';
-import { Plus, Trash2, UtensilsCrossed, Dumbbell, Scale, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  Plus, Trash2, UtensilsCrossed, Dumbbell, Scale, TrendingDown, TrendingUp, Maximize2, Eye, X,
+} from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidFoodName } from '../lib/validation.js';
 import { Btn, Field, Select, Alert, Toast, useToast } from '../components/ui.jsx';
+
+import samplePho from '../assets/sample_pho.jpg';
+import sampleSalad from '../assets/sample_salad.jpg';
+import sampleChickenRice from '../assets/sample_chicken_rice.jpg';
+
+function getFoodImage(name = '') {
+  const n = (name || '').toLowerCase();
+  if (n.includes('phở') || n.includes('pho') || n.includes('bún') || n.includes('hủ tiếu') || n.includes('mì') || n.includes('mi')) return samplePho;
+  if (n.includes('salad') || n.includes('rau') || n.includes('gỏi') || n.includes('bơ') || n.includes('trái cây') || n.includes('hoa quả')) return sampleSalad;
+  if (n.includes('cơm') || n.includes('gà') || n.includes('thịt') || n.includes('bò') || n.includes('heo') || n.includes('cá') || n.includes('trứng')) return sampleChickenRice;
+  return samplePho;
+}
 
 const MEAL_TYPES = [
   ['BREAKFAST', 'Bữa sáng'],
@@ -26,15 +40,6 @@ const homNay = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// Recharts vẽ SVG nên không nhận var() — đọc token 1 lần từ :root như Dashboard
-function useTokens(names) {
-  return useMemo(() => {
-    const cs = getComputedStyle(document.documentElement);
-    return Object.fromEntries(names.map((n) => [n, cs.getPropertyValue(n).trim()]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-}
-
 export default function Diary() {
   const [ngay, setNgay] = useState(homNay());
   const [meals, setMeals] = useState([]);
@@ -46,21 +51,34 @@ export default function Diary() {
   const { toast, show } = useToast();
 
   useEffect(() => {
-    api.foods().then(setFoods).catch(() => setFoods([]));
-    api.exercises().then(setExercises).catch(() => setExercises([]));
+    api.foods().then((res) => setFoods(Array.isArray(res) ? res : [])).catch(() => setFoods([]));
+    api.exercises().then((res) => setExercises(Array.isArray(res) ? res : [])).catch(() => setExercises([]));
     taiCanNang();
   }, []);
 
-  useEffect(() => { taiNhatKy(ngay); }, [ngay]);
+  useEffect(() => {
+    taiNhatKy(ngay);
+  }, [ngay]);
 
   const taiNhatKy = (d) => {
-    api.meals(d).then(setMeals).catch((e) => setErr(e.message));
-    api.activities(d).then(setActs).catch((e) => setErr(e.message));
+    api.meals(d).then((res) => setMeals(Array.isArray(res) ? res : [])).catch((e) => {
+      setMeals([]);
+      setErr(e.message);
+    });
+    api.activities(d).then((res) => setActs(Array.isArray(res) ? res : [])).catch((e) => {
+      setActs([]);
+      setErr(e.message);
+    });
   };
-  const taiCanNang = () => api.weightHistory(90).then(setWeights).catch(() => setWeights([]));
 
-  const tongNap = meals.reduce((s, m) => s + m.calories_kcal, 0);
-  const tongDot = acts.reduce((s, a) => s + a.calories_burned, 0);
+  const taiCanNang = () => {
+    api.weightHistory(90).then((res) => setWeights(Array.isArray(res) ? res : [])).catch(() => setWeights([]));
+  };
+
+  const safeMeals = Array.isArray(meals) ? meals : [];
+  const safeActs = Array.isArray(acts) ? acts : [];
+  const tongNap = safeMeals.reduce((s, m) => s + (Number(m.calories_kcal) || 0), 0);
+  const tongDot = safeActs.reduce((s, a) => s + (Number(a.calories_burned) || 0), 0);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -80,19 +98,23 @@ export default function Diary() {
       </div>
 
       <BuaAn
-        ngay={ngay} meals={meals} foods={foods}
+        ngay={ngay}
+        meals={safeMeals}
+        foods={Array.isArray(foods) ? foods : []}
         onSaved={(msg) => { taiNhatKy(ngay); show(msg); }}
         onError={(msg) => show(msg, 'danger')}
       />
 
       <VanDong
-        ngay={ngay} acts={acts} exercises={exercises}
+        ngay={ngay}
+        acts={safeActs}
+        exercises={Array.isArray(exercises) ? exercises : []}
         onSaved={(msg) => { taiNhatKy(ngay); show(msg); }}
         onError={(msg) => show(msg, 'danger')}
       />
 
       <CanNang
-        weights={weights}
+        weights={Array.isArray(weights) ? weights : []}
         onSaved={(msg) => { taiCanNang(); show(msg); }}
         onError={(msg) => show(msg, 'danger')}
       />
@@ -112,7 +134,7 @@ function TongKet({ icon: Icon, label, value, tone }) {
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
         <p className="font-display text-2xl font-bold [font-variant-numeric:tabular-nums]">
-          {Math.round(value)}
+          {Math.round(value || 0)}
           <span className="ml-1 font-body text-sm font-medium text-muted">kcal</span>
         </p>
       </div>
@@ -137,11 +159,25 @@ function KhungThe({ icon: Icon, title, subtitle, children }) {
   );
 }
 
-function DongNhatKy({ chinh, phu, tri, nguon, onDelete, dangXoa }) {
+function DongNhatKy({ chinh, phu, tri, nguon, onOpenDetail, onDelete, dangXoa }) {
+  const imgSrc = getFoodImage(chinh);
   return (
-    <li className="flex items-center gap-3 rounded-sm px-3 py-2 transition-colors duration-short ease-out hover:bg-paper-3">
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-ink">{chinh}</span>
+    <li className="flex items-center gap-3 rounded-sm px-3 py-2.5 transition-colors duration-short ease-out hover:bg-paper-3">
+      {onOpenDetail ? (
+        <button
+          type="button"
+          onClick={onOpenDetail}
+          className="group relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-paper-3 shadow-xs transition-transform duration-short hover:scale-105 active:scale-95"
+          title="Bấm để phóng to ảnh & xem dinh dưỡng chi tiết"
+        >
+          <img src={imgSrc} alt={chinh} className="h-full w-full object-cover" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+            <Eye size={14} className="text-white" />
+          </div>
+        </button>
+      ) : null}
+      <span className={`min-w-0 flex-1 ${onOpenDetail ? 'cursor-pointer' : ''}`} onClick={onOpenDetail}>
+        <span className="block truncate text-sm font-semibold text-ink hover:text-accent-strong">{chinh}</span>
         <span className="flex flex-wrap items-center gap-1 text-xs text-muted">
           {phu}
           {nguon && (
@@ -151,11 +187,114 @@ function DongNhatKy({ chinh, phu, tri, nguon, onDelete, dangXoa }) {
           )}
         </span>
       </span>
-      <span className="shrink-0 text-sm text-ink-2 [font-variant-numeric:tabular-nums]">{tri}</span>
+      <span className="shrink-0 text-sm font-medium text-ink-2 [font-variant-numeric:tabular-nums]">{tri}</span>
+      {onOpenDetail && (
+        <Btn variant="subtle" size="sm" onClick={onOpenDetail} aria-label="Xem chi tiết">
+          <Maximize2 size={13} />
+        </Btn>
+      )}
       <Btn variant="danger-subtle" size="sm" onClick={onDelete} disabled={dangXoa} aria-label="Xóa khỏi nhật ký">
         <Trash2 size={13} />
       </Btn>
     </li>
+  );
+}
+
+function FoodLightboxModal({ meal, open, onClose }) {
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    if (open) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open || !meal) return null;
+
+  const imgSrc = getFoodImage(meal.food_name);
+
+  return (
+    <div
+      className="fixed inset-0 z-modal flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl bg-paper p-0 shadow-2xl animate-modal-in border border-white/20"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-transform hover:scale-110 active:scale-95"
+          aria-label="Đóng"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="relative aspect-video w-full overflow-hidden bg-black/10">
+          <img
+            src={imgSrc}
+            alt={meal.food_name}
+            className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute bottom-4 left-4 right-4 text-white">
+            <span className="inline-block rounded-full bg-accent-strong px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm">
+              {MEAL_LABEL[meal.meal_type] ?? meal.meal_type}
+            </span>
+            <h3 className="mt-1 font-display text-xl font-bold text-white">{meal.food_name}</h3>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule-2 pb-3 text-xs text-muted">
+            <div className="flex items-center gap-1.5">
+              <span>Nguồn:</span>
+              <span className="font-semibold text-ink-2">{SOURCE_LABEL[meal.source_type] || meal.source_type || 'Thủ công'}</span>
+            </div>
+            <div>
+              <span>Khẩu phần: </span>
+              <b className="text-ink-2">{meal.quantity} phần</b>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="rounded-xl bg-accent-soft/60 p-2.5 border border-accent/20">
+              <span className="block text-xs font-semibold text-accent-strong uppercase">Calo</span>
+              <span className="font-display text-lg font-bold text-accent-strong [font-variant-numeric:tabular-nums]">
+                {Math.round(meal.calories_kcal || 0)}
+              </span>
+              <span className="block text-[10px] text-muted">kcal</span>
+            </div>
+            <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
+              <span className="block text-xs font-medium text-muted uppercase">Đạm</span>
+              <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
+                {meal.protein_g != null ? `${meal.protein_g}g` : '—'}
+              </span>
+            </div>
+            <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
+              <span className="block text-xs font-medium text-muted uppercase">Carbs</span>
+              <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
+                {meal.carb_g != null ? `${meal.carb_g}g` : '—'}
+              </span>
+            </div>
+            <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
+              <span className="block text-xs font-medium text-muted uppercase">Béo</span>
+              <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
+                {meal.fat_g != null ? `${meal.fat_g}g` : '—'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <Btn variant="primary" size="sm" onClick={onClose} className="w-full">
+              Đóng xem ảnh
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -166,9 +305,10 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
   const [loai, setLoai] = useState('LUNCH');
   const [phan, setPhan] = useState('1');
   const [dangLuu, setDangLuu] = useState(false);
+  const [selectedMeal, setSelectedMeal] = useState(null);
 
   const monMoi = foodId === '__new__';
-  const monDaChon = foods.find((f) => f.id === foodId);
+  const monDaChon = (foods || []).find((f) => f.id === foodId);
   const tenMonHopLe = isValidFoodName(tenMoi);
   const kcalNumber = Number(kcal);
   const kcalHopLe = kcal !== '' && Number.isFinite(kcalNumber) && kcalNumber >= 1 && kcalNumber <= 5000;
@@ -201,13 +341,13 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
   const hopLe = phanHopLe && (monMoi ? tenMonHopLe && kcalHopLe : !!foodId);
 
   return (
-    <KhungThe icon={UtensilsCrossed} title="Bữa ăn" subtitle="Chọn món có sẵn hoặc tự nhập món mới">
+    <KhungThe icon={UtensilsCrossed} title="Bữa ăn" subtitle="Chọn món có sẵn hoặc tự nhập món mới (bấm vào món để phóng to ảnh chi tiết)">
       <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Món ăn
           <Select value={foodId} onChange={(e) => setFoodId(e.target.value)} className="w-52">
             <option value="">— Chọn món —</option>
-            {foods.map((f) => (
+            {(foods || []).map((f) => (
               <option key={f.id} value={f.id}>{f.name} ({Math.round(f.calories_kcal)} kcal)</option>
             ))}
             <option value="__new__">+ Món khác…</option>
@@ -277,7 +417,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
         </p>
       )}
 
-      {meals.length === 0 ? (
+      {(!meals || meals.length === 0) ? (
         <p className="text-sm text-muted">Chưa ghi bữa nào trong ngày này.</p>
       ) : (
         <ul className="divide-y divide-rule-2">
@@ -287,7 +427,8 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
               chinh={m.food_name}
               phu={`${MEAL_LABEL[m.meal_type] ?? m.meal_type} · ${m.quantity} phần`}
               nguon={m.source_type}
-              tri={`${Math.round(m.calories_kcal)} kcal`}
+              tri={`${Math.round(m.calories_kcal || 0)} kcal`}
+              onOpenDetail={() => setSelectedMeal(m)}
               onDelete={async () => {
                 try {
                   await api.deleteMeal(m.id);
@@ -298,6 +439,12 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
           ))}
         </ul>
       )}
+
+      <FoodLightboxModal
+        meal={selectedMeal}
+        open={Boolean(selectedMeal)}
+        onClose={() => setSelectedMeal(null)}
+      />
     </KhungThe>
   );
 }
@@ -321,70 +468,96 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
     }
     setDangLuu(true);
     try {
-      const res = await api.addActivity({
+      const payload = {
         exercise_id: Number(exId),
         duration_min: soPhut,
-        log_date: ngay,
-        ...(dungKcalThietBi ? { calories_burned: kcalNhap } : {}),
-      });
-      setKcal('');
-      setDungKcalThietBi(false);
-      onSaved(`Đã ghi ${res.exercise_name} (−${Math.round(res.calories_burned)} kcal).`);
+        started_at: `${ngay}T00:00:00Z`,
+        ...(dungKcalThietBi && kcal ? { calories_burned: kcalNhap } : {}),
+      };
+      const res = await api.addActivity(payload);
+      setPhut('30'); setKcal(''); setDungKcalThietBi(false);
+      onSaved(`Đã ghi buổi tập (-${Math.round(res.calories_burned)} kcal).`);
     } catch (e) {
-      onError(`Không ghi được buổi tập: ${e.message}`);
+      if (e.status === 422) onError('Thông tin bài tập chưa hợp lệ. Vui lòng kiểm tra thời lượng và calo.');
+      else onError(typeof e.detail === 'string' ? e.detail : 'Không ghi được vận động. Vui lòng thử lại.');
     } finally {
       setDangLuu(false);
     }
   }
 
+  const exChon = (exercises || []).find((e) => e.id === Number(exId));
+
   return (
-    <KhungThe icon={Dumbbell} title="Vận động" subtitle="Bỏ trống ô kcal thì hệ thống tự tính theo MET và cân nặng của bạn">
+    <KhungThe icon={Dumbbell} title="Vận động & Thể thao" subtitle="Chọn bài tập để tự tính calo tiêu hao">
       <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">
           Bài tập
-          <Select value={exId} onChange={(e) => setExId(e.target.value)} className="w-52">
+          <Select value={exId} onChange={(e) => setExId(e.target.value)} className="w-56">
             <option value="">— Chọn bài tập —</option>
-            {exercises.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            {(exercises || []).map((e) => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
           </Select>
         </label>
+
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Số phút
-          <Field type="number" min="1" max="600" value={phut} onChange={(e) => setPhut(e.target.value)}
-            className={`w-24 ${phut !== '' && !phutHopLe ? 'outline outline-2 outline-danger' : ''}`} />
-          {phut !== '' && !phutHopLe && <span className="font-medium text-danger">Nhập từ 1 đến 600 phút</span>}
+          Thời lượng (phút)
+          <Field
+            type="number" min="1" max="600" step="5" value={phut}
+            onChange={(e) => setPhut(e.target.value)}
+            aria-invalid={!phutHopLe}
+            className={`w-28 ${!phutHopLe ? 'outline outline-2 outline-danger' : ''}`}
+          />
+          {!phutHopLe && <span className="max-w-36 text-danger">Từ 1–600 phút</span>}
         </label>
-        <label className="mt-5 flex min-h-11 items-center gap-2 rounded-sm bg-paper-3 px-3 text-xs font-medium text-ink-2 shadow-hairline">
-          <input type="checkbox" checked={dungKcalThietBi} onChange={(e) => {
-            setDungKcalThietBi(e.target.checked);
-            if (!e.target.checked) setKcal('');
-          }} className="h-4 w-4 accent-accent-strong" />
-          Dùng kcal từ thiết bị
-        </label>
-        {dungKcalThietBi && (
-          <label className="flex flex-col gap-1 text-xs text-muted">
-            Kcal thiết bị ghi nhận
-            <Field type="number" min="1" max="5000" value={kcal} onChange={(e) => setKcal(e.target.value)}
-              placeholder="VD: 250" className={`w-32 ${!kcalHopLe ? 'outline outline-2 outline-danger' : ''}`} />
-            {!kcalHopLe && <span className="font-medium text-danger">Nhập từ 1 đến 5000 kcal</span>}
+
+        <div className="flex flex-col gap-1 text-xs text-muted">
+          <label className="flex items-center gap-1.5 pt-5">
+            <input
+              type="checkbox"
+              checked={dungKcalThietBi}
+              onChange={(e) => setDungKcalThietBi(e.target.checked)}
+              className="accent-accent-strong"
+            />
+            Nhập kcal từ đồng hồ
           </label>
-        )}
+          {dungKcalThietBi && (
+            <Field
+              type="number" min="1" max="5000" step="1" value={kcal}
+              placeholder="VD: 180"
+              onChange={(e) => setKcal(e.target.value)}
+              aria-invalid={!kcalHopLe}
+              className={`w-28 ${!kcalHopLe ? 'outline outline-2 outline-danger' : ''}`}
+            />
+          )}
+          {dungKcalThietBi && !kcalHopLe && (
+            <span className="max-w-32 text-danger">Từ 1–5.000 kcal</span>
+          )}
+        </div>
+
         <Btn variant="primary" onClick={them} disabled={!exId || !phutHopLe || !kcalHopLe || dangLuu} className="mt-5">
           <Plus size={15} />
           Thêm
         </Btn>
       </div>
 
-      {acts.length === 0 ? (
-        <p className="text-sm text-muted">Chưa ghi buổi tập nào trong ngày này.</p>
+      {exChon && !dungKcalThietBi && (
+        <p className="text-xs text-muted">
+          Hệ số MET: <b className="text-ink-2">{exChon.met_value}</b> · Ước tính tiêu hao theo cân nặng hiện tại
+        </p>
+      )}
+
+      {(!acts || acts.length === 0) ? (
+        <p className="text-sm text-muted">Chưa ghi vận động nào trong ngày này.</p>
       ) : (
         <ul className="divide-y divide-rule-2">
           {acts.map((a) => (
             <DongNhatKy
               key={a.id}
-              chinh={a.exercise_name}
-              phu={`${a.duration_min} phút`}
+              chinh={a.item_name_snapshot || a.exercise_name || (a.steps ? `${a.steps} bước chân` : 'Hoạt động')}
+              phu={`${a.duration_min} phút${a.steps ? ` · ${a.steps} bước` : ''}`}
               nguon={a.source_type}
-              tri={`${Math.round(a.calories_burned)} kcal`}
+              tri={`-${Math.round(a.calories_burned || 0)} kcal`}
               onDelete={async () => {
                 try {
                   await api.deleteActivity(a.id);
@@ -402,129 +575,102 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
 function CanNang({ weights, onSaved, onError }) {
   const [kg, setKg] = useState('');
   const [dangLuu, setDangLuu] = useState(false);
-  const t = useTokens([
-    '--color-accent', '--color-rule-2', '--color-rule', '--color-muted',
-    '--color-paper-2', '--color-ink', '--color-warning-strong',
-  ]);
-
-  const dauKy = weights[0];
-  const cuoiKy = weights.at(-1);
-  const chenhLech = dauKy && cuoiKy ? cuoiKy.weight_kg - dauKy.weight_kg : null;
-  const Xu = (chenhLech ?? 0) <= 0 ? TrendingDown : TrendingUp;
   const kgNumber = Number(kg);
   const kgHopLe = kg !== '' && Number.isFinite(kgNumber) && kgNumber >= 20 && kgNumber <= 300;
 
-  async function luu() {
+  async function them() {
     if (!kgHopLe) return;
     setDangLuu(true);
     try {
-      const res = await api.updateWeight({ weight_kg: kgNumber });
+      await api.updateWeight({ weight_kg: kgNumber });
       setKg('');
-      onSaved(`Đã cập nhật cân nặng ${res.weight_kg} kg${res.bmi ? ` · BMI ${res.bmi}` : ''}.`);
+      onSaved(`Đã ghi cân nặng ${kgNumber} kg.`);
     } catch (e) {
-      if (e.status === 422) onError('Cân nặng phải từ 20 đến 300 kg.');
-      else onError(typeof e.detail === 'string' ? e.detail : 'Không lưu được cân nặng. Vui lòng thử lại.');
+      if (e.status === 422) onError('Cân nặng không hợp lệ. Vui lòng nhập từ 20–300 kg.');
+      else onError(typeof e.detail === 'string' ? e.detail : 'Không ghi được cân nặng. Vui lòng thử lại.');
     } finally {
       setDangLuu(false);
     }
   }
 
-  // Recharts cần mảng số; rút gọn nhãn ngày còn dd/MM cho đỡ chật trục X
-  const duLieu = weights.map((w) => ({
-    ngay: w.recorded_at.slice(8, 10) + '/' + w.recorded_at.slice(5, 7),
-    kg: w.weight_kg,
+  const safeWeights = Array.isArray(weights) ? weights : [];
+  const sorted = [...safeWeights].sort((a, b) => new Date(a.recorded_at || a.log_date) - new Date(b.recorded_at || b.log_date));
+  const chartData = sorted.map((w) => ({
+    date: new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' }).format(new Date(w.recorded_at || w.log_date)),
+    kg: Number(w.weight_kg),
   }));
 
+  const ganNhat = sorted[sorted.length - 1]?.weight_kg;
+  const truocDo = sorted[sorted.length - 2]?.weight_kg;
+  const chenh = ganNhat && truocDo ? (ganNhat - truocDo).toFixed(1) : null;
+
   return (
-    <KhungThe icon={Scale} title="Cân nặng" subtitle="Cập nhật mỗi tuần một lần là đủ để hệ thống chấm lộ trình">
-      <div className="flex flex-wrap items-start gap-2">
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          Cân nặng hôm nay (kg)
+    <KhungThe icon={Scale} title="Cân nặng" subtitle="Theo dõi xu hướng cân nặng qua thời gian">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-muted">
+          Cân nặng hôm nay
           <Field
             type="number" min="20" max="300" step="0.1" value={kg}
+            placeholder="VD: 65.5"
             onChange={(e) => setKg(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && kgHopLe && luu()}
             aria-invalid={kg !== '' && !kgHopLe}
-            placeholder="VD: 68.5" className="w-32"
+            className={`w-28 ${kg !== '' && !kgHopLe ? 'outline outline-2 outline-danger' : ''}`}
           />
-          {kg !== '' && !kgHopLe && (
-            <span className="max-w-36 text-danger">Nhập từ 20 đến 300 kg</span>
-          )}
+          kg
         </label>
-        <Btn variant="primary" onClick={luu} disabled={!kgHopLe || dangLuu} className="mt-5">
-          {dangLuu ? 'Đang lưu…' : 'Cập nhật'}
+        <Btn variant="primary" onClick={them} disabled={!kgHopLe || dangLuu}>
+          <Plus size={15} />
+          Ghi nhận
         </Btn>
+        {kg !== '' && !kgHopLe && (
+          <span className="text-xs text-danger">Nhập cân nặng từ 20–300 kg</span>
+        )}
 
-        {cuoiKy && (
-          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
-            <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2 [font-variant-numeric:tabular-nums]">
-              Hiện tại {cuoiKy.weight_kg} kg
-            </span>
-            {cuoiKy.bmi && (
-              <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2 [font-variant-numeric:tabular-nums]">
-                BMI {cuoiKy.bmi}
-              </span>
-            )}
-            {chenhLech !== null && weights.length > 1 && (
-              <span className="flex items-center gap-1 rounded-full bg-accent-soft px-3 py-1 font-medium text-accent-strong [font-variant-numeric:tabular-nums]">
-                <Xu size={14} />
-                {chenhLech > 0 ? '+' : ''}{chenhLech.toFixed(1)} kg
+        {ganNhat && (
+          <div className="ml-auto flex items-center gap-2 text-sm">
+            <span className="text-muted">Gần nhất:</span>
+            <span className="font-display font-bold text-ink">{ganNhat} kg</span>
+            {chenh && (
+              <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                Number(chenh) < 0 ? 'bg-accent-soft text-accent-strong' : Number(chenh) > 0 ? 'bg-warning-soft text-warning-strong' : 'bg-paper-3 text-muted'
+              }`}>
+                {Number(chenh) < 0 ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                {Number(chenh) > 0 ? `+${chenh}` : chenh} kg
               </span>
             )}
           </div>
         )}
       </div>
 
-      {duLieu.length < 2 ? (
-        <p className="text-sm text-muted">
-          Cần ít nhất 2 lần cân để vẽ biểu đồ. Ghi cân nặng đều đặn để theo dõi xu hướng.
-        </p>
-      ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={duLieu} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
-            <CartesianGrid stroke={t['--color-rule-2']} strokeDasharray="4 6" vertical={false} />
-            <XAxis dataKey="ngay" fontSize={12} tick={{ fill: t['--color-muted'] }}
-                   tickLine={false} axisLine={{ stroke: t['--color-rule'] }} />
-            <YAxis fontSize={12} tick={{ fill: t['--color-muted'] }} tickLine={false}
-                   axisLine={false} width={44} domain={['dataMin - 2', 'dataMax + 2']} />
-            <Tooltip
-              formatter={(v) => [`${v} kg`, 'Cân nặng']}
-              cursor={{ stroke: t['--color-rule'], strokeDasharray: '4 4' }}
-              contentStyle={{
-                background: t['--color-paper-2'],
-                border: `1px solid ${t['--color-rule']}`,
-                borderRadius: 'var(--radius-sm)',
-                boxShadow: 'var(--shadow-whisper)',
-                fontFamily: 'var(--font-body)',
-                fontSize: 13,
-                color: t['--color-ink'],
-              }}
-              labelStyle={{ color: t['--color-muted'], marginBottom: 4 }}
-            />
-            {/* Mốc xuất phát — nhìn phát biết đang trên hay dưới điểm bắt đầu */}
-            {dauKy && (
-              <ReferenceLine
-                y={dauKy.weight_kg}
-                stroke={t['--color-warning-strong']}
-                strokeDasharray="6 4"
-                strokeWidth={1.5}
-                label={{
-                  value: `Bắt đầu ${dauKy.weight_kg} kg`,
-                  position: 'insideTopRight',
-                  fill: t['--color-warning-strong'],
-                  fontSize: 11,
-                  fontFamily: 'var(--font-body)',
+      {chartData.length >= 2 ? (
+        <div className="h-48 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: '#374151', fontSize: 11 }} />
+              <YAxis domain={['dataMin - 1', 'dataMax + 1']} tick={{ fill: '#374151', fontSize: 11 }} />
+              <Tooltip
+                formatter={(val) => [`${val} kg`, 'Cân nặng']}
+                contentStyle={{
+                  backgroundColor: '#ffffff',
+                  borderColor: '#e5e7eb',
+                  borderRadius: 8,
+                  fontSize: 12,
                 }}
               />
-            )}
-            <Line
-              type="monotone" dataKey="kg" name="Cân nặng"
-              stroke={t['--color-accent']} strokeWidth={2.5}
-              dot={{ r: 3, strokeWidth: 0, fill: t['--color-accent'] }}
-              activeDot={{ r: 5, strokeWidth: 2, stroke: t['--color-paper-2'] }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+              <Line
+                type="monotone"
+                dataKey="kg"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: '#10b981' }}
+                activeDot={{ r: 5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-xs text-muted">Cần ít nhất 2 lần ghi nhận để hiển thị biểu đồ xu hướng.</p>
       )}
     </KhungThe>
   );

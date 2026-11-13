@@ -1,11 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import {
   CalendarClock, Check, CheckCircle2, Cookie, Footprints, LockKeyhole,
   Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun, Sunrise, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Btn, Field, Modal, Select, Toast, useToast } from './ui.jsx';
+
+function fireConfetti() {
+  try {
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#10B981', '#059669', '#34D399', '#FBBF24', '#F59E0B', '#3B82F6'],
+    });
+  } catch {
+    // Ignore if not supported in environment
+  }
+}
 
 const PLAN_JOB_KEY = 'nutrismart_plan_job';
 const ITEM_KEYS = ['meal:0', 'meal:1', 'meal:2', 'exercise'];
@@ -69,10 +83,15 @@ function mealIcon(type = '') {
 
 function exerciseData(value) {
   if (value && typeof value === 'object') {
+    const duration = Number(value.duration_min || 0);
+    let calories = Number(value.calories_kcal || 0);
+    if (!calories && duration) {
+      calories = Math.round((3.5 * 3.5 * 60 / 200) * duration);
+    }
     return {
       name: value.name || 'Vận động theo lộ trình',
-      duration: Number(value.duration_min || 0),
-      calories: Number(value.calories_kcal || 0),
+      duration,
+      calories,
     };
   }
   const text = String(value || '').trim();
@@ -84,10 +103,15 @@ function exerciseData(value) {
   const name = metricStarts.length
     ? text.slice(0, Math.min(...metricStarts)).replace(/[\s\-–—·,:]+$/u, '')
     : text;
+  const duration = durationMatch ? Math.trunc(Number(durationMatch[1].replace(',', '.'))) : 0;
+  let calories = caloriesMatch ? Number(caloriesMatch[1].replace(',', '.')) : 0;
+  if (!calories && duration) {
+    calories = Math.round((3.5 * 3.5 * 60 / 200) * duration);
+  }
   return {
     name: name || 'Vận động theo lộ trình',
-    duration: durationMatch ? Math.trunc(Number(durationMatch[1].replace(',', '.'))) : 0,
-    calories: caloriesMatch ? Number(caloriesMatch[1].replace(',', '.')) : 0,
+    duration,
+    calories,
   };
 }
 
@@ -252,6 +276,19 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   const exercise = exerciseData(day?.exercise);
   const totalItems = (day?.meals?.length || 0) + (day?.exercise ? 1 : 0);
 
+  const completedStreak = useMemo(() => {
+    let streak = 0;
+    const sortedDates = [...periodDates].filter((d) => d <= todayKey()).sort().reverse();
+    for (const d of sortedDates) {
+      if (statusByDate[d] === 'COMPLETED' || (checkedByDate[d] && checkedByDate[d].length >= totalItems && totalItems > 0)) {
+        streak += 1;
+      } else if (d < todayKey()) {
+        break;
+      }
+    }
+    return streak;
+  }, [periodDates, statusByDate, checkedByDate, totalItems]);
+
   function toggleItem(key) {
     if (progressLocked) return;
     setCheckedByDate((current) => {
@@ -265,6 +302,9 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   function applyProgress(result) {
     setCheckedByDate((current) => ({ ...current, [result.progress_date]: result.checked_items }));
     setStatusByDate((current) => ({ ...current, [result.progress_date]: result.status }));
+    if (result.status === 'COMPLETED' || (result.checked_items && result.checked_items.length >= totalItems && totalItems > 0)) {
+      fireConfetti();
+    }
   }
 
   function deltaText(result) {
@@ -399,9 +439,16 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
             <>
               <section>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="font-display font-semibold">Theo dõi Đợt {plan.current_checkin.period_number}</h2>
-                    <p className="text-sm text-muted">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <h2 className="font-display font-semibold">Theo dõi Đợt {plan.current_checkin.period_number}</h2>
+                      <p className="text-sm text-muted">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
+                    </div>
+                    {completedStreak > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-xs font-bold text-warning-strong shadow-xs">
+                        🔥 Chuỗi {completedStreak} ngày kiên trì
+                      </span>
+                    )}
                   </div>
                   {progressStatus === 'COMPLETED' && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-strong">
@@ -456,6 +503,28 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                       <LockKeyhole size={15} /> Đợt này đã khóa nên không còn nhận thay đổi.
                     </p>
                   )}
+
+                  {checkedItems.length === totalItems && totalItems > 0 && (
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent-soft/40 p-4 shadow-sm transition-all duration-300">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-strong text-xl text-white shadow-sm">
+                          🏆
+                        </span>
+                        <div>
+                          <p className="font-display font-bold text-accent-strong">Xuất sắc! Đã hoàn thành 100% mục tiêu ngày</p>
+                          <p className="text-xs text-muted">Bạn đã hoàn thành đủ các bữa ăn và bài tập thể dục theo lộ trình hôm nay.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fireConfetti}
+                        className="shrink-0 rounded-full bg-accent-strong px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-transform duration-short hover:scale-105 active:scale-95"
+                      >
+                        🎉 Ăn mừng!
+                      </button>
+                    </div>
+                  )}
+
                   <ol className="relative space-y-1 border-l-2 border-rule-2 pl-5 marker:content-none">
                     {(day.meals || []).map((meal, index) => (
                       <ProgressItem

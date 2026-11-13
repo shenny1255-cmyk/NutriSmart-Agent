@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, FolderTree, Pill, Check, X } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { categoryNameError } from '../lib/validation.js';
@@ -163,7 +164,19 @@ function BangDanhMuc({ icon: Icon, tieuDe, moTa, cot, demKey, coSlug, tai, them,
                             {coSlug && (
                                 <Td className="font-mono text-xs text-muted [overflow-wrap:anywhere]">{c.slug}</Td>
                             )}
-                            <Td className="text-ink-2 [font-variant-numeric:tabular-nums]">{c[demKey] ?? 0}</Td>
+                            <Td className="text-ink-2 [font-variant-numeric:tabular-nums]">
+                                {coSlug && (c[demKey] ?? 0) > 0 ? (
+                                    <Link
+                                        to={`/articles?category_id=${c.id}`}
+                                        className="inline-flex items-center gap-1 font-semibold text-accent-strong underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
+                                        title={`Xem ${c[demKey]} bài viết trong danh mục ${c.name}`}
+                                    >
+                                        {c[demKey]} bài viết →
+                                    </Link>
+                                ) : (
+                                    c[demKey] ?? 0
+                                )}
+                            </Td>
                             <Td className="text-right">
                                 {dangSua !== c.id && (
                                     <div className="flex justify-end gap-1">

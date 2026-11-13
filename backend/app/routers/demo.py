@@ -196,7 +196,11 @@ def seed_demo(db: Session = Depends(get_db)):
                     {"type": "Trưa", "name": "Cơm gà + rau luộc", "kcal": int(target * 0.4)},
                     {"type": "Tối", "name": "Salad ức gà", "kcal": int(target * 0.3)},
                 ],
-                "exercise": "Đi bộ 30 phút",
+                "exercise": {
+                    "name": "Đi bộ",
+                    "duration_min": 30,
+                    "calories_kcal": 120,
+                },
             }
             for _ in range(7)
         ]

@@ -65,6 +65,29 @@ def summary(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    from sqlalchemy import func
+    since = date.today() - timedelta(days=days - 1)
+    zero_plan_logs = (
+        db.query(ActivityLog)
+        .filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "PLAN",
+            ActivityLog.calories_burned <= 0,
+            ActivityLog.duration_min > 0,
+            _ngay_viet_nam(func.coalesce(ActivityLog.started_at, ActivityLog.logged_at)) >= since,
+        )
+        .all()
+    )
+    if zero_plan_logs:
+        for log in zero_plan_logs:
+            name = str(log.item_name_snapshot or "Đi bộ")
+            _, _, calc_kcal = plan_progress._resolve_exercise_data(
+                db, user, {"exercise": {"name": name, "duration_min": log.duration_min, "calories_kcal": 0}}
+            )
+            if calc_kcal > 0:
+                log.calories_burned = calc_kcal
+        db.commit()
+
     sql = text("""
         SELECT day, kcal_intake, kcal_burned,
                daily_calorie_target, kcal_remaining
@@ -72,12 +95,9 @@ def summary(
         WHERE user_id = :uid AND day >= :since
         ORDER BY day
     """)
-    since = date.today() - timedelta(days=days - 1)
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
     today = date.today()
     if not any(r["day"] == today for r in rows):
-        from sqlalchemy import func
-
         target = (user.profile.daily_calorie_target if user.profile else None) or 2000
         kcal_intake = float(db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0)).filter(
             MealLog.user_id == user.id,  # type: ignore[arg-type]
@@ -268,12 +288,20 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
         item_name_snapshot=str(food.name),
     )
     db.add(log)
+    db.flush()
+    plan_progress.sync_meal_log_with_plan(db, user, log, log_date)
     db.commit()
     db.refresh(log)
 
     return MealLogOut(
-        id=int(log.id), food_name=str(food.name), meal_type=str(log.meal_type),  # type: ignore
-        quantity=float(log.quantity), calories_kcal=float(log.calories_kcal),
+        id=int(log.id),
+        food_name=str(food.name),
+        meal_type=str(log.meal_type),  # type: ignore
+        quantity=float(log.quantity),
+        calories_kcal=float(log.calories_kcal),
+        protein_g=round(float(food.protein_g or 0) * float(log.quantity), 1) if food.protein_g is not None else None,
+        carb_g=round(float(food.carb_g or 0) * float(log.quantity), 1) if food.carb_g is not None else None,
+        fat_g=round(float(food.fat_g or 0) * float(log.quantity), 1) if food.fat_g is not None else None,
         log_date=log.log_date,  # type: ignore
         source_type=cast(str | None, log.source_type),
     )
@@ -281,7 +309,7 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
 
 def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     rows = (
-        db.query(MealLog, Food.name)  # type: ignore
+        db.query(MealLog, Food.name, Food.protein_g, Food.carb_g, Food.fat_g)  # type: ignore
         .outerjoin(Food, Food.id == MealLog.food_id)  # type: ignore
         .filter(MealLog.user_id == user.id, MealLog.log_date == ngay)  # type: ignore
         .order_by(MealLog.logged_at)
@@ -289,12 +317,18 @@ def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     )
     return [
         MealLogOut(
-            id=int(m.id), food_name=str(ten or cast(str | None, m.item_name_snapshot) or "Món không rõ"), meal_type=str(m.meal_type),  # type: ignore
-            quantity=float(m.quantity), calories_kcal=float(m.calories_kcal),
+            id=int(m.id),
+            food_name=str(ten or cast(str | None, m.item_name_snapshot) or "Món không rõ"),
+            meal_type=str(m.meal_type),  # type: ignore
+            quantity=float(m.quantity),
+            calories_kcal=float(m.calories_kcal),
+            protein_g=round(float(prot or 0) * float(m.quantity), 1) if prot is not None else None,
+            carb_g=round(float(carb or 0) * float(m.quantity), 1) if carb is not None else None,
+            fat_g=round(float(fat or 0) * float(m.quantity), 1) if fat is not None else None,
             log_date=m.log_date,  # type: ignore
             source_type=cast(str | None, m.source_type),
         )
-        for m, ten in rows
+        for m, ten, prot, carb, fat in rows
     ]
 
 
@@ -340,6 +374,8 @@ def api_xoa_bua_an(
     user: User = Depends(get_current_user),
 ):
     xoa_bua_an(db, user, log_id)
+
+
 
 
 # ---------- Nhật ký vận động thủ công ----------
@@ -413,6 +449,19 @@ def danh_sach_van_dong(db: Session, user: User, ngay: date) -> list[ActivityLogO
         .order_by(ActivityLog.id)  # type: ignore
         .all()
     )
+    has_repair = False
+    for a, ten in rows:
+        if a.source_type == "PLAN" and float(a.calories_burned or 0) <= 0 and (a.duration_min or 0) > 0:
+            name = str(ten or a.item_name_snapshot or "Đi bộ")
+            _, _, calc_kcal = plan_progress._resolve_exercise_data(
+                db, user, {"exercise": {"name": name, "duration_min": a.duration_min, "calories_kcal": 0}}
+            )
+            if calc_kcal > 0:
+                a.calories_burned = calc_kcal
+                has_repair = True
+    if has_repair:
+        db.commit()
+
     return [
         ActivityLogOut(
             id=int(a.id), exercise_name=str(ten or cast(str | None, a.item_name_snapshot) or "Vận động"), duration_min=int(a.duration_min or 0),  # type: ignore

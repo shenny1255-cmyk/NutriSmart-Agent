@@ -214,3 +214,78 @@ def test_thieu_source_url_category_approved_at(db, admin_tok):
         db.commit()
 
     db.commit()
+
+
+@pytestmark_db
+def test_expert_review_assign_category(db, admin_tok, sample_docs):
+    from app.models import Document
+    admin, token = admin_tok
+    cat, _ = sample_docs
+    doc = Document(
+        title="Bài test review category",
+        raw_text="Nội dung bài viết mẫu dài hơn một trăm ký tự để đủ điều kiện kiểm tra của hệ thống.",
+        status="PENDING",
+        source_url=None,
+        source_name=None,
+        category_id=None,
+        uploaded_by=admin.id,
+    )
+    db.add(doc)
+    db.commit()
+    try:
+        res = _client().patch(
+            f"/api/v1/expert/documents/{doc.id}/review",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"status": "APPROVED", "category_id": cat.id},
+        )
+        assert res.status_code == 200
+        assert res.json()["category_id"] == cat.id
+        db.refresh(doc)
+        assert doc.status == "APPROVED"
+        assert doc.category_id == cat.id
+    finally:
+        db.execute(text("DELETE FROM documents WHERE id = :i"), {"i": str(doc.id)})
+        db.commit()
+
+
+@pytestmark_db
+def test_expert_update_approved_document_category(db, admin_tok, sample_docs):
+    from app.models import Document
+    admin, token = admin_tok
+    cat, _ = sample_docs
+    doc = Document(
+        title="Bài test update category đã duyệt",
+        raw_text="Nội dung bài viết mẫu dài hơn một trăm ký tự để đủ điều kiện kiểm tra của hệ thống.",
+        status="APPROVED",
+        source_url=None,
+        source_name=None,
+        category_id=None,
+        uploaded_by=admin.id,
+    )
+    db.add(doc)
+    db.commit()
+    try:
+        # Patch category
+        res = _client().patch(
+            f"/api/v1/expert/documents/{doc.id}/category",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"category_id": cat.id},
+        )
+        assert res.status_code == 200
+        assert res.json()["category_id"] == cat.id
+        db.refresh(doc)
+        assert doc.category_id == cat.id
+
+        # Patch remove category (set to null)
+        res2 = _client().patch(
+            f"/api/v1/expert/documents/{doc.id}/category",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"category_id": None},
+        )
+        assert res2.status_code == 200
+        assert res2.json()["category_id"] is None
+        db.refresh(doc)
+        assert doc.category_id is None
+    finally:
+        db.execute(text("DELETE FROM documents WHERE id = :i"), {"i": str(doc.id)})
+        db.commit()

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
   RotateCcw, AlertTriangle, Check, X, Upload, Eye, Layers,
-  CheckSquare, Square, Trash2, Plus
+  CheckSquare, Square, Trash2, Plus, Tag
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Btn, Field, Select, Alert, Card, Modal } from '../components/ui.jsx';
 
 export default function ExpertReview() {
   const [docs, setDocs] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [docCategoryMap, setDocCategoryMap] = useState({});
   const [err, setErr] = useState(null);
   const [msg, setMsg] = useState(null);
   const [activeTab, setActiveTab] = useState('preset'); // 'preset' | 'url' | 'upload' | 'sources'
@@ -18,11 +20,14 @@ export default function ExpertReview() {
 
   // Crawling state
   const [crawlUrl, setCrawlUrl] = useState('');
+  const [crawlCategoryId, setCrawlCategoryId] = useState('');
+  const [presetCategoryId, setPresetCategoryId] = useState('');
   const [crawling, setCrawling] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
 
   // Document preview modal state
   const [previewData, setPreviewData] = useState(null);
+  const [previewCategory, setPreviewCategory] = useState('');
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Dynamic crawl sources state
@@ -36,7 +41,16 @@ export default function ExpertReview() {
     api.pendingDocs().then(data => {
       setDocs(data);
       setSelectedIds([]);
+      const map = {};
+      data.forEach(d => {
+        if (d.category_id) map[d.id] = String(d.category_id);
+      });
+      setDocCategoryMap(map);
     }).catch((e) => setErr(e.message));
+  };
+
+  const loadCats = () => {
+    api.docCategories().then(setCats).catch(() => setCats([]));
   };
 
   const loadSources = () => {
@@ -45,16 +59,19 @@ export default function ExpertReview() {
 
   useEffect(() => {
     loadDocs();
+    loadCats();
     loadSources();
   }, []);
 
-  async function reviewSingle(id, status) {
+  async function reviewSingle(id, status, catOverride = null) {
     try {
-      await api.reviewDoc(id, status);
+      const catId = catOverride !== null ? catOverride : (docCategoryMap[id] || null);
+      await api.reviewDoc(id, status, catId ? Number(catId) : null);
       if (previewData && previewData.id === id) {
         setPreviewData(null);
       }
       loadDocs();
+      loadCats();
     } catch (e) {
       setErr(`Không thể xử lý: ${e.message}`);
     }
@@ -66,9 +83,14 @@ export default function ExpertReview() {
     setErr(null);
     setMsg(null);
     try {
-      await Promise.all(selectedIds.map(id => api.reviewDoc(id, status)));
+      await Promise.all(
+        selectedIds.map(id =>
+          api.reviewDoc(id, status, docCategoryMap[id] ? Number(docCategoryMap[id]) : null)
+        )
+      );
       setMsg(`Đã ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} thành công ${selectedIds.length} tài liệu!`);
       loadDocs();
+      loadCats();
     } catch (e) {
       setErr(`Lỗi thao tác hàng loạt: ${e.message}`);
     } finally {
@@ -95,6 +117,7 @@ export default function ExpertReview() {
     try {
       const res = await api.previewDoc(id);
       setPreviewData(res);
+      setPreviewCategory(docCategoryMap[id] || (res.category_id ? String(res.category_id) : ''));
     } catch (e) {
       setErr(`Không thể tải xem trước: ${e.message}`);
     } finally {
@@ -109,7 +132,7 @@ export default function ExpertReview() {
     setErr(null);
     setMsg(null);
     try {
-      const res = await api.crawlDocs([crawlUrl.trim()]);
+      const res = await api.crawlDocs([crawlUrl.trim()], crawlCategoryId ? Number(crawlCategoryId) : null);
       if (res.inserted > 0) {
         setMsg(`Đã cào thành công ${res.inserted} tài liệu mới!`);
         setCrawlUrl('');
@@ -131,7 +154,9 @@ export default function ExpertReview() {
     setErr(null);
     setMsg(null);
     try {
-      const res = await api.crawlPresetDocs(source, 10);
+      const res = await api.crawlPresetDocs(
+        source, 10, presetCategoryId ? Number(presetCategoryId) : null
+      );
       if (res.inserted > 0) {
         setMsg(`Đã cào tự động thành công ${res.inserted} tài liệu mới từ ${source.toUpperCase()}!`);
         loadDocs();
@@ -206,7 +231,7 @@ export default function ExpertReview() {
         </Btn>
       </header>
 
-      {/* Tabs navigation - Khung 4 Tab phân chia rõ ràng bằng đường gạch dọc | và không dùng Icon */}
+      {/* Tabs navigation */}
       <Card className="p-2 shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-paper-3 pb-2 text-base font-semibold">
           <button
@@ -260,23 +285,35 @@ export default function ExpertReview() {
           </button>
         </div>
 
-        {/* Nội dung bên trong Tab với cỡ chữ to, rõ ràng */}
+        {/* Nội dung bên trong Tab */}
         <div className="p-4">
           {activeTab === 'preset' && (
             <div className="space-y-4">
               <p className="text-sm font-medium text-ink-2">
                 Kích hoạt cào bài viết tự động từ các nguồn báo y tế đã kiểm định (Sức khỏe & Đời sống, Vinmec...).
               </p>
-              <div className="flex flex-wrap gap-3">
-                <Btn variant="subtle" size="md" disabled={crawling} onClick={() => handlePresetCrawl('moh')} className="text-sm font-medium">
-                  Sức khỏe & Đời sống (Bộ Y tế)
-                </Btn>
-                <Btn variant="subtle" size="md" disabled={crawling} onClick={() => handlePresetCrawl('vinmec')} className="text-sm font-medium">
-                  Vinmec
-                </Btn>
-                <Btn variant="primary" size="md" disabled={crawling} onClick={() => handlePresetCrawl('all')} className="text-sm font-semibold">
-                  {crawling ? 'Đang cào dữ liệu...' : 'Cào tất cả nguồn uy tín (10 bài)'}
-                </Btn>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-full sm:w-64">
+                  <Select
+                    value={presetCategoryId}
+                    onChange={(e) => setPresetCategoryId(e.target.value)}
+                    className="w-full text-sm"
+                  >
+                    <option value="">— Gán danh mục (Tùy chọn) —</option>
+                    {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Btn variant="subtle" size="md" disabled={crawling} onClick={() => handlePresetCrawl('moh')} className="text-sm font-medium">
+                    Sức khỏe & Đời sống (Bộ Y tế)
+                  </Btn>
+                  <Btn variant="subtle" size="md" disabled={crawling} onClick={() => handlePresetCrawl('vinmec')} className="text-sm font-medium">
+                    Vinmec
+                  </Btn>
+                  <Btn variant="primary" size="md" disabled={crawling} onClick={() => handlePresetCrawl('all')} className="text-sm font-semibold">
+                    {crawling ? 'Đang cào dữ liệu...' : 'Cào tất cả nguồn uy tín (10 bài)'}
+                  </Btn>
+                </div>
               </div>
             </div>
           )}
@@ -284,7 +321,7 @@ export default function ExpertReview() {
           {activeTab === 'url' && (
             <form onSubmit={handleCrawl} className="space-y-4">
               <p className="text-sm font-medium text-ink-2">
-                Nhập đường dẫn bài viết hướng dẫn dinh dưỡng/y tế để bóc tách văn bản chuẩn.
+                Nhập đường dẫn bài viết hướng dẫn dinh dưỡng/y tế và chọn danh mục tương ứng để bóc tách văn bản chuẩn.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Field
@@ -294,8 +331,16 @@ export default function ExpertReview() {
                   placeholder="Dán đường link bài viết (vd: https://suckhoedoisong.vn/...)"
                   value={crawlUrl}
                   onChange={(e) => setCrawlUrl(e.target.value)}
-                  className="w-full flex-1 sm:w-auto text-sm"
+                  className="w-full flex-1 text-sm"
                 />
+                <Select
+                  value={crawlCategoryId}
+                  onChange={(e) => setCrawlCategoryId(e.target.value)}
+                  className="w-full sm:w-60 text-sm"
+                >
+                  <option value="">— Chưa phân loại —</option>
+                  {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
                 <Btn type="submit" variant="primary" disabled={crawling} size="md" className="text-sm font-semibold">
                   {crawling ? 'Đang cào…' : 'Cào bài viết'}
                 </Btn>
@@ -305,7 +350,7 @@ export default function ExpertReview() {
 
           {activeTab === 'upload' && (
             <UploadTaiLieu
-              onDone={(m) => { setMsg(m); setErr(null); loadDocs(); }}
+              onDone={(m) => { setMsg(m); setErr(null); loadDocs(); loadCats(); }}
               onError={(m) => { setErr(m); setMsg(null); }}
             />
           )}
@@ -401,11 +446,11 @@ export default function ExpertReview() {
 
       {docs.length === 0 && (
         <Card className="p-10 text-center text-base text-muted">
-          Không có tài liệu nào đang chờ duyệt. Hãy bấm nút cào ở trên để tải bài viết mới.
+          Không có tài liệu nào đang chờ duyệt. Hãy bấm nút cào hoặc tải file ở trên để thêm bài viết mới.
         </Card>
       )}
 
-      {/* Danh sách bài chờ duyệt - Chữ to rõ ràng */}
+      {/* Danh sách bài chờ duyệt */}
       <div className="space-y-4">
         {docs.map((d) => {
           const isSelected = selectedIds.includes(d.id);
@@ -460,6 +505,19 @@ export default function ExpertReview() {
                     <span className="rounded bg-accent-soft/60 px-2 py-0.5 font-mono text-xs font-semibold text-accent-strong">
                       ~{estChunks} chunks RAG
                     </span>
+                    <span>·</span>
+                    <div className="flex items-center gap-1.5">
+                      <Tag size={13} className="text-ink-2" />
+                      <span className="text-xs font-semibold text-ink">Danh mục:</span>
+                      <select
+                        value={docCategoryMap[d.id] || ''}
+                        onChange={(e) => setDocCategoryMap(prev => ({ ...prev, [d.id]: e.target.value }))}
+                        className="rounded border border-paper-3 bg-paper px-2 py-1 text-xs font-medium text-ink focus:border-accent-strong focus:outline-none"
+                      >
+                        <option value="">— Chưa phân loại —</option>
+                        {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -469,11 +527,21 @@ export default function ExpertReview() {
                   <Eye size={15} />
                   Xem trước & Chunks
                 </Btn>
-                <Btn variant="primary" size="md" onClick={() => reviewSingle(d.id, 'APPROVED')} className="text-sm font-semibold">
+                <Btn
+                  variant="primary"
+                  size="md"
+                  onClick={() => reviewSingle(d.id, 'APPROVED')}
+                  className="text-sm font-semibold"
+                >
                   <Check size={15} />
                   Duyệt
                 </Btn>
-                <Btn variant="danger-subtle" size="md" onClick={() => reviewSingle(d.id, 'REJECTED')} className="text-sm font-semibold">
+                <Btn
+                  variant="danger-subtle"
+                  size="md"
+                  onClick={() => reviewSingle(d.id, 'REJECTED')}
+                  className="text-sm font-semibold"
+                >
                   <X size={15} />
                   Từ chối
                 </Btn>
@@ -496,11 +564,21 @@ export default function ExpertReview() {
                 Đóng
               </Btn>
               <div className="flex gap-3">
-                <Btn variant="danger-subtle" size="md" onClick={() => reviewSingle(previewData.id, 'REJECTED')} className="text-sm font-semibold">
+                <Btn
+                  variant="danger-subtle"
+                  size="md"
+                  onClick={() => reviewSingle(previewData.id, 'REJECTED')}
+                  className="text-sm font-semibold"
+                >
                   <X size={15} />
                   Từ chối
                 </Btn>
-                <Btn variant="primary" size="md" onClick={() => reviewSingle(previewData.id, 'APPROVED')} className="text-sm font-semibold">
+                <Btn
+                  variant="primary"
+                  size="md"
+                  onClick={() => reviewSingle(previewData.id, 'APPROVED', previewCategory || null)}
+                  className="text-sm font-semibold"
+                >
                   <Check size={15} />
                   Duyệt vào RAG Index
                 </Btn>
@@ -509,9 +587,27 @@ export default function ExpertReview() {
           }
         >
           <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1 text-base text-ink">
-            <div>
-              <span className="font-bold text-ink">Nguồn: </span>
-              <span className="text-ink-2">{previewData.source_name || 'Không rõ'} ({previewData.source_url})</span>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-paper-3 pb-3">
+              <div>
+                <span className="font-bold text-ink">Nguồn: </span>
+                <span className="text-ink-2">{previewData.source_name || 'Không rõ'} ({previewData.source_url})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-ink">Danh mục:</span>
+                <select
+                  value={previewCategory}
+                  onChange={(e) => {
+                    setPreviewCategory(e.target.value);
+                    if (previewData) {
+                      setDocCategoryMap(prev => ({ ...prev, [previewData.id]: e.target.value }));
+                    }
+                  }}
+                  className="rounded border border-paper-3 bg-paper px-3 py-1.5 text-sm font-medium text-ink focus:border-accent-strong focus:outline-none"
+                >
+                  <option value="">— Chưa phân loại —</option>
+                  {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
             </div>
 
             <div>

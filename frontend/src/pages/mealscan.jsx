@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import {
+  CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar, Maximize2, Eye, X,
+} from 'lucide-react';
 import { api } from '../lib/api.js';
 
 import samplePho from '../assets/sample_pho.jpg';
@@ -65,6 +68,19 @@ function fileToDataUrl(file) {
   });
 }
 
+function fireConfetti() {
+  try {
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#10B981', '#059669', '#34D399', '#FBBF24', '#F59E0B', '#3B82F6'],
+    });
+  } catch {
+    // Ignore if not supported
+  }
+}
+
 export default function MealScan() {
   const navigate = useNavigate();
   const sessionRef = useRef(mealScanCache);
@@ -77,6 +93,7 @@ export default function MealScan() {
   const [portion, setPortion] = useState(1.0);
   const [mealType, setMealType] = useState(getSuggestedMealType());
   const [dragging, setDragging] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -168,15 +185,15 @@ export default function MealScan() {
             className={[
               'relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 px-6 text-center transition-all duration-short ease-out',
               dragging
-                ? 'scale-[1.01] border-accent-strong bg-accent-soft/50'
-                : 'border-accent/40 bg-white/30 hover:border-accent-strong hover:bg-white/50',
+                ? 'border-accent-strong bg-accent-soft/50'
+                : 'border-black/10 hover:border-accent-strong hover:bg-black/5',
             ].join(' ')}
           >
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft/70 text-accent-strong shadow-sm transition-transform duration-short hover:scale-110">
-              <CloudUpload size={32} strokeWidth={1.8} />
-            </div>
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong shadow-whisper">
+              <CloudUpload size={28} />
+            </span>
 
-            <p className="max-w-md font-body text-base text-ink-2">
+            <p className="mt-4 text-sm text-ink-2">
               Kéo thả,{' '}
               <span className="font-bold text-accent-strong underline decoration-accent/40 underline-offset-2">
                 chọn
@@ -213,11 +230,22 @@ export default function MealScan() {
 
         {preview && (
           <div className="overflow-hidden rounded-xl bg-black/5 p-2 backdrop-blur-sm">
-            <img
-              src={preview}
-              alt="Ảnh món ăn"
-              className="mx-auto max-h-72 rounded-lg object-contain"
-            />
+            <div
+              className="group relative mx-auto max-h-72 cursor-pointer overflow-hidden rounded-lg"
+              onClick={() => setShowLightbox(true)}
+              title="Bấm để phóng to ảnh"
+            >
+              <img
+                src={preview}
+                alt="Ảnh món ăn"
+                className="mx-auto max-h-72 rounded-lg object-contain transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="flex items-center gap-1.5 rounded-full bg-black/75 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
+                  <Maximize2 size={14} /> Phóng to ảnh
+                </span>
+              </div>
+            </div>
             <div className="flex justify-center p-3 pb-1">
               <button
                 type="button"
@@ -373,7 +401,12 @@ export default function MealScan() {
                       meal_type: mealType,
                     });
                     setIsSaved(true);
-                    setSavedMsg(`✅ Đã lưu ${result.food_name} (${portion} phần) vào Nhật ký (+${res.added_calories} kcal)!`);
+                    fireConfetti();
+                    const mealLabel = MEAL_TYPES.find((m) => m.value === mealType)?.label || 'Bữa ăn';
+                    const planMsg = res.plan_synced?.auto_checked
+                      ? ` và tự động hoàn thành ${mealLabel} trên Lộ trình!`
+                      : '!';
+                    setSavedMsg(`✅ Đã lưu ${result.food_name} (${portion} phần) vào Nhật ký (+${res.added_calories} kcal)${planMsg}`);
                   } catch (e) {
                     alert(e.detail || 'Vui lòng đăng nhập để lưu bữa ăn.');
                   } finally {
@@ -413,7 +446,7 @@ export default function MealScan() {
                       setIsSaved(false);
                       setSavedMsg('');
                     }}
-                    className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-rule-2 bg-paper-2 px-4 py-2 text-sm font-semibold text-ink-2 hover:bg-paper-3"
+                    className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-ink-2 shadow-hairline hover:bg-paper-3"
                   >
                     <RefreshCw size={16} />
                     Quét món khác
@@ -423,39 +456,85 @@ export default function MealScan() {
             )}
 
             {savedMsg && (
-              <p className="mt-2 text-center text-xs font-semibold text-accent-strong">{savedMsg}</p>
+              <p className="rounded-lg bg-accent-soft p-3 text-center text-xs font-semibold text-accent-strong">
+                {savedMsg}
+              </p>
             )}
           </div>
         </div>
       )}
 
-      {result?.is_food_image === false && (
-        <div className="glass-card rounded-xl border border-warning-strong/30 bg-warning-soft/90 p-5" role="alert">
-          <div className="flex gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-warning-strong">
-              <AlertTriangle size={21} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-ink">Không nhận diện được món ăn</h2>
-              <p className="mt-1.5 text-base leading-relaxed text-ink-2">
-                {result.rejection_reason || 'Ảnh này dường như không chứa món ăn hoặc món ăn không đủ rõ để phân tích.'}
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-muted">Hãy chụp món ăn đủ sáng, rõ nét và nằm ở giữa khung hình.</p>
-            </div>
+      {result && result.is_food_image === false && (
+        <div className="glass-card flex items-start gap-4 rounded-xl border-l-4 border-warning-strong p-5">
+          <AlertTriangle size={24} className="mt-0.5 shrink-0 text-warning-strong" />
+          <div className="space-y-1">
+            <h3 className="font-semibold text-ink">Không nhận diện được món ăn</h3>
+            <p className="text-sm text-ink-2">
+              Ảnh tải lên dường như không phải là món ăn hoặc quá mờ. Vui lòng chụp rõ đĩa thức ăn và thử lại nhé!
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setPreview(null);
+                setResult(null);
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-accent-strong hover:underline"
+            >
+              <RefreshCw size={14} /> Thử lại với ảnh khác
+            </button>
           </div>
         </div>
       )}
 
       {result?.error && (
-        <div className="glass-card flex items-center justify-between gap-3 rounded-xl bg-danger-soft/80 p-4">
-          <p className="text-sm font-medium text-danger">{result.error}</p>
-          <button
-            onClick={() => inputRef.current?.click()}
-            className="flex min-h-9 items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-ink-2 shadow-hairline hover:bg-paper-3"
-          >
-            <RefreshCw size={14} />
-            Thử lại
-          </button>
+        <div className="glass-card flex items-start gap-4 rounded-xl border-l-4 border-danger p-5">
+          <AlertTriangle size={24} className="mt-0.5 shrink-0 text-danger" />
+          <div className="space-y-1">
+            <h3 className="font-semibold text-ink">Lỗi phân tích hình ảnh</h3>
+            <p className="text-sm text-ink-2">{result.error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setPreview(null);
+                setResult(null);
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-accent-strong hover:underline"
+            >
+              <RefreshCw size={14} /> Thử lại
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal cho ảnh món ăn đang quét */}
+      {showLightbox && preview && (
+        <div
+          className="fixed inset-0 z-modal flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-fade-in"
+          onClick={() => setShowLightbox(false)}
+        >
+          <div className="relative max-h-[90vh] max-w-2xl overflow-hidden rounded-2xl bg-paper p-2 shadow-2xl animate-modal-in border border-white/20">
+            <button
+              type="button"
+              onClick={() => setShowLightbox(false)}
+              className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-sm transition-transform hover:scale-110 active:scale-95"
+              aria-label="Đóng"
+            >
+              <X size={18} />
+            </button>
+            <img
+              src={preview}
+              alt="Món ăn phóng to"
+              className="max-h-[75vh] w-full rounded-xl object-contain"
+            />
+            {result?.food_name && (
+              <div className="p-3 text-center">
+                <p className="font-display text-lg font-bold text-ink">{result.food_name}</p>
+                <p className="text-xs text-muted">
+                  {kcalVal} kcal · {proteinVal ?? 0}g protein · {carbVal ?? 0}g carb · {fatVal ?? 0}g fat
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -463,20 +542,24 @@ export default function MealScan() {
 }
 
 function Macro({ label, value, unit, primary }) {
-  const has = value !== undefined && value !== null;
   return (
     <div
       className={[
-        'rounded-xl p-3.5 text-center transition-[transform,box-shadow] duration-short ease-out hover:-translate-y-0.5',
-        primary ? 'bg-accent-soft/80 text-accent-strong border border-accent/20' : 'bg-white/50 text-ink',
+        'rounded-xl p-3 text-center transition-all duration-short ease-out',
+        primary
+          ? 'border border-accent-strong/20 bg-accent-soft/80 shadow-whisper'
+          : 'border border-black/5 bg-black/5',
       ].join(' ')}
     >
-      <dt className={`text-xs font-semibold uppercase tracking-wide ${primary ? 'text-accent-strong' : 'text-muted'}`}>
-        {label}
-      </dt>
-      <dd className="mt-1 font-display text-xl font-bold [font-variant-numeric:tabular-nums]">
-        {has ? value : '—'}
-        {has && <span className="ml-1 font-body text-xs font-normal text-muted">{unit}</span>}
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dd
+        className={[
+          'mt-1 font-display font-bold [font-variant-numeric:tabular-nums]',
+          primary ? 'text-2xl text-accent-strong' : 'text-lg text-ink',
+        ].join(' ')}
+      >
+        {value != null ? value : '—'}
+        {value != null && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
       </dd>
     </div>
   );

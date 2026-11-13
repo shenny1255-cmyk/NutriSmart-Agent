@@ -452,6 +452,9 @@ class MealLogOut(BaseModel):
     meal_type: str
     quantity: float
     calories_kcal: float
+    protein_g: float | None = None
+    carb_g: float | None = None
+    fat_g: float | None = None
     log_date: date
     source_type: str | None = None
 
@@ -569,18 +572,24 @@ class DocumentOut(BaseModel):
     title: str
     source_url: str | None
     source_name: str | None
+    category_id: int | None = None
     raw_text: str | None = None
     status: str
     created_at: datetime
 
 
-
 class DocumentReviewIn(BaseModel):
     status: Literal["APPROVED", "REJECTED"]
+    category_id: int | None = None
+
+
+class DocumentCategoryUpdateIn(BaseModel):
+    category_id: int | None = None
 
 
 class CrawlIn(BaseModel):
     urls: list[str] = Field(min_length=1)
+    category_id: int | None = None
 
 
 class CrawlOut(BaseModel):
@@ -593,6 +602,7 @@ class CrawlPresetIn(BaseModel):
     # "who" là bí danh cũ của "vinmec", giữ để giao diện cũ không vỡ
     source: Literal["moh", "vinmec", "who", "all"] = "moh"
     limit: int = Field(default=10, ge=1, le=50)
+    category_id: int | None = None
 
 
 class DocPreviewChunkOut(BaseModel):
@@ -606,6 +616,7 @@ class DocPreviewOut(BaseModel):
     title: str
     source_name: str | None = None
     source_url: str | None = None
+    category_id: int | None = None
     status: str
     raw_text: str
     estimated_chunks: list[DocPreviewChunkOut]

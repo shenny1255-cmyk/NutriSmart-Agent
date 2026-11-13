@@ -9,6 +9,7 @@ from app.deps import get_db, get_current_user
 from app.models import User, Food, MealLog
 from app.schemas import MealAnalyzeOut, MealLogIn
 from app.services.gemini_vision import analyze_food_image
+from app.services.plan_progress import sync_meal_log_with_plan
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,8 @@ def log_meal(
 ):
     """
     Lưu bữa ăn đã phân tích vào CSDL (bảng foods & meal_logs).
-    Sau khi lưu, card 'ĐÃ NẠP' trên Web & Mobile tự động cộng dồn.
+    Sau khi lưu, card 'ĐÃ NẠP' trên Web & Mobile tự động cộng dồn
+    và tự động tick mục tương ứng trong Lộ trình hôm nay.
     """
     try:
         log_date = payload.log_date or date.today()
@@ -79,9 +81,13 @@ def log_meal(
             item_name_snapshot=payload.food_name,
         )
         db.add(meal_log)
+        db.flush()
+
+        # 3. Tự động đồng bộ với Lộ trình (Plan) nếu có
+        plan_sync = sync_meal_log_with_plan(db, user, meal_log, log_date)
         db.commit()
 
-        # 3. Tính tổng Calo đã nạp trong ngày hôm nay của User
+        # 4. Tính tổng Calo đã nạp trong ngày hôm nay của User
         total_today = (
             db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0))
             .filter(MealLog.user_id == user.id, MealLog.log_date == log_date)  # type: ignore
@@ -95,6 +101,7 @@ def log_meal(
             "added_calories": total_calories,
             "total_intake_today": float(total_today),
             "log_date": str(log_date),
+            "plan_synced": plan_sync,
         }
     except Exception as e:
         db.rollback()
