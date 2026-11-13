@@ -170,9 +170,22 @@ export const api = {
   // Expert
   pendingDocs: () => request('/expert/documents/pending'),
   previewDoc: (id) => request(`/expert/documents/${id}/preview`),
-  reviewDoc: (id, status) => request(`/expert/documents/${id}/review`, { method: 'PATCH', body: { status } }),
-  crawlDocs: (urls) => request('/expert/documents/crawl', { method: 'POST', body: { urls } }),
-  crawlPresetDocs: (source = 'moh', limit = 10) => request('/expert/documents/crawl-preset', { method: 'POST', body: { source, limit } }),
+  reviewDoc: (id, status, category_id = null) => request(`/expert/documents/${id}/review`, {
+    method: 'PATCH',
+    body: { status, ...(category_id ? { category_id: Number(category_id) } : {}) },
+  }),
+  updateDocCategoryAssignment: (id, category_id = null) => request(`/expert/documents/${id}/category`, {
+    method: 'PATCH',
+    body: { category_id: category_id ? Number(category_id) : null },
+  }),
+  crawlDocs: (urls, category_id = null) => request('/expert/documents/crawl', {
+    method: 'POST',
+    body: { urls, ...(category_id ? { category_id: Number(category_id) } : {}) },
+  }),
+  crawlPresetDocs: (source = 'moh', limit = 10, category_id = null) => request('/expert/documents/crawl-preset', {
+    method: 'POST',
+    body: { source, limit, ...(category_id ? { category_id: Number(category_id) } : {}) },
+  }),
   listCrawlSources: () => request('/expert/crawl-sources'),
   createCrawlSource: (payload) => request('/expert/crawl-sources', { method: 'POST', body: payload }),
   deleteCrawlSource: (id) => request(`/expert/crawl-sources/${id}`, { method: 'DELETE' }),

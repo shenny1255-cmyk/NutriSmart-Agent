@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.deps import get_db, require_role
 from app.models import User, Document, ChatMessage, DocChunk, CrawlSource
 from app.schemas import (
-    DocumentOut, DocumentReviewIn, CrawlIn, CrawlOut, CrawlPresetIn,
+    DocumentOut, DocumentReviewIn, DocumentCategoryUpdateIn, CrawlIn, CrawlOut, CrawlPresetIn,
     DocPreviewOut, CrawlSourceOut, CrawlSourceCreateIn,
 )
 from app.services.audit import write_audit
@@ -56,6 +56,7 @@ def preview_document(
         "title": doc.title,
         "source_name": doc.source_name,
         "source_url": doc.source_url,
+        "category_id": doc.category_id,
         "status": doc.status,
         "raw_text": doc.raw_text or "",
         "estimated_chunks": estimated_chunks,
@@ -74,19 +75,44 @@ def review_document(
     if not doc:
         raise HTTPException(404, "Không tìm thấy tài liệu")
 
-    before = {"status": doc.status}
+    before = {"status": doc.status, "category_id": doc.category_id}
     doc.status = payload.status  # type: ignore
+    if payload.category_id is not None:
+        doc.category_id = payload.category_id
     doc.approved_by = actor.id  # type: ignore
     doc.approved_at = datetime.now(timezone.utc)  # type: ignore
 
     write_audit(db, actor.id, "APPROVE", "documents", doc_id,
-                before=before, after={"status": payload.status})
+                before=before, after={"status": payload.status, "category_id": doc.category_id})
     db.commit()
     db.refresh(doc)
 
     if payload.status == "APPROVED":
         background_tasks.add_task(run_indexing_pipeline, str(doc.id))
 
+    return doc
+
+
+@router.patch("/documents/{doc_id}/category", response_model=DocumentOut)
+def update_document_category(
+    doc_id: str,
+    payload: DocumentCategoryUpdateIn,
+    db: Session = Depends(get_db),
+    actor: User = expert_or_admin,
+):
+    """Cập nhật hoặc gỡ danh mục cho tài liệu bất kỳ (kể cả đã duyệt)."""
+    doc = db.query(Document).filter(Document.id == doc_id, Document.deleted_at.is_(None)).first()  # type: ignore
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy tài liệu")
+
+    before = {"category_id": doc.category_id}
+    doc.category_id = payload.category_id
+    write_audit(
+        db, actor.id, "UPDATE", "documents", doc_id,
+        before=before, after={"category_id": payload.category_id},
+    )
+    db.commit()
+    db.refresh(doc)
     return doc
 
 
@@ -97,7 +123,7 @@ def crawl_documents(
     actor: User = expert_or_admin,
 ):
     """Cào bài viết y khoa từ danh sách URL và lưu vào DB ở trạng thái PENDING."""
-    return crawl_urls(payload.urls, db, uploaded_by_id=actor.id)
+    return crawl_urls(payload.urls, db, uploaded_by_id=actor.id, category_id=payload.category_id)
 
 
 @router.post("/documents/crawl-preset", response_model=CrawlOut)
@@ -107,7 +133,9 @@ def crawl_preset_documents(
     actor: User = expert_or_admin,
 ):
     """Cào tự động N bài viết y khoa từ nguồn uy tín chọn sẵn (Bộ Y tế 'moh', WHO 'who', hoặc 'all')."""
-    return crawl_preset_sources(source_key=payload.source, limit=payload.limit, db=db, uploaded_by_id=actor.id)
+    return crawl_preset_sources(
+        source_key=payload.source, limit=payload.limit, db=db, uploaded_by_id=actor.id, category_id=payload.category_id
+    )
 
 
 @router.get("/crawl-sources", response_model=list[CrawlSourceOut])
@@ -218,40 +246,23 @@ async def upload_document(
             noi_dung = doc_text_tu_file(file.filename, du_lieu)
         except LoaiFileKhongHoTro as e:
             raise HTTPException(400, str(e))
-        nguon = file.filename
+        nguon = f"File: {file.filename}"
 
-    if not noi_dung:
-        raise HTTPException(400, f"Cần chọn file ({', '.join(DUOI_FILE_HO_TRO)}) hoặc dán nội dung tài liệu.")
-
-    return luu_tai_lieu_upload(db, actor, title, noi_dung, category_id, nguon)
+    return luu_tai_lieu_upload(
+        db, actor, title=title, raw_text=noi_dung,
+        category_id=category_id, source_name=nguon,
+    )
 
 
 @router.post("/documents/reset")
-def reset_documents(
+def reset_demo_documents(
     db: Session = Depends(get_db),
     actor: User = expert_or_admin,
 ):
-    """Xóa tất cả tài liệu và doc_chunks để phục vụ demo/test lại từ đầu."""
+    """Xóa trắng tài liệu và các vector chunks trong DB để phục vụ demo từ đầu."""
+    db.query(ChatMessage).delete()
     db.query(DocChunk).delete()
     db.query(Document).delete()
+    db.commit()
     write_audit(db, actor.id, "DELETE", "documents", "ALL_RESET")
-    db.commit()
-    return {"message": "Đã reset sạch danh sách tài liệu để sẵn sàng demo lại từ đầu."}
-
-
-@router.patch("/chat-messages/{msg_id}/flag")
-def flag_message(
-    msg_id: int,
-    db: Session = Depends(get_db),
-    actor: User = expert_or_admin,
-):
-    """Gắn cờ câu trả lời AI sai lệch (kiểm định tri thức)."""
-    msg = db.query(ChatMessage).filter(ChatMessage.id == msg_id).first()  # type: ignore
-    if not msg:
-        raise HTTPException(404, "Không tìm thấy tin nhắn")
-
-    msg.flagged = True  # type: ignore
-    write_audit(db, actor.id, "UPDATE", "chat_messages", str(msg_id),
-                after={"flagged": True})
-    db.commit()
-    return {"message": "Đã gắn cờ câu trả lời sai lệch"}
+    return {"message": "Đã reset toàn bộ tài liệu và vector index thành công!"}

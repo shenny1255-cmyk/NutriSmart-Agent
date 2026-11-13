@@ -149,7 +149,6 @@ def _kiem_tra_trang_rac(url: str, title: str, raw_text: str, url_cuoi: str | Non
             "trang lỗi hoặc trang chủ, không phải bài viết."
         )
 
-
 async def fetch_and_parse_url_async(
     url: str,
     timeout: float = 15.0,
@@ -159,7 +158,7 @@ async def fetch_and_parse_url_async(
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0"
         ),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -214,7 +213,7 @@ def fetch_and_parse_url(url: str, timeout: float = 15.0) -> ScrapedPage:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/122.0.0.0",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
             }
@@ -245,7 +244,7 @@ def fetch_and_parse_url(url: str, timeout: float = 15.0) -> ScrapedPage:
         return asyncio.run(fetch_and_parse_url_async(url, timeout=timeout))
 
 
-async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
+async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None, category_id=None) -> dict:
     """Cào danh sách URL bất đồng bộ song song, kiểm tra chống trùng lặp và lưu vào DB ở trạng thái PENDING."""
     clean_urls = [u.strip() for u in urls if u and u.strip()]
     if not clean_urls:
@@ -281,6 +280,7 @@ async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None) ->
                 source_name=res["source_name"],
                 source_url=res["source_url"],
                 raw_text=res["raw_text"],
+                category_id=category_id,
                 status="PENDING",
                 uploaded_by=uploaded_by_id,
             )
@@ -300,7 +300,7 @@ async def crawl_urls_async(urls: list[str], db: Session, uploaded_by_id=None) ->
     }
 
 
-def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
+def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None, category_id=None) -> dict:
     """Wrapper đồng bộ cho crawl_urls_async."""
     try:
         loop = asyncio.get_event_loop()
@@ -323,6 +323,7 @@ def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
                         source_name=parsed_data["source_name"],
                         source_url=parsed_data["source_url"],
                         raw_text=parsed_data["raw_text"],
+                        category_id=category_id,
                         status="PENDING",
                         uploaded_by=uploaded_by_id,
                     )
@@ -341,9 +342,9 @@ def crawl_urls(urls: list[str], db: Session, uploaded_by_id=None) -> dict:
                 "documents": inserted_docs,
             }
         else:
-            return loop.run_until_complete(crawl_urls_async(urls, db, uploaded_by_id))
+            return loop.run_until_complete(crawl_urls_async(urls, db, uploaded_by_id, category_id))
     except RuntimeError:
-        return asyncio.run(crawl_urls_async(urls, db, uploaded_by_id))
+        return asyncio.run(crawl_urls_async(urls, db, uploaded_by_id, category_id))
 
 
 PRESET_SOURCES = {
@@ -378,7 +379,7 @@ PRESET_SOURCES = {
 BI_DANH_NGUON = {"who": "vinmec"}
 
 
-async def crawl_preset_sources_async(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None) -> dict:
+async def crawl_preset_sources_async(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None, category_id=None) -> dict:
     """Cào bài viết tự động theo nguồn uy tín có sẵn (bất đồng bộ)."""
     if db is None:
         raise ValueError("Cần kết nối cơ sở dữ liệu để lưu tài liệu")
@@ -395,29 +396,11 @@ async def crawl_preset_sources_async(source_key: str = "moh", limit: int = 10, d
         raise ValueError(f"Nguồn '{source_key}' không hợp lệ. Các nguồn hỗ trợ: {ho_tro}")
 
     target_urls = target_urls[:limit]
-    return await crawl_urls_async(target_urls, db, uploaded_by_id=uploaded_by_id)
+    return await crawl_urls_async(target_urls, db, uploaded_by_id=uploaded_by_id, category_id=category_id)
 
 
-def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None) -> dict:
+def crawl_preset_sources(source_key: str = "moh", limit: int = 10, db: Session | None = None, uploaded_by_id=None, category_id=None) -> dict:
     """Wrapper đồng bộ cho crawl_preset_sources_async."""
     if db is None:
         raise ValueError("Cần kết nối cơ sở dữ liệu để lưu tài liệu")
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            target_urls = []
-            sk = BI_DANH_NGUON.get(source_key, source_key)
-            if sk == "all":
-                for src in PRESET_SOURCES.values():
-                    target_urls.extend(src["urls"])
-            elif sk in PRESET_SOURCES:
-                target_urls = PRESET_SOURCES[sk]["urls"]
-            else:
-                ho_tro = ", ".join([*PRESET_SOURCES, *BI_DANH_NGUON, "all"])
-                raise ValueError(f"Nguồn '{source_key}' không hợp lệ. Các nguồn hỗ trợ: {ho_tro}")
-            target_urls = target_urls[:limit]
-            return crawl_urls(target_urls, db, uploaded_by_id=uploaded_by_id)
-        else:
-            return loop.run_until_complete(crawl_preset_sources_async(source_key, limit, db, uploaded_by_id))
-    except RuntimeError:
-        return asyncio.run(crawl_preset_sources_async(source_key, limit, db, uploaded_by_id))
+    return asyncio.run(crawl_preset_sources_async(source_key, limit, db, uploaded_by_id, category_id))

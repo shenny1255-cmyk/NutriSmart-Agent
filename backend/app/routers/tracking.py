@@ -288,12 +288,20 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
         item_name_snapshot=str(food.name),
     )
     db.add(log)
+    db.flush()
+    plan_progress.sync_meal_log_with_plan(db, user, log, log_date)
     db.commit()
     db.refresh(log)
 
     return MealLogOut(
-        id=int(log.id), food_name=str(food.name), meal_type=str(log.meal_type),  # type: ignore
-        quantity=float(log.quantity), calories_kcal=float(log.calories_kcal),
+        id=int(log.id),
+        food_name=str(food.name),
+        meal_type=str(log.meal_type),  # type: ignore
+        quantity=float(log.quantity),
+        calories_kcal=float(log.calories_kcal),
+        protein_g=round(float(food.protein_g or 0) * float(log.quantity), 1) if food.protein_g is not None else None,
+        carb_g=round(float(food.carb_g or 0) * float(log.quantity), 1) if food.carb_g is not None else None,
+        fat_g=round(float(food.fat_g or 0) * float(log.quantity), 1) if food.fat_g is not None else None,
         log_date=log.log_date,  # type: ignore
         source_type=cast(str | None, log.source_type),
     )
@@ -301,7 +309,7 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
 
 def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     rows = (
-        db.query(MealLog, Food.name)  # type: ignore
+        db.query(MealLog, Food.name, Food.protein_g, Food.carb_g, Food.fat_g)  # type: ignore
         .outerjoin(Food, Food.id == MealLog.food_id)  # type: ignore
         .filter(MealLog.user_id == user.id, MealLog.log_date == ngay)  # type: ignore
         .order_by(MealLog.logged_at)
@@ -309,12 +317,18 @@ def danh_sach_bua_an(db: Session, user: User, ngay: date) -> list[MealLogOut]:
     )
     return [
         MealLogOut(
-            id=int(m.id), food_name=str(ten or cast(str | None, m.item_name_snapshot) or "Món không rõ"), meal_type=str(m.meal_type),  # type: ignore
-            quantity=float(m.quantity), calories_kcal=float(m.calories_kcal),
+            id=int(m.id),
+            food_name=str(ten or cast(str | None, m.item_name_snapshot) or "Món không rõ"),
+            meal_type=str(m.meal_type),  # type: ignore
+            quantity=float(m.quantity),
+            calories_kcal=float(m.calories_kcal),
+            protein_g=round(float(prot or 0) * float(m.quantity), 1) if prot is not None else None,
+            carb_g=round(float(carb or 0) * float(m.quantity), 1) if carb is not None else None,
+            fat_g=round(float(fat or 0) * float(m.quantity), 1) if fat is not None else None,
             log_date=m.log_date,  # type: ignore
             source_type=cast(str | None, m.source_type),
         )
-        for m, ten in rows
+        for m, ten, prot, carb, fat in rows
     ]
 
 

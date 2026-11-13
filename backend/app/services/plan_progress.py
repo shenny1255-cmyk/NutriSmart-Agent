@@ -406,19 +406,44 @@ def save_progress(
     meals = day.get("meals") or []
     for index, meal in enumerate(meals[:3]):
         key = f"meal:{index}"
-        if key not in desired_set or key in meal_by_key:
+        mtype = _meal_type(str(meal.get("type") or ""))
+        actual_meals = (
+            db.query(MealLog)
+            .filter(
+                MealLog.user_id == user.id,
+                MealLog.log_date == progress_date,  # type: ignore[arg-type]
+                MealLog.meal_type == mtype,
+                MealLog.source_type != "PLAN",
+            )
+            .all()
+        )
+        existing_plan_meal = meal_by_key.get(key)
+
+        if key not in desired_set:
+            for am in actual_meals:
+                if getattr(am, "source_progress_id", None) == progress.id:
+                    setattr(am, "source_progress_id", None)
+                    am.source_item_key = None
             continue
-        db.add(MealLog(
-            user_id=user.id,
-            meal_type=_meal_type(str(meal.get("type") or "")),
-            quantity=1,
-            calories_kcal=float(meal.get("kcal") or 0),
-            log_date=progress_date,
-            source_type="PLAN",
-            source_progress_id=progress.id,
-            source_item_key=key,
-            item_name_snapshot=str(meal.get("name") or "Bữa ăn theo lộ trình"),
-        ))
+
+        if actual_meals:
+            if existing_plan_meal is not None:
+                db.delete(existing_plan_meal)
+            for am in actual_meals:
+                setattr(am, "source_progress_id", progress.id)
+                am.source_item_key = key
+        elif existing_plan_meal is None:
+            db.add(MealLog(
+                user_id=user.id,
+                meal_type=mtype,
+                quantity=1,
+                calories_kcal=float(meal.get("kcal") or 0),
+                log_date=progress_date,
+                source_type="PLAN",
+                source_progress_id=progress.id,
+                source_item_key=key,
+                item_name_snapshot=str(meal.get("name") or "Bữa ăn theo lộ trình"),
+            ))
 
     if "exercise" in desired_set:
         name, duration, calories = _resolve_exercise_data(db, user, day)
@@ -577,4 +602,65 @@ def get_progress(
         "status": "IN_PROGRESS",
         "kcal_intake_delta": 0,
         "kcal_burned_delta": 0,
+    }
+
+
+def sync_meal_log_with_plan(
+    db: Session,
+    user: User,
+    meal_log: MealLog,
+    progress_date: date | None = None,
+) -> dict | None:
+    """Tự động tick mục bữa ăn tương ứng trong Lộ trình khi người dùng lưu món ăn."""
+    pdate = progress_date or meal_log.log_date or date.today()
+    mtype = str(meal_log.meal_type or "").upper()
+    type_to_key = {
+        "BREAKFAST": "meal:0",
+        "LUNCH": "meal:1",
+        "DINNER": "meal:2",
+    }
+    target_key = type_to_key.get(mtype)
+    if not target_key:
+        return None
+
+    context = _mobile_plan_context(db, user, pdate)
+    if context is None:
+        return None
+
+    plan, checkin, series, _ = context
+    if series.status != "ACTIVE" or checkin.status != "OPEN":
+        return None
+
+    progress = (
+        db.query(PlanDailyProgress)
+        .filter(
+            PlanDailyProgress.checkin_id == checkin.id,
+            PlanDailyProgress.progress_date == pdate,  # type: ignore[arg-type]
+        )
+        .with_for_update()
+        .first()
+    )
+
+    checked_items = (
+        list(cast(list[str], progress.checked_items))
+        if progress is not None else []
+    )
+    already_checked = target_key in checked_items
+    if not already_checked:
+        checked_items.append(target_key)
+
+    save_progress(
+        db,
+        user,
+        plan.id,
+        pdate,
+        checked_items,
+        today=pdate,
+    )
+
+    return {
+        "plan_id": plan.id,
+        "item_key": target_key,
+        "auto_checked": not already_checked,
+        "progress_date": str(pdate),
     }

@@ -496,3 +496,62 @@ def test_bai_tap_plan_thieu_kcal_tu_dong_tinh_met_va_sua_log_zero():
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
     db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_meal_log_sync_auto_checks_plan_meal_slot():
+    from app.models import MealLog, PlanDailyProgress
+    from app.routers.vision import log_meal
+    from app.schemas import MealLogIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(db)
+
+    # 1. Log bữa sáng qua Vision
+    payload = MealLogIn(
+        food_name="Phở bò đặc biệt",
+        calories_kcal=520,
+        protein_g=25,
+        carb_g=60,
+        fat_g=15,
+        meal_type="BREAKFAST",
+        quantity=1,
+        log_date=date.today(),
+    )
+    res = log_meal(payload, db=db, user=user)
+    assert res["status"] == "success"
+    assert res["plan_synced"] is not None
+    assert res["plan_synced"]["item_key"] == "meal:0"
+    assert res["plan_synced"]["auto_checked"] is True
+
+    # 2. Kiểm tra PlanDailyProgress đã được tick "meal:0"
+    progress = db.query(PlanDailyProgress).filter(
+        PlanDailyProgress.user_id == user.id,
+        PlanDailyProgress.progress_date == date.today(),  # type: ignore[arg-type]
+    ).first()
+    assert progress is not None
+    assert "meal:0" in (progress.checked_items or [])
+
+    # 3. Kiểm tra không bị nhân đôi calo (chỉ có 1 MealLog bữa sáng do VISION tạo ra)
+    breakfast_logs = db.query(MealLog).filter(
+        MealLog.user_id == user.id,
+        MealLog.log_date == date.today(),  # type: ignore[arg-type]
+        MealLog.meal_type == "BREAKFAST",
+    ).all()
+    assert len(breakfast_logs) == 1
+    assert breakfast_logs[0].source_type == "VISION"
+    assert breakfast_logs[0].calories_kcal == 520
+
+    # 4. Khi người dùng bỏ tick "meal:0" trên Lộ trình
+    save_progress(db, user, plan.id, date.today(), [], today=date.today())
+    db.commit()
+    db.refresh(progress)
+    assert progress.checked_items == []
+    # Bản ghi trong Nhật ký vẫn còn nguyên, chỉ gỡ liên kết
+    db.refresh(breakfast_logs[0])
+    assert breakfast_logs[0].source_progress_id is None
+
+    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+    db.commit()
+    db.close()
