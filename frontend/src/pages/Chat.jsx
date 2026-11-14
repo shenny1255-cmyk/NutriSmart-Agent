@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink, Trash2, Sparkles } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Modal, Btn } from '../components/ui.jsx';
+import WarningList from '../components/WarningList.jsx';
 
 const QUICK_PROMPTS = [
   'Gợi ý thực đơn giảm cân hôm nay cho tôi',
@@ -63,7 +64,7 @@ export default function Chat() {
           return next;
         });
       },
-      onDone: (citations) => {
+      onDone: (citations, warnings) => {
         setMessages((m) => {
           const next = [...m];
           const last = next[next.length - 1];
@@ -71,6 +72,7 @@ export default function Chat() {
             next[next.length - 1] = {
               ...last,
               citations,
+              warnings,
             };
           }
           return next;
@@ -168,7 +170,7 @@ export default function Chat() {
               );
             }
             if (m.role === 'assistant' && !m.content) return null;
-            return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />;
+            return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} warnings={m.warnings} />;
           })}
 
           <div ref={endRef} />
@@ -240,7 +242,7 @@ function Dot({ delay }) {
   );
 }
 
-function Bubble({ role, content, citations }) {
+function Bubble({ role, content, citations, warnings }) {
   const isUser = role === 'user';
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -263,6 +265,7 @@ function Bubble({ role, content, citations }) {
         >
           {content}
         </div>
+        {!isUser && <WarningList warnings={warnings} compact limit={3} />}
         {!isUser && citations?.length > 0 && <Citations items={citations} />}
       </div>
     </div>

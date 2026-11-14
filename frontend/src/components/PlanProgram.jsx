@@ -6,6 +6,7 @@ import {
   Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun, Sunrise, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import WarningList from './WarningList.jsx';
 import { Btn, Field, Modal, Select, Toast, useToast } from './ui.jsx';
 
 function fireConfetti() {
@@ -428,6 +429,13 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
       ) : (
         <>
           <ProgramSummary plan={plan} />
+
+          {plan.warnings?.length > 0 && (
+            <section aria-label="Cảnh báo an toàn của thực đơn" className="space-y-2">
+              <h2 className="font-display font-semibold">Cảnh báo an toàn</h2>
+              <WarningList warnings={plan.warnings} showDisclaimer />
+            </section>
+          )}
 
           <CheckinPanel
             checkin={plan.current_checkin}

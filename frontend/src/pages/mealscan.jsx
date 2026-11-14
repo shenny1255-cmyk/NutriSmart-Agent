@@ -5,6 +5,7 @@ import {
   CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar, Maximize2, Eye, X,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import WarningList from '../components/WarningList.jsx';
 
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
@@ -370,6 +371,8 @@ export default function MealScan() {
             <Macro label="Carb" value={carbVal} unit="g" />
             <Macro label="Fat" value={fatVal} unit="g" />
           </dl>
+
+          <WarningList warnings={result.warnings} showDisclaimer />
 
           {result.suitability_note && (
             <aside

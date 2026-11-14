@@ -193,3 +193,9 @@ def test_job_khong_danh_gia_lai_cung_mot_ky(user_co_plan_qua_han, monkeypatch):
 
     assert lan_hai["evaluated"] is False
     assert db.query(PlanEvaluation).filter(PlanEvaluation.plan_id == plan.id).count() == 1
+
+
+def test_san_calo_theo_gioi_tinh_nam_1500():
+    # Kế hoạch v2 mục 2.5: nam không được hạ dưới 1.500 kcal, nữ 1.200
+    assert ev.next_kcal_target(1600, "NOT_ACHIEVED", "LOSE_WEIGHT", +0.2, gender="MALE") == 1500
+    assert ev.next_kcal_target(1300, "NOT_ACHIEVED", "LOSE_WEIGHT", +0.2, gender="FEMALE") == 1200

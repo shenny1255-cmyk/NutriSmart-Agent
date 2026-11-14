@@ -5,6 +5,7 @@ profile + bệnh nền + dị ứng + calo mục tiêu.
 """
 import json
 import logging
+from dataclasses import replace
 from datetime import date, timedelta
 
 from pydantic import BaseModel, Field, ValidationError
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import User, NutritionPlan
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
-from app.services import ollama_client
+from app.services import ollama_client, guardrails
 from app.services.nutrition_context import gather_context
 
 logger = logging.getLogger(__name__)
@@ -273,5 +274,11 @@ def plan_to_dict(db: Session, plan: NutritionPlan, user: User) -> dict:
         "daily_kcal_target": plan.daily_kcal_target,
         "content": plan.content,
         "status": plan.status,
+        # Warning Engine kiểm tra thực đơn theo hồ sơ HIỆN TẠI: dị ứng/bệnh nền mới khai báo
+        # được phản ánh ngay, không cần sinh lại lộ trình
+        "warnings": guardrails.check_plan(
+            plan.content,
+            replace(guardrails.profile_from_user(user), daily_kcal_target=plan.daily_kcal_target),
+        ),
         "bmi": (metric.bmi if (metric := latest_body_metric(db, user.id)) else None),
     }

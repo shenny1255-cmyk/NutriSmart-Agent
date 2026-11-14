@@ -688,9 +688,19 @@ class ChatMessageOut(BaseModel):
     citations: list[CitationOut] = []
 
 
+class GuardWarningOut(BaseModel):
+    """Cảnh báo của Warning Engine (services/guardrails.py)."""
+    level: Literal["DANGER", "WARNING", "INFO"]
+    code: str
+    message: str
+    source: str | None = None
+    context: str | None = None
+
+
 class ChatReplyOut(BaseModel):
     reply: str
     citations: list[CitationOut] = []
+    warnings: list[GuardWarningOut] = []
 
 
 # ---------- Vision & Meal Logging ----------
@@ -705,6 +715,7 @@ class MealAnalyzeOut(BaseModel):
     fat_g: float | None = None
     description: str | None = None
     confidence: float = Field(default=0, ge=0, le=1)
+    warnings: list[GuardWarningOut] = []
 
 
 class MealLogIn(BaseModel):

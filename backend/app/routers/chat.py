@@ -10,6 +10,7 @@ from app.models import User, ChatSession, ChatMessage
 from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
 from app.services import ollama_client
 from app.services import retrieval
+from app.services import guardrails
 from app.services.nutrition_context import gather_context, render_system_prompt
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -154,9 +155,13 @@ def send_message(
 
     db.commit()
 
+    # Guardrail chạy SAU LLM: dị nguyên trong câu trả lời, thiếu trích dẫn đã duyệt
+    warnings = guardrails.check_chat_reply(reply, guardrails.profile_from_user(user), len(hits))
+
     return ChatReplyOut(
         reply=reply,
         citations=[CitationOut(**retrieval.to_citation(h)) for h in hits],
+        warnings=warnings,
     )
 
 
@@ -176,7 +181,7 @@ def stream_message(
     # 2. Truy hồi RAG & xây dựng System Prompt
     ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
-    ctx = gather_context(db, user)
+    guard_profile = guardrails.profile_from_user(user)
     rag_block = retrieval.render_context_block(hits)
     system_prompt = render_system_prompt(ctx) + rag_block
 
@@ -216,7 +221,10 @@ def stream_message(
             db.commit()
 
         cites = [retrieval.to_citation(h) for h in hits]
-        yield f"data: {json.dumps({'done': True, 'citations': cites}, ensure_ascii=False)}\n\n"
+        # Guardrail chạy SAU LLM, gửi kèm sự kiện kết thúc
+        warnings = guardrails.check_chat_reply(full_text, guard_profile, len(hits))
+        done = {"done": True, "citations": cites, "warnings": warnings}
+        yield f"data: {json.dumps(done, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

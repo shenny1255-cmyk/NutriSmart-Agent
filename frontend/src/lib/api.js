@@ -117,7 +117,7 @@ export const api = {
                 onToken?.(parsed.token);
               }
               if (parsed.done) {
-                onDone?.(parsed.citations || []);
+                onDone?.(parsed.citations || [], parsed.warnings || []);
               }
             } catch (e) {
               console.error('Lỗi parse SSE token:', e);
