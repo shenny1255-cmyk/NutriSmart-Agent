@@ -6,8 +6,8 @@ Nguyên tắc:
 - Dị ứng ưu tiên recall hơn precision: nghi ngờ thì cảnh báo.
 - Mỗi rule bệnh lý ghi nguồn tham khảo.
 
-> Ứng dụng chỉ hỗ trợ, không thay thế chẩn đoán/tư vấn y khoa. Các nguồn bên dưới
-> cần nhóm đối chiếu lại bản gốc trước khi trích dẫn trong khóa luận.
+> Ứng dụng chỉ hỗ trợ, không thay thế chẩn đoán/tư vấn y khoa. Tình trạng kiểm chứng
+> từng nguồn (đã xác minh số quyết định / còn cần đọc bản gốc): eval/sources.md
 
 Mỗi cảnh báo là dict: {level, code, message, source, context}
 - level: DANGER (đỏ) | WARNING (vàng) | INFO (xanh)
@@ -24,7 +24,8 @@ LEVEL_ORDER = ["DANGER", "WARNING", "INFO"]
 
 # ---------- Ngưỡng ----------
 
-# Mức calo tối thiểu/ngày theo giới tính (khuyến nghị phổ biến: ~1.200 nữ, ~1.500 nam).
+# Mức calo tối thiểu/ngày theo giới tính: chế độ giảm cân của Guideline AHA/ACC/TOS 2013 về
+# quản lý thừa cân, béo phì kê 1.200–1.500 kcal (nữ) và 1.500–1.800 kcal (nam) → lấy cận dưới.
 # Không rõ giới tính → mốc thấp hơn để không báo động giả.
 MIN_KCAL_BY_GENDER = {"FEMALE": 1200, "MALE": 1500}
 MIN_KCAL_DEFAULT = 1200
@@ -216,7 +217,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "tôm", "cua", "ghẹ", "mực", "sò", "hàu", "nghêu", "ốc", "hải sản",
                   "bia", "rượu"),
         negatives=("gan nhiễm mỡ", "men gan", "bệnh gan", "xơ gan", "chức năng gan"),
-        source="Bộ Y tế — Hướng dẫn chẩn đoán và điều trị các bệnh cơ xương khớp (2014), mục Bệnh gút",
+        source="Bộ Y tế — QĐ 361/QĐ-BYT (25/01/2014), Hướng dẫn chẩn đoán và điều trị các bệnh cơ xương khớp",
     ),
     "diabetes": _ConditionRule(
         aliases=("đái tháo đường", "tiểu đường"),
@@ -225,7 +226,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "nước mía", "mật ong", "siro", "sữa đặc", "xôi", "kem", "bánh flan",
                   "nước ép"),
         negatives=("không đường", "ít đường", "đường huyết", "chè xanh", "nước chè"),
-        source="Bộ Y tế — Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2 (2020)",
+        source="Bộ Y tế — QĐ 5481/QĐ-BYT (30/12/2020), Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2",
     ),
     "hypertension": _ConditionRule(
         aliases=("tăng huyết áp", "cao huyết áp", "huyết áp cao"),
@@ -234,7 +235,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "khô gà", "tôm khô", "xúc xích", "lạp xưởng", "thịt nguội", "giăm bông",
                   "mì gói", "mì tôm", "đồ hộp", "mắm tôm", "mắm nêm", "mắm ruốc", "ruốc",
                   "snack", "muối ớt"),
-        source="Bộ Y tế — Hướng dẫn chẩn đoán và điều trị tăng huyết áp; WHO: dưới 5 g muối/ngày",
+        source="Bộ Y tế — QĐ 3192/QĐ-BYT (31/08/2010), Hướng dẫn chẩn đoán và điều trị tăng huyết áp; WHO Fact sheet Salt reduction: < 5 g muối/ngày",
     ),
     "dyslipidemia": _ConditionRule(
         aliases=("rối loạn lipid", "mỡ máu", "cholesterol"),
@@ -243,7 +244,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "lòng lợn", "óc heo", "xúc xích", "lạp xưởng", "bơ thực vật", "gà rán",
                   "khoai tây chiên"),
         negatives=("mỡ hành",),
-        source="Hội Tim mạch học Việt Nam — Khuyến cáo chẩn đoán và điều trị rối loạn lipid máu",
+        source="Hội Tim mạch học Quốc gia Việt Nam — Khuyến cáo về chẩn đoán và điều trị rối loạn lipid máu (2015)",
     ),
     "fatty_liver": _ConditionRule(
         aliases=("gan nhiễm mỡ",),
@@ -259,7 +260,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "nội tạng", "dưa muối", "cà muối", "đồ hộp", "xúc xích", "mì gói",
                   "sữa", "phô mai", "đậu đỏ", "đậu đen"),
         negatives=("sữa đậu nành",),
-        source="Bộ Y tế — Hướng dẫn chẩn đoán và điều trị một số bệnh về thận – tiết niệu (2015)",
+        source="Bộ Y tế — QĐ 2388/QĐ-BYT (12/08/2024), Hướng dẫn chẩn đoán và điều trị bệnh thận mạn và một số bệnh lý thận",
     ),
 }
 

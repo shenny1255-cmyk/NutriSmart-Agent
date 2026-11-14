@@ -22,7 +22,9 @@ KCAL_STEP = 0.10         # mức hiệu chỉnh calo cho phiên bản kế tiế
 MIN_KCAL = 1200          # sàn mặc định khi không rõ giới tính; sàn theo giới tính ở guardrails
 MAX_KCAL = 4000
 
-# Kỳ vọng biến thiên cân nặng sau 7 ngày theo từng mục tiêu
+# Kỳ vọng biến thiên cân nặng sau 7 ngày theo từng mục tiêu. Mốc giảm cân (−0,3 kg) cố ý thấp
+# hơn mức an toàn 0,5–1 kg/tuần (NHLBI) vì chu kỳ chỉ 7 ngày và cân nặng dao động do nước có thể
+# tới 1–2 kg/ngày. Lập luận đầy đủ + nguồn: eval/sources.md (kế hoạch ĐATN v2, mục 2.4.3).
 WEIGHT_RULES = {
     "LOSE_WEIGHT": lambda d: d <= -0.3,
     "GAIN_MUSCLE": lambda d: d >= 0.2,
