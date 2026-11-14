@@ -141,7 +141,7 @@ def seed_demo(db: Session = Depends(get_db)):
     for d in range(6, -1, -1):
         day = date.today() - timedelta(days=d)
 
-        # 3 bữa/ngày — số phần suy ra từ calo THẬT của món để dòng nhật ký khớp
+        # 3 bữa/ngày - số phần suy ra từ calo THẬT của món để dòng nhật ký khớp
         if mon_an:
             for meal, ratio in [("BREAKFAST", 0.3), ("LUNCH", 0.4), ("DINNER", 0.3)]:
                 fid, kcal_mon = random.choice(mon_an)

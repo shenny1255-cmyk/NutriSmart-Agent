@@ -2,7 +2,7 @@
 
 Nhiều test phải đăng ký tài khoản thật qua API. Không dọn thì chúng đọng lại trong
 DB và hiện lên màn Quản lý người dùng của admin (đó là lý do trước đây GET
-/admin/users phải tự chạy DELETE — một API đọc mà lại xóa dữ liệu).
+/admin/users phải tự chạy DELETE - một API đọc mà lại xóa dữ liệu).
 File test nào tạo user thì xin fixture `user_test` và append email vào đó.
 """
 
@@ -14,7 +14,7 @@ from app.database import SessionLocal
 
 @pytest.fixture
 def user_test():
-    """Bộ gom email test — append vào đây, cuối test tự xóa (kể cả khi test fail)."""
+    """Bộ gom email test - append vào đây, cuối test tự xóa (kể cả khi test fail)."""
     emails: list[str] = []
     yield emails
 

@@ -13,15 +13,15 @@ import { inputCls } from './login.jsx';
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
-// Fallback khi backend chưa chạy — sau này lấy từ API
+// Fallback khi backend chưa chạy - sau này lấy từ API
 const FALLBACK_CONDITIONS = [{ id: 1, name: 'Đái tháo đường típ 2' }, { id: 2, name: 'Tăng huyết áp' }, { id: 3, name: 'Rối loạn lipid máu' }];
 const FALLBACK_ALLERGENS = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'Hải sản có vỏ' }, { id: 3, name: 'Sữa bò' }, { id: 4, name: 'Gluten' }];
 
 const ACTIVITY_LEVELS = [
   { value: 1, label: 'Ít vận động (ngồi nhiều)' },
-  { value: 2, label: 'Vận động nhẹ (1–3 buổi/tuần)' },
-  { value: 3, label: 'Vận động vừa (3–5 buổi/tuần)' },
-  { value: 4, label: 'Vận động nhiều (6–7 buổi/tuần)' },
+  { value: 2, label: 'Vận động nhẹ (1-3 buổi/tuần)' },
+  { value: 3, label: 'Vận động vừa (3-5 buổi/tuần)' },
+  { value: 4, label: 'Vận động nhiều (6-7 buổi/tuần)' },
   { value: 5, label: 'Vận động rất nhiều (thể thao chuyên nghiệp)' },
 ];
 
@@ -161,7 +161,7 @@ export default function Register() {
       navigate('/');
     } catch (e) {
       if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
-      else if (e.status === 422) setErr('Thông tin chưa hợp lệ — kiểm tra lại email và mật khẩu.');
+      else if (e.status === 422) setErr('Thông tin chưa hợp lệ - kiểm tra lại email và mật khẩu.');
       else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
       else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng ký thất bại, thử lại sau.');
     } finally {
@@ -188,12 +188,12 @@ export default function Register() {
               Nutri<span className="text-accent-strong">Smart</span>
             </h1>
             <p className="text-sm text-muted">
-              Bước {step}/2 — {step === 1 ? 'Thông tin tài khoản' : 'Hồ sơ sức khỏe'}
+              Bước {step}/2 - {step === 1 ? 'Thông tin tài khoản' : 'Hồ sơ sức khỏe'}
             </p>
           </div>
         </div>
 
-        {/* Thanh tiến trình — scaleX (transform), không animate width */}
+        {/* Thanh tiến trình - scaleX (transform), không animate width */}
         <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-paper-3">
           <div
             className="h-full origin-left rounded-full bg-accent transition-transform duration-long ease-out"
@@ -217,7 +217,7 @@ export default function Register() {
               />
               {touched.full_name && !fullNameValid && (
                 <p className="mt-1 text-xs font-medium text-danger">
-                  Nhập 2–100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
+                  Nhập 2-100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
                 </p>
               )}
             </FieldGroup>
@@ -317,7 +317,7 @@ export default function Register() {
           </div>
 
           {heightValid && weightValid && !metricsValid && (
-            <Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10–80.</Alert>
+            <Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10-80.</Alert>
           )}
 
           {bmi && (

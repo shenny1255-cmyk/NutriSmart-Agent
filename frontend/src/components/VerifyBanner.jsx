@@ -24,7 +24,7 @@ export default function VerifyBanner() {
       <MailWarning size={18} className="shrink-0" />
       <span className="font-medium">Hãy xác minh email để bảo mật tài khoản.</span>
       {state === 'sent' && (
-        <span className="text-accent-strong">Đã gửi liên kết — kiểm tra hộp thư (hoặc console backend).</span>
+        <span className="text-accent-strong">Đã gửi liên kết - kiểm tra hộp thư (hoặc console backend).</span>
       )}
       {state === 'error' && <span className="text-danger">Gửi lại thất bại, thử lại sau.</span>}
       {state !== 'sent' && (

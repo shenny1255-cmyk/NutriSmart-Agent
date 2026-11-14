@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, BookOpenText, ChevronDown, ExternalLink, Trash2, Sparkles } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { Modal, Btn } from '../components/ui.jsx';
+import WarningList from '../components/WarningList.jsx';
+import MarkdownText from '../components/MarkdownText.jsx';
 
 const QUICK_PROMPTS = [
   'Gợi ý thực đơn giảm cân hôm nay cho tôi',
@@ -63,7 +65,7 @@ export default function Chat() {
           return next;
         });
       },
-      onDone: (citations) => {
+      onDone: (citations, warnings) => {
         setMessages((m) => {
           const next = [...m];
           const last = next[next.length - 1];
@@ -71,6 +73,7 @@ export default function Chat() {
             next[next.length - 1] = {
               ...last,
               citations,
+              warnings,
             };
           }
           return next;
@@ -168,7 +171,7 @@ export default function Chat() {
               );
             }
             if (m.role === 'assistant' && !m.content) return null;
-            return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} />;
+            return <Bubble key={i} role={m.role} content={m.content} citations={m.citations} warnings={m.warnings} />;
           })}
 
           <div ref={endRef} />
@@ -240,7 +243,7 @@ function Dot({ delay }) {
   );
 }
 
-function Bubble({ role, content, citations }) {
+function Bubble({ role, content, citations, warnings }) {
   const isUser = role === 'user';
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -255,14 +258,16 @@ function Bubble({ role, content, citations }) {
       <div className={`min-w-0 max-w-[85%] sm:max-w-[80%] ${isUser ? 'items-end' : ''}`}>
         <div
           className={[
-            'whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed [overflow-wrap:anywhere] shadow-whisper',
+            'rounded-2xl px-4 py-3 text-sm leading-relaxed [overflow-wrap:anywhere] shadow-whisper',
             isUser
-              ? 'rounded-tr-xs bg-gradient-to-r from-accent-strong to-emerald-600 text-white font-medium'
+              ? 'whitespace-pre-wrap rounded-tr-xs bg-gradient-to-r from-accent-strong to-emerald-600 text-white font-medium'
               : 'rounded-tl-xs bg-paper-2 text-ink border border-black/5',
           ].join(' ')}
         >
-          {content}
+          {/* Câu trả lời AI: hiển thị markdown (đậm, danh sách...) thay vì lộ dấu ** */}
+          {isUser ? content : <MarkdownText text={content} />}
         </div>
+        {!isUser && <WarningList warnings={warnings} compact limit={3} />}
         {!isUser && citations?.length > 0 && <Citations items={citations} />}
       </div>
     </div>

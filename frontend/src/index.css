@@ -9,7 +9,7 @@
     html,
     body {
         overflow-x: clip;
-        /* never `hidden` — gate 34 */
+        /* never `hidden` - gate 34 */
     }
 
     body {
@@ -31,11 +31,11 @@
     h6 {
         font-family: var(--font-display);
         font-style: normal;
-        /* headings are always roman — gate 38a */
+        /* headings are always roman - gate 38a */
         color: var(--color-ink);
     }
 
-    /* Visible instantly on focus — never animate the ring's appearance */
+    /* Visible instantly on focus - never animate the ring's appearance */
     :focus-visible {
         outline: 2px solid var(--color-focus);
         outline-offset: 2px;
@@ -47,7 +47,7 @@
     }
 }
 
-/* ── Glassmorphism utilities — không Tailwind class vì cần backdrop-filter full support ── */
+/* ── Glassmorphism utilities - không Tailwind class vì cần backdrop-filter full support ── */
 @layer components {
 
     /* Panel: sidebar, top bar */

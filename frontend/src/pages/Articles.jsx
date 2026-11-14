@@ -41,7 +41,7 @@ function ArticleCard({ article, categories, isStaff, onUpdateCategory }) {
               className="rounded border border-paper-3 bg-paper px-2 py-1 text-xs font-semibold text-accent-strong transition-colors hover:border-accent-strong focus:border-accent-strong focus:outline-none"
               title="Đổi danh mục cho bài viết này"
             >
-              <option value="">— Chưa phân loại —</option>
+              <option value="">- Chưa phân loại -</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

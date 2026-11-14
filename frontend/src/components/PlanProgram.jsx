@@ -6,6 +6,7 @@ import {
   Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun, Sunrise, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import WarningList from './WarningList.jsx';
 import { Btn, Field, Modal, Select, Toast, useToast } from './ui.jsx';
 
 function fireConfetti() {
@@ -101,7 +102,7 @@ function exerciseData(value) {
   const metricStarts = [durationMatch?.index, caloriesMatch?.index]
     .filter((index) => Number.isInteger(index));
   const name = metricStarts.length
-    ? text.slice(0, Math.min(...metricStarts)).replace(/[\s\-–—·,:]+$/u, '')
+    ? text.slice(0, Math.min(...metricStarts)).replace(/[\s\---·,:]+$/u, '')
     : text;
   const duration = durationMatch ? Math.trunc(Number(durationMatch[1].replace(',', '.'))) : 0;
   let calories = caloriesMatch ? Number(caloriesMatch[1].replace(',', '.')) : 0;
@@ -429,6 +430,13 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
         <>
           <ProgramSummary plan={plan} />
 
+          {plan.warnings?.length > 0 && (
+            <section aria-label="Cảnh báo an toàn của thực đơn" className="space-y-3 rounded-md bg-paper-2 p-5 shadow-hairline">
+              <h2 className="font-display font-semibold">Cảnh báo an toàn</h2>
+              <WarningList warnings={plan.warnings} showDisclaimer />
+            </section>
+          )}
+
           <CheckinPanel
             checkin={plan.current_checkin}
             onChanged={() => { fetchPlan(); fetchHistory(); }}
@@ -700,7 +708,7 @@ function ProgramCompletion({ plan, extendMonths, setExtendMonths, extending, onE
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryMetric label="Cân nặng" value={summary.start_weight_kg != null
-          ? `${summary.start_weight_kg} → ${summary.end_weight_kg ?? '—'} kg` : 'Chưa có dữ liệu'} />
+          ? `${summary.start_weight_kg} → ${summary.end_weight_kg ?? '-'} kg` : 'Chưa có dữ liệu'} />
         <SummaryMetric label="Ngày có nhật ký" value={summary.logged_days ?? 0} />
         <SummaryMetric label="Ngày đã ghi nhận" value={summary.completed_days ?? 0} />
         <SummaryMetric label="Tỷ lệ item" value={`${summary.completion_rate_pct ?? 0}%`} />

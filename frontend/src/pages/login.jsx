@@ -9,7 +9,7 @@ import { LogoMark } from '../components/Logo.jsx';
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
-// PasswordInput nhận className từ ngoài — dùng chung bộ style token với TextInput
+// PasswordInput nhận className từ ngoài - dùng chung bộ style token với TextInput
 export const inputCls =
   'min-h-11 w-full rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline placeholder:text-muted transition-[background-color,box-shadow] duration-short ease-out hover:bg-paper-3 focus:bg-paper-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-60';
 
@@ -37,7 +37,7 @@ export default function Login() {
     } catch (e) {
       setErr(
         e.status === undefined
-          ? 'Không kết nối được máy chủ — backend đã chạy chưa?'
+          ? 'Không kết nối được máy chủ - backend đã chạy chưa?'
           : 'Không tạo được tài khoản demo, thử lại sau.'
       );
       setDemoLoading(false);

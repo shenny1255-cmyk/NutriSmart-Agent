@@ -9,6 +9,7 @@ from app.deps import get_db, get_current_user
 from app.models import User, Food, MealLog
 from app.schemas import MealAnalyzeOut, MealLogIn
 from app.services.gemini_vision import analyze_food_image
+from app.services import guardrails
 from app.services.plan_progress import sync_meal_log_with_plan
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/vision", tags=["vision"])
 @router.post("/analyze-meal", response_model=MealAnalyzeOut)
 async def analyze_meal_image(
     file: UploadFile = File(...),
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """
@@ -33,13 +35,27 @@ async def analyze_meal_image(
     try:
         contents = await file.read()
         analysis_result = analyze_food_image(contents, mime_type=file.content_type or "image/jpeg")
-        return MealAnalyzeOut(**analysis_result)
     except Exception as e:
         logger.error(f"Lỗi phân tích hình ảnh món ăn: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Dịch vụ phân tích ảnh tạm thời không khả dụng. Vui lòng thử lại sau."
         )
+
+    # Guardrail chạy SAU Vision: độ tin cậy, dị ứng/bệnh nền, vượt chỉ tiêu ngày.
+    # Lỗi ở bước này không được làm mất kết quả phân tích.
+    try:
+        consumed_today = float(
+            db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0))
+            .filter(MealLog.user_id == user.id, MealLog.log_date == date.today())  # type: ignore
+            .scalar()
+        )
+        analysis_result["warnings"] = guardrails.check_meal_scan(
+            analysis_result, guardrails.profile_from_user(user), consumed_today
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Không chạy được Warning Engine cho ảnh món ăn: %s", e)
+    return MealAnalyzeOut(**analysis_result)
 
 
 @router.post("/log-meal")

@@ -1,6 +1,6 @@
 """Bóc văn bản từ file tài liệu do Admin/Chuyên gia tải lên.
 
-Chỉ nhận định dạng văn bản thuần và PDF — đủ cho tài liệu y khoa, và tránh phụ thuộc
+Chỉ nhận định dạng văn bản thuần và PDF - đủ cho tài liệu y khoa, và tránh phụ thuộc
 thư viện nặng. Ảnh chụp tài liệu đi đường Vision chứ không qua đây.
 """
 import io
@@ -33,7 +33,7 @@ def doc_text_tu_file(ten_file: str, noi_dung: bytes) -> str:
         return noi_dung.decode("utf-8", errors="replace").strip()
 
     raise LoaiFileKhongHoTro(
-        f"Chỉ hỗ trợ {', '.join(DUOI_FILE_HO_TRO)} — file '{ten_file}' không đọc được."
+        f"Chỉ hỗ trợ {', '.join(DUOI_FILE_HO_TRO)} - file '{ten_file}' không đọc được."
     )
 
 

@@ -27,7 +27,7 @@ def warmup(*, model: str | None = None, timeout: float = 90.0) -> None:
             options={"num_predict": 1, "temperature": 0},
         )
         log.info("Đã warm-up Ollama model %s", model or settings.OLLAMA_CHAT_MODEL)
-    except Exception as e:  # noqa: BLE001 — warm-up tùy chọn không được làm hỏng startup
+    except Exception as e:  # noqa: BLE001 - warm-up tùy chọn không được làm hỏng startup
         log.warning("Không warm-up được Ollama model: %s", e)
 
 
@@ -56,7 +56,7 @@ def chat(
         "keep_alive": settings.OLLAMA_KEEP_ALIVE,
         "options": {
             "num_ctx": 2048,
-            "num_predict": 250,
+            "num_predict": settings.OLLAMA_CHAT_NUM_PREDICT,
             "temperature": 0.6,
             **(options or {}),
         },
@@ -95,7 +95,7 @@ def chat_stream(
         "keep_alive": settings.OLLAMA_KEEP_ALIVE,
         "options": {
             "num_ctx": 2048,
-            "num_predict": 250,
+            "num_predict": settings.OLLAMA_CHAT_NUM_PREDICT,
             "temperature": 0.6,
         },
     }

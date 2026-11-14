@@ -79,7 +79,7 @@ def _run(job_id: str) -> None:
         with _lock:
             job.status = "DONE"
             job.plan_id = plan.id
-    except Exception as e:  # noqa: BLE001 — trạng thái lỗi trả về cho UI
+    except Exception as e:  # noqa: BLE001 - trạng thái lỗi trả về cho UI
         if db is not None:
             db.rollback()
         log.exception("Lỗi job sinh lộ trình %s", job_id)

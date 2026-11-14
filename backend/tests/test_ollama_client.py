@@ -1,4 +1,4 @@
-"""Tests cho ollama_client — phần xử lý lỗi kết nối (không cần model chạy)."""
+"""Tests cho ollama_client - phần xử lý lỗi kết nối (không cần model chạy)."""
 
 import pytest
 

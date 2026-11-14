@@ -5,6 +5,7 @@ import {
   CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar, Maximize2, Eye, X,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
+import WarningList from '../components/WarningList.jsx';
 
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
@@ -371,6 +372,8 @@ export default function MealScan() {
             <Macro label="Fat" value={fatVal} unit="g" />
           </dl>
 
+          <WarningList warnings={result.warnings} showDisclaimer />
+
           {result.suitability_note && (
             <aside
               role="alert"
@@ -558,7 +561,7 @@ function Macro({ label, value, unit, primary }) {
           primary ? 'text-2xl text-accent-strong' : 'text-lg text-ink',
         ].join(' ')}
       >
-        {value != null ? value : '—'}
+        {value != null ? value : '-'}
         {value != null && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
       </dd>
     </div>

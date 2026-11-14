@@ -5,6 +5,7 @@ profile + bệnh nền + dị ứng + calo mục tiêu.
 """
 import json
 import logging
+from dataclasses import replace
 from datetime import date, timedelta
 
 from pydantic import BaseModel, Field, ValidationError
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import User, NutritionPlan
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
-from app.services import ollama_client
+from app.services import ollama_client, guardrails
 from app.services.nutrition_context import gather_context
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def build_prompt(profile_data: dict, target: int, note: str | None = None) -> st
 {extra}
 YÊU CẦU BẮT BUỘC:
 1. AN TOÀN SỨC KHỎE: TUYỆT ĐỐI không dùng nguyên liệu người dùng dị ứng ({allergens}).
-   Món ăn phải phù hợp với bệnh nền ({conditions}) — ví dụ tiểu đường thì hạn chế đường và
+   Món ăn phải phù hợp với bệnh nền ({conditions}) - ví dụ tiểu đường thì hạn chế đường và
    tinh bột hấp thu nhanh, tăng huyết áp thì giảm muối, gout thì tránh nội tạng và hải sản.
 2. ĐA DẠNG MÓN ĂN: Các món Sáng/Trưa/Tối phải cực kỳ phong phú, ưu tiên món ăn Việt Nam thực tế, đổi mới liên tục qua {PLAN_DAYS} ngày (không lặp đi lặp lại).
 3. ĐA DẠNG BÀI TẬP: Đề xuất bài tập thể dục thay đổi mỗi ngày (ví dụ: chạy bộ, gym, yoga, HIIT, bơi lội...).
@@ -152,7 +153,7 @@ def _llm_days(prompt: str, timeout: float | None = None) -> list | None:
 
 
 def fallback_content(target: int) -> dict:
-    """Thực đơn mẫu khi Ollama chết/timeout — trang Lộ trình vẫn có dữ liệu để hiển thị."""
+    """Thực đơn mẫu khi Ollama chết/timeout - trang Lộ trình vẫn có dữ liệu để hiển thị."""
     return {
         "days": [
             {
@@ -179,7 +180,7 @@ def generate_content(
     note: str | None = None,
     profile_data: dict | None = None,
 ) -> dict:
-    """Trả về content JSON — có fallback khi LLM lỗi."""
+    """Trả về content JSON - có fallback khi LLM lỗi."""
     if profile_data is None:
         ctx = gather_context(db, user)
         profile_data = ctx.get("profile") or {}
@@ -217,7 +218,7 @@ def create_plan(
 ) -> NutritionPlan:
     """Sinh lộ trình mới version+1 và hạ lộ trình đang chạy xuống old_status.
 
-    Không commit — caller quyết định thời điểm commit.
+    Không commit - caller quyết định thời điểm commit.
     """
     info = user.profile
     if target is None:
@@ -273,5 +274,11 @@ def plan_to_dict(db: Session, plan: NutritionPlan, user: User) -> dict:
         "daily_kcal_target": plan.daily_kcal_target,
         "content": plan.content,
         "status": plan.status,
+        # Warning Engine kiểm tra thực đơn theo hồ sơ HIỆN TẠI: dị ứng/bệnh nền mới khai báo
+        # được phản ánh ngay, không cần sinh lại lộ trình
+        "warnings": guardrails.check_plan(
+            plan.content,
+            replace(guardrails.profile_from_user(user), daily_kcal_target=plan.daily_kcal_target),
+        ),
         "bmi": (metric.bmi if (metric := latest_body_metric(db, user.id)) else None),
     }

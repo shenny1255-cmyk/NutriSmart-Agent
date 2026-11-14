@@ -2,7 +2,7 @@
 
 - Có SMTP_HOST → gửi thật qua smtplib (STARTTLS).
 - Không cấu hình SMTP → ghi link ra log (dev/offline vẫn hoạt động).
-- Lỗi gửi mail KHÔNG bao giờ raise ra luồng request — chỉ fallback ghi log.
+- Lỗi gửi mail KHÔNG bao giờ raise ra luồng request - chỉ fallback ghi log.
 """
 
 import logging
@@ -32,13 +32,13 @@ def _body(verify_link: str) -> str:
         "Nhấp vào liên kết sau để xác minh email của bạn cho tài khoản NutriSmart:\n"
         f"{verify_link}\n\n"
         "Liên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.\n\n"
-        "— NutriSmart"
+        "- NutriSmart"
     )
 
 
 def send_verification_email(to_email: str, verify_link: str) -> None:
     if not settings.SMTP_HOST:
-        log.info("[email:console] gửi tới %s — link xác minh: %s", to_email, verify_link)
+        log.info("[email:console] gửi tới %s - link xác minh: %s", to_email, verify_link)
         return
 
     msg = EmailMessage()
@@ -54,5 +54,5 @@ def send_verification_email(to_email: str, verify_link: str) -> None:
                 s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             s.send_message(msg)
         log.info("[email:smtp] đã gửi email xác minh tới %s", to_email)
-    except Exception as e:  # noqa: BLE001 — không để lỗi mail làm hỏng đăng ký
-        log.warning("[email:smtp] gửi thất bại (%s) — link cho %s: %s", e, to_email, verify_link)
+    except Exception as e:  # noqa: BLE001 - không để lỗi mail làm hỏng đăng ký
+        log.warning("[email:smtp] gửi thất bại (%s) - link cho %s: %s", e, to_email, verify_link)

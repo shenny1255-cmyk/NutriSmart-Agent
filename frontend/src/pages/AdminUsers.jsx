@@ -191,7 +191,7 @@ export default function AdminUsers() {
                                     title={u.id === currentUserId ? 'Không thể tự xóa tài khoản đang đăng nhập' : undefined}
                                     className="h-4 w-4 accent-accent-strong disabled:cursor-not-allowed disabled:opacity-40" />
                             </Td>
-                            <Td className="font-medium text-ink">{u.full_name || '—'}</Td>
+                            <Td className="font-medium text-ink">{u.full_name || '-'}</Td>
                             <Td className="text-ink-2 [overflow-wrap:anywhere]">{u.email}</Td>
                             <Td>
                                 <Select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}
@@ -211,7 +211,7 @@ export default function AdminUsers() {
                 </tbody>
             </TableShell>
 
-            {/* Modal xác nhận xóa — hiện rõ email để không xóa nhầm hàng */}
+            {/* Modal xác nhận xóa - hiện rõ email để không xóa nhầm hàng */}
             <Modal
                 open={!!deleteTarget}
                 onClose={() => !deleting && setDeleteTarget(null)}
@@ -276,7 +276,7 @@ export default function AdminUsers() {
                             placeholder="Nguyễn Văn An" />
                         {createForm.full_name !== '' && !isValidFullName(createForm.full_name) && (
                             <span className="mt-1 block text-xs font-medium text-danger">
-                                Nhập 2–100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
+                                Nhập 2-100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
                             </span>
                         )}
                     </label>
