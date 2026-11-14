@@ -1,4 +1,4 @@
-"""Unit tests cho render_system_prompt — hàm thuần, không chạm database."""
+"""Unit tests cho render_system_prompt - hàm thuần, không chạm database."""
 
 from app.services.nutrition_context import render_system_prompt
 

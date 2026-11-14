@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "note": "Bộ test case đánh giá Warning Engine (kế hoạch ĐATN v2, mục 5). Nhãn `expect` gán theo CÔNG THỨC PHỔ BIẾN của món, viết độc lập với từ điển trong guardrails.py — nhiều tên món không lộ nguyên liệu (dị ứng ẩn) nên recall < 1 là kỳ vọng. Nhóm/Chuyên gia cần rà lại nhãn trước khi công bố trong phụ lục.",
+  "note": "Bộ test case đánh giá Warning Engine (kế hoạch ĐATN v2, mục 5). Nhãn `expect` gán theo CÔNG THỨC PHỔ BIẾN của món, viết độc lập với từ điển trong guardrails.py - nhiều tên món không lộ nguyên liệu (dị ứng ẩn) nên recall < 1 là kỳ vọng. Nhóm/Chuyên gia cần rà lại nhãn trước khi công bố trong phụ lục.",
   "cases": [
     {"id": "a01", "text": "Tôm rang thịt ba chỉ", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"]},
     {"id": "a02", "text": "Canh cua rau đay", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"]},
     {"id": "a03", "text": "Bún riêu", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "riêu cua"},
     {"id": "a04", "text": "Bún đậu mắm tôm", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"]},
-    {"id": "a05", "text": "Bún bò Huế", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "nước dùng có mắm ruốc — dị ứng ẩn"},
+    {"id": "a05", "text": "Bún bò Huế", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "nước dùng có mắm ruốc - dị ứng ẩn"},
     {"id": "a06", "text": "Bánh xèo", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "nhân tôm"},
     {"id": "a07", "text": "Chả giò", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "nhân thường có tôm/cua"},
     {"id": "a08", "text": "Cơm chiên Dương Châu", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"], "note": "có tôm"},
@@ -19,7 +19,7 @@
 
     {"id": "b01", "text": "Cá kho tộ", "allergens": ["Cá"], "expect": ["ALLERGEN"]},
     {"id": "b02", "text": "Rau muống xào, chấm nước mắm", "allergens": ["Cá"], "expect": ["ALLERGEN"]},
-    {"id": "b03", "text": "Bún chả Hà Nội", "allergens": ["Cá"], "expect": ["ALLERGEN"], "note": "nước chấm pha nước mắm — dị ứng ẩn"},
+    {"id": "b03", "text": "Bún chả Hà Nội", "allergens": ["Cá"], "expect": ["ALLERGEN"], "note": "nước chấm pha nước mắm - dị ứng ẩn"},
     {"id": "b04", "text": "Bún chả cá Nha Trang", "allergens": ["Cá"], "expect": ["ALLERGEN"]},
     {"id": "b05", "text": "Cà tím nướng mỡ hành", "allergens": ["Cá"], "expect": []},
     {"id": "b06", "text": "Canh chua cá lóc", "allergens": ["Cá"], "expect": ["ALLERGEN"]},
@@ -27,7 +27,7 @@
 
     {"id": "c01", "text": "Gỏi cuốn chấm tương đậu phộng", "allergens": ["Đậu phộng"], "expect": ["ALLERGEN"]},
     {"id": "c02", "text": "Xôi lạc", "allergens": ["Đậu phộng"], "expect": ["ALLERGEN"]},
-    {"id": "c03", "text": "Gỏi gà bắp cải", "allergens": ["Đậu phộng"], "expect": ["ALLERGEN"], "note": "thường rắc lạc rang — dị ứng ẩn"},
+    {"id": "c03", "text": "Gỏi gà bắp cải", "allergens": ["Đậu phộng"], "expect": ["ALLERGEN"], "note": "thường rắc lạc rang - dị ứng ẩn"},
     {"id": "c04", "text": "Bánh đa kê", "allergens": ["Đậu phộng"], "expect": ["ALLERGEN"], "note": "có lạc"},
     {"id": "c05", "text": "Phở bò tái", "allergens": ["Đậu phộng"], "expect": []},
 
@@ -36,18 +36,18 @@
     {"id": "d03", "text": "Bánh flan caramel", "allergens": ["Sữa bò"], "expect": ["ALLERGEN"]},
     {"id": "d04", "text": "Pizza phô mai", "allergens": ["Sữa bò"], "expect": ["ALLERGEN"]},
     {"id": "d05", "text": "Cà phê sữa đá", "allergens": ["Sữa bò"], "expect": ["ALLERGEN"], "note": "sữa đặc"},
-    {"id": "d06", "text": "Sinh tố bơ", "allergens": ["Sữa bò"], "expect": ["ALLERGEN"], "note": "thường xay cùng sữa đặc/sữa tươi — dị ứng ẩn"},
+    {"id": "d06", "text": "Sinh tố bơ", "allergens": ["Sữa bò"], "expect": ["ALLERGEN"], "note": "thường xay cùng sữa đặc/sữa tươi - dị ứng ẩn"},
 
     {"id": "e01", "text": "Bánh mì ốp la", "allergens": ["Gluten"], "expect": ["ALLERGEN"]},
     {"id": "e02", "text": "Mì Quảng gà", "allergens": ["Gluten"], "expect": [], "note": "sợi bột gạo"},
     {"id": "e03", "text": "Phở gà", "allergens": ["Gluten"], "expect": []},
     {"id": "e04", "text": "Mì xào hải sản", "allergens": ["Gluten"], "expect": ["ALLERGEN"]},
     {"id": "e05", "text": "Bánh bao nhân thịt", "allergens": ["Gluten"], "expect": ["ALLERGEN"]},
-    {"id": "e06", "text": "Bò lúc lắc", "allergens": ["Gluten"], "expect": ["ALLERGEN"], "note": "ướp xì dầu (có lúa mì) — dị ứng ẩn"},
+    {"id": "e06", "text": "Bò lúc lắc", "allergens": ["Gluten"], "expect": ["ALLERGEN"], "note": "ướp xì dầu (có lúa mì) - dị ứng ẩn"},
 
     {"id": "f01", "text": "Trứng chiên thịt băm", "allergens": ["Trứng"], "expect": ["ALLERGEN"]},
     {"id": "f02", "text": "Salad sốt mayonnaise", "allergens": ["Trứng"], "expect": ["ALLERGEN"]},
-    {"id": "f03", "text": "Cơm tấm sườn bì chả", "allergens": ["Trứng"], "expect": ["ALLERGEN"], "note": "chả trứng hấp — dị ứng ẩn"},
+    {"id": "f03", "text": "Cơm tấm sườn bì chả", "allergens": ["Trứng"], "expect": ["ALLERGEN"], "note": "chả trứng hấp - dị ứng ẩn"},
     {"id": "f04", "text": "Bánh bông lan", "allergens": ["Trứng"], "expect": ["ALLERGEN"]},
 
     {"id": "g01", "text": "Đậu phụ sốt cà chua", "allergens": ["Đậu nành"], "expect": ["ALLERGEN"]},
@@ -57,7 +57,7 @@
     {"id": "h01", "text": "Cơm gà xối mỡ", "allergens": ["Thịt gà"], "expect": ["ALLERGEN"]},
     {"id": "h02", "text": "Trứng gà luộc", "allergens": ["Thịt gà"], "expect": []},
     {"id": "h03", "text": "Bò bía", "allergens": ["Thịt bò"], "expect": []},
-    {"id": "h04", "text": "Phở tái lăn", "allergens": ["Thịt bò"], "expect": ["ALLERGEN"], "note": "phở tái = thịt bò — dị ứng ẩn"},
+    {"id": "h04", "text": "Phở tái lăn", "allergens": ["Thịt bò"], "expect": ["ALLERGEN"], "note": "phở tái = thịt bò - dị ứng ẩn"},
 
     {"id": "k01", "text": "Cháo lòng heo", "conditions": ["Bệnh gout"], "expect": ["CONDITION"]},
     {"id": "k02", "text": "Mực xào cần tỏi", "conditions": ["Bệnh gout"], "expect": ["CONDITION"]},
@@ -68,13 +68,13 @@
     {"id": "m01", "text": "Chè đậu đen", "conditions": ["Đái tháo đường típ 2"], "expect": ["CONDITION"]},
     {"id": "m02", "text": "Trà sữa trân châu", "conditions": ["Đái tháo đường típ 2"], "expect": ["CONDITION"]},
     {"id": "m03", "text": "Sữa chua không đường", "conditions": ["Đái tháo đường típ 2"], "expect": []},
-    {"id": "m04", "text": "Bánh bò nướng", "conditions": ["Đái tháo đường típ 2"], "expect": ["CONDITION"], "note": "bánh ngọt nhiều đường — tên không lộ"},
+    {"id": "m04", "text": "Bánh bò nướng", "conditions": ["Đái tháo đường típ 2"], "expect": ["CONDITION"], "note": "bánh ngọt nhiều đường - tên không lộ"},
     {"id": "m05", "text": "Ức gà áp chảo", "conditions": ["Đái tháo đường típ 2"], "expect": []},
     {"id": "m06", "text": "Nước ép cam", "conditions": ["Đái tháo đường típ 2"], "expect": ["CONDITION"]},
 
     {"id": "n01", "text": "Cơm, dưa muối, cá khô", "conditions": ["Tăng huyết áp"], "expect": ["CONDITION"]},
     {"id": "n02", "text": "Mì gói xúc xích", "conditions": ["Tăng huyết áp"], "expect": ["CONDITION"]},
-    {"id": "n03", "text": "Thịt kho tàu", "conditions": ["Tăng huyết áp"], "expect": ["CONDITION"], "note": "kho mặn nhiều nước mắm — tên không lộ"},
+    {"id": "n03", "text": "Thịt kho tàu", "conditions": ["Tăng huyết áp"], "expect": ["CONDITION"], "note": "kho mặn nhiều nước mắm - tên không lộ"},
     {"id": "n04", "text": "Canh bí đỏ", "conditions": ["Tăng huyết áp"], "expect": []},
 
     {"id": "p01", "text": "Gà rán", "conditions": ["Rối loạn lipid máu"], "expect": ["CONDITION"]},

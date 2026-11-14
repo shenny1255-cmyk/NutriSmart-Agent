@@ -4,12 +4,12 @@ Trả lời câu hỏi của hội đồng "tại sao 0.7 / 0.3": quét w ∈ {0
     score = w · cos(q, d) + (1 − w) · sim_trigram(q, d)
 và so với baseline Pure Vector (w=1), Pure Trigram (w=0), RRF (k=60).
 
-Toàn bộ là logic thuần trên dữ liệu đã lấy sẵn — script scripts/rag_weight_sweep.py lo
+Toàn bộ là logic thuần trên dữ liệu đã lấy sẵn - script scripts/rag_weight_sweep.py lo
 phần truy vấn Postgres/Ollama một lần, rồi tính lại xếp hạng cho mọi w ở đây (nhanh, lặp lại được).
 
 Kiểu dữ liệu:
-- candidates: dict[chunk_id, (cosine, trigram)] — điểm thành phần của mọi chunk ứng viên.
-- query: {"id", "relevant": set[chunk_id], "candidates"} — relevant rỗng = chưa gán nhãn, bị bỏ qua.
+- candidates: dict[chunk_id, (cosine, trigram)] - điểm thành phần của mọi chunk ứng viên.
+- query: {"id", "relevant": set[chunk_id], "candidates"} - relevant rỗng = chưa gán nhãn, bị bỏ qua.
 """
 from __future__ import annotations
 
@@ -136,3 +136,48 @@ def best_threshold(rows: list[dict]) -> dict:
     top = max(r["f1"] for r in rows)
     ties = sorted((r for r in rows if r["f1"] == top), key=lambda r: r["threshold"])
     return ties[(len(ties) - 1) // 2]
+
+
+def split_for_threshold(queries: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Chia câu hỏi cho bài toán ngưỡng MIN_SCORE.
+
+    Dương: có ít nhất một đoạn liên quan → nên trích dẫn.
+    Âm: câu lạc đề, hoặc đã gán nhãn mà kho không có đoạn nào trả lời → trích dẫn gì cũng sai.
+    Câu chưa gán nhãn bị bỏ qua.
+    """
+    pos = [q for q in queries if q.get("relevant")]
+    neg = [q for q in queries if not q.get("relevant") and (q.get("off_topic") or q.get("labeled"))]
+    return pos, neg
+
+
+def per_query(queries: Iterable[dict], ranker: Ranker, k: int = DEFAULT_K) -> list[dict]:
+    """Điểm từng câu (chỉ câu có đoạn liên quan) - dùng cho kiểm định và phân tích lỗi."""
+    out = []
+    for q in queries:
+        if not q.get("relevant"):
+            continue
+        ranked = ranker(q["candidates"])
+        out.append({"id": q["id"],
+                    "recall@k": recall_at_k(ranked, q["relevant"], k),
+                    "mrr": reciprocal_rank(ranked, q["relevant"]),
+                    "ndcg@k": ndcg_at_k(ranked, q["relevant"], k)})
+    return out
+
+
+def paired_bootstrap(a: list[float], b: list[float], n_resamples: int = 10000,
+                     seed: int = 42, alpha: float = 0.05) -> dict:
+    """Paired bootstrap cho hiệu trung bình (a - b) trên cùng bộ câu hỏi.
+
+    significant = khoảng tin cậy (1 - alpha) không chứa 0.
+    """
+    import random
+    assert len(a) == len(b) and a, "hai dãy phải cùng độ dài, khác rỗng"
+    diffs = [x - y for x, y in zip(a, b)]
+    n = len(diffs)
+    rng = random.Random(seed)
+    means = sorted(sum(diffs[rng.randrange(n)] for _ in range(n)) / n for _ in range(n_resamples))
+    lo = means[int(alpha / 2 * n_resamples)]
+    hi = means[min(n_resamples - 1, int((1 - alpha / 2) * n_resamples))]
+    mean = sum(diffs) / n
+    return {"mean_diff": round(mean, 10), "ci_low": round(lo, 10), "ci_high": round(hi, 10),
+            "significant": not (lo <= 0 <= hi)}

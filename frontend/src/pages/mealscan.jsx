@@ -561,7 +561,7 @@ function Macro({ label, value, unit, primary }) {
           primary ? 'text-2xl text-accent-strong' : 'text-lg text-ink',
         ].join(' ')}
       >
-        {value != null ? value : '—'}
+        {value != null ? value : '-'}
         {value != null && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
       </dd>
     </div>

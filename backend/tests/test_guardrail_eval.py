@@ -1,4 +1,4 @@
-"""Test hàm tính chỉ số đánh giá Warning Engine (kế hoạch v2, mục 5 — Guardrails)."""
+"""Test hàm tính chỉ số đánh giá Warning Engine (kế hoạch v2, mục 5 - Guardrails)."""
 import pytest
 
 from app.services import guardrail_eval as ge

@@ -1,6 +1,6 @@
 """Integration: hybrid search thật trên Postgres + embedding thật (bge-m3).
 
-Bỏ qua nếu thiếu Postgres hoặc Ollama — CI/máy khác vẫn chạy được phần còn lại.
+Bỏ qua nếu thiếu Postgres hoặc Ollama - CI/máy khác vẫn chạy được phần còn lại.
 """
 
 import uuid

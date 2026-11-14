@@ -24,7 +24,7 @@ class ScrapedPage(TypedDict):
     source_url: str
     raw_text: str
 
-# Các thẻ tự đóng (void tags) không có thẻ đóng trong HTML5 — không được push vào ignore_stack
+# Các thẻ tự đóng (void tags) không có thẻ đóng trong HTML5 - không được push vào ignore_stack
 VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
     "link", "meta", "param", "source", "track", "wbr"
@@ -140,12 +140,12 @@ def _kiem_tra_trang_rac(url: str, title: str, raw_text: str, url_cuoi: str | Non
         duong_dan_cuoi = urlparse(url_cuoi).path.strip("/")
         if duong_dan_goc and not duong_dan_cuoi:
             raise ValueError(
-                f"URL {url} bị chuyển hướng về trang chủ ({url_cuoi}) — bài viết không còn tồn tại."
+                f"URL {url} bị chuyển hướng về trang chủ ({url_cuoi}) - bài viết không còn tồn tại."
             )
 
     if len(raw_text) < _DO_DAI_TOI_THIEU:
         raise ValueError(
-            f"Nội dung từ {url} chỉ có {len(raw_text)} ký tự — nhiều khả năng là "
+            f"Nội dung từ {url} chỉ có {len(raw_text)} ký tự - nhiều khả năng là "
             "trang lỗi hoặc trang chủ, không phải bài viết."
         )
 

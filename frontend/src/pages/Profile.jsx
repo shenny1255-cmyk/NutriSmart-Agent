@@ -13,9 +13,9 @@ const FALLBACK_ALLERGENS = [{ id: 1, name: 'Đậu phộng' }, { id: 2, name: 'H
 
 const ACTIVITY_LEVELS = [
   { value: 1, label: 'Ít vận động (ngồi nhiều)' },
-  { value: 2, label: 'Vận động nhẹ (1–3 buổi/tuần)' },
-  { value: 3, label: 'Vận động vừa (3–5 buổi/tuần)' },
-  { value: 4, label: 'Vận động nhiều (6–7 buổi/tuần)' },
+  { value: 2, label: 'Vận động nhẹ (1-3 buổi/tuần)' },
+  { value: 3, label: 'Vận động vừa (3-5 buổi/tuần)' },
+  { value: 4, label: 'Vận động nhiều (6-7 buổi/tuần)' },
   { value: 5, label: 'Vận động rất nhiều (thể thao chuyên nghiệp)' },
 ];
 
@@ -195,7 +195,7 @@ export default function Profile() {
       show('Đã lưu thông tin thành công!', 'success');
       return true;
     } catch (e) {
-      if (e.status === 422) setErr('Thông tin chưa hợp lệ — vui lòng kiểm tra lại.');
+      if (e.status === 422) setErr('Thông tin chưa hợp lệ - vui lòng kiểm tra lại.');
       else setErr(typeof e.detail === 'string' ? e.detail : 'Lưu thất bại, thử lại sau.');
       return false;
     } finally {
@@ -259,7 +259,7 @@ export default function Profile() {
               />
               {form.full_name !== '' && !fullNameValid && (
                 <p className="mt-1 text-xs font-medium text-danger">
-                  Nhập 2–100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
+                  Nhập 2-100 ký tự; không dùng emoji hoặc ký tự đặc biệt.
                 </p>
               )}
             </FieldGroup>
@@ -338,7 +338,7 @@ export default function Profile() {
           </div>
 
           {heightValid && weightValid && !metricsValid && (
-            <div className="mt-3"><Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10–80.</Alert></div>
+            <div className="mt-3"><Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10-80.</Alert></div>
           )}
 
           {bmi && (

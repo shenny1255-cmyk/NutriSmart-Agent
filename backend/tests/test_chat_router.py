@@ -25,7 +25,7 @@ def _db_up() -> bool:
 
 
 pytestmark = pytest.mark.skipif(
-    not _db_up(), reason="Postgres chưa chạy — bỏ qua (docker compose up -d để chạy)"
+    not _db_up(), reason="Postgres chưa chạy - bỏ qua (docker compose up -d để chạy)"
 )
 
 client = TestClient(app)

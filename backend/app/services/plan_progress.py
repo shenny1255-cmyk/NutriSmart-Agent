@@ -75,7 +75,7 @@ def _exercise_data(day: dict) -> tuple[str, int, float]:
     metric_starts = [
         match.start() for match in (duration_match, calories_match) if match is not None
     ]
-    name = text[:min(metric_starts)].rstrip(" -–—·,:") if metric_starts else text
+    name = text[:min(metric_starts)].rstrip(" ---·,:") if metric_starts else text
     return name or "Vận động theo lộ trình", duration, calories
 
 

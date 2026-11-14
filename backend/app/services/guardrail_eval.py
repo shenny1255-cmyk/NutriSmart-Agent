@@ -1,4 +1,4 @@
-"""Đánh giá Warning Engine trên bộ test case cố định (kế hoạch ĐATN v2, mục 5 — Guardrails).
+"""Đánh giá Warning Engine trên bộ test case cố định (kế hoạch ĐATN v2, mục 5 - Guardrails).
 
 Mỗi case: {id, text, allergens, conditions, expect: [mã cảnh báo kỳ vọng], note?}
 Chỉ số cho từng mã (ALLERGEN, CONDITION): precision, recall, tỷ lệ báo động giả.

@@ -23,8 +23,8 @@ MIN_KCAL = 1200          # sàn mặc định khi không rõ giới tính; sàn 
 MAX_KCAL = 4000
 
 # Kỳ vọng biến thiên cân nặng sau 7 ngày theo từng mục tiêu. Mốc giảm cân (−0,3 kg) cố ý thấp
-# hơn mức an toàn 0,5–1 kg/tuần (NHLBI) vì chu kỳ chỉ 7 ngày và cân nặng dao động do nước có thể
-# tới 1–2 kg/ngày. Lập luận đầy đủ + nguồn: eval/sources.md (kế hoạch ĐATN v2, mục 2.4.3).
+# hơn mức an toàn 0,5-1 kg/tuần (NHLBI) vì chu kỳ chỉ 7 ngày và cân nặng dao động do nước có thể
+# tới 1-2 kg/ngày. Lập luận đầy đủ + nguồn: eval/sources.md (kế hoạch ĐATN v2, mục 2.4.3).
 WEIGHT_RULES = {
     "LOSE_WEIGHT": lambda d: d <= -0.3,
     "GAIN_MUSCLE": lambda d: d >= 0.2,
@@ -70,7 +70,7 @@ def decide_result(
 ) -> str:
     """ACHIEVED khi đạt cả 2 tiêu chí, PARTIAL khi đạt 1, còn lại NOT_ACHIEVED.
 
-    Thiếu dữ liệu cân nặng thì cao nhất chỉ được PARTIAL — chưa đủ căn cứ kết luận ĐẠT.
+    Thiếu dữ liệu cân nặng thì cao nhất chỉ được PARTIAL - chưa đủ căn cứ kết luận ĐẠT.
     """
     ok_kcal = kcal_ok(avg_kcal_intake, target)
     ok_weight = weight_ok(goal, weight_change_kg)
@@ -91,7 +91,7 @@ def next_kcal_target(
     weight_change_kg: float | None,
     gender: str | None = None,
 ) -> int:
-    """Hiệu chỉnh calo cho lộ trình kế tiếp — chỉ đổi khi kỳ vừa rồi chưa ĐẠT."""
+    """Hiệu chỉnh calo cho lộ trình kế tiếp - chỉ đổi khi kỳ vừa rồi chưa ĐẠT."""
     if result == "ACHIEVED":
         return current_target
 

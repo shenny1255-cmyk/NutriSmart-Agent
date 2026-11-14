@@ -1,4 +1,4 @@
-"""Kho bài viết dinh dưỡng — chỉ-đọc, chỉ hiển thị tài liệu APPROVED."""
+"""Kho bài viết dinh dưỡng - chỉ-đọc, chỉ hiển thị tài liệu APPROVED."""
 
 import re
 from typing import Optional

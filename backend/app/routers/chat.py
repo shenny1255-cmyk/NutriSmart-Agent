@@ -118,7 +118,7 @@ def send_message(
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
 
     rag_block = retrieval.render_context_block(hits)
-    # Chỉ thị dược phẩm chỉ chèn khi câu hỏi về thuốc — nó ra lệnh ghi đè lên RAG nên
+    # Chỉ thị dược phẩm chỉ chèn khi câu hỏi về thuốc - nó ra lệnh ghi đè lên RAG nên
     # gắn vô điều kiện sẽ làm trợ lý từ chối trả lời câu hỏi dinh dưỡng.
     system_prompt = render_system_prompt(ctx) + rag_block
 

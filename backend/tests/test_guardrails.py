@@ -1,4 +1,4 @@
-"""Test Warning Engine (guardrails rule-based) — mục 2.5 kế hoạch ĐATN v2.
+"""Test Warning Engine (guardrails rule-based) - mục 2.5 kế hoạch ĐATN v2.
 
 Toàn bộ là logic thuần, không cần Postgres hay LLM.
 """
@@ -137,7 +137,7 @@ def test_check_plan_gom_canh_bao_trung_lap_va_ghi_vi_tri():
     ws = g.check_plan(_plan([meals, meals]), p)
     allergen = [w for w in ws if w["code"] == "ALLERGEN"]
     assert len(allergen) == 1                       # gom 2 ngày thành 1 cảnh báo
-    assert allergen[0]["context"] == "Trưa · ngày 1–2"
+    assert allergen[0]["context"] == "Trưa · ngày 1-2"
 
 
 def test_check_plan_bat_ngay_qua_it_calo():
@@ -228,16 +228,16 @@ def test_chat_cum_tu_ca_nhan_khong_phai_ca():
 
 
 def test_vi_tri_gom_gon_theo_bua_va_khoang_ngay():
-    # 7 ngày cùng món → "Trưa · ngày 1–7" thay vì liệt kê 7 lần
+    # 7 ngày cùng món → "Trưa · ngày 1-7" thay vì liệt kê 7 lần
     meals = [{"type": "Sáng", "name": "Phở bò", "kcal": 500},
              {"type": "Trưa", "name": "Cơm gà", "kcal": 600},
              {"type": "Tối", "name": "Salad ức gà", "kcal": 500}]
     p = GuardProfile(gender="FEMALE", allergens=("Thịt gà",), daily_kcal_target=1600)
     ws = g.check_plan(_plan([meals] * 7), p)
-    assert ws[0]["context"] == "Trưa, Tối · ngày 1–7"
+    assert ws[0]["context"] == "Trưa, Tối · ngày 1-7"
 
 
 def test_gom_ngay_khong_lien_tuc():
     assert g.compact_contexts([(1, "Trưa"), (2, "Trưa"), (3, "Trưa"), (5, "Trưa"), (5, "Tối")]) \
-        == "Trưa · ngày 1–3, 5; Tối · ngày 5"
+        == "Trưa · ngày 1-3, 5; Tối · ngày 5"
     assert g.compact_contexts([(2, None)]) == "ngày 2"

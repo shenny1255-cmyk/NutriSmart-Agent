@@ -2,23 +2,23 @@ import { useState } from 'react';
 import { AlertOctagon, AlertTriangle, ChevronDown, Info } from 'lucide-react';
 
 // Hiển thị cảnh báo của Warning Engine (backend services/guardrails.py).
-// Mức: DANGER (đỏ) – WARNING (vàng) – INFO (xanh), luôn nêu lý do cụ thể.
+// Mức: DANGER (đỏ) - WARNING (vàng) - INFO (xanh), luôn nêu lý do cụ thể.
 const LEVELS = {
   DANGER: {
     icon: AlertOctagon,
-    box: 'border-danger bg-danger-soft/70',
+    box: 'border-danger/40 border-l-danger bg-danger-soft',
     text: 'text-danger',
     label: 'Nguy cơ',
   },
   WARNING: {
     icon: AlertTriangle,
-    box: 'border-warning-strong bg-warning-soft/70',
+    box: 'border-warning-strong/40 border-l-warning-strong bg-warning-soft',
     text: 'text-warning-strong',
     label: 'Lưu ý',
   },
   INFO: {
     icon: Info,
-    box: 'border-info bg-info-soft/70',
+    box: 'border-info/40 border-l-info bg-info-soft',
     text: 'text-info',
     label: 'Thông tin',
   },
@@ -44,22 +44,22 @@ export default function WarningList({ warnings, limit = 4, compact = false, show
             key={`${w.code}-${i}`}
             role={w.level === 'DANGER' ? 'alert' : 'status'}
             className={[
-              'flex gap-3 rounded-xl border-l-4',
+              'flex gap-3 rounded-xl border border-l-4 shadow-whisper',
               compact ? 'p-2.5' : 'p-4',
               lv.box,
             ].join(' ')}
           >
             <Icon size={compact ? 16 : 20} className={`mt-0.5 shrink-0 ${lv.text}`} aria-hidden="true" />
             <div className="min-w-0 [overflow-wrap:anywhere]">
-              <p className={`${compact ? 'text-xs' : 'text-sm'} text-ink-2`}>
+              <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-ink`}>
                 <span className={`font-semibold ${lv.text}`}>{lv.label}: </span>
                 {w.message}
               </p>
               {w.context && (
-                <p className="mt-1 text-xs text-muted">Xuất hiện ở: {w.context}</p>
+                <p className="mt-1 text-xs text-ink-2">Xuất hiện ở: {w.context}</p>
               )}
               {w.source && !compact && (
-                <p className="mt-1 text-xs text-muted">Nguồn tham khảo: {w.source}</p>
+                <p className="mt-1 text-xs text-ink-2">Nguồn tham khảo: {w.source}</p>
               )}
             </div>
           </aside>
@@ -78,7 +78,7 @@ export default function WarningList({ warnings, limit = 4, compact = false, show
         </button>
       )}
 
-      {showDisclaimer && <p className="text-xs text-muted">{DISCLAIMER}</p>}
+      {showDisclaimer && <p className="text-xs text-ink-2">{DISCLAIMER}</p>}
     </div>
   );
 }

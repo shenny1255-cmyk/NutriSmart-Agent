@@ -673,7 +673,7 @@ class ChatIn(BaseModel):
 
 
 class CitationOut(BaseModel):
-    """Nguồn trích dẫn — đúng hình dạng Chat.jsx đang đọc."""
+    """Nguồn trích dẫn - đúng hình dạng Chat.jsx đang đọc."""
     title: str
     url: str | None = None
     snippet: str | None = None

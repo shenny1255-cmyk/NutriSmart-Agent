@@ -1,4 +1,4 @@
-# Nguồn tham khảo của Warning Engine và ngưỡng đánh giá — tình trạng kiểm chứng
+# Nguồn tham khảo của Warning Engine và ngưỡng đánh giá - tình trạng kiểm chứng
 
 Tra cứu ngày 14/11/2026. "Đã xác minh" = xác nhận được số hiệu, ngày ban hành, tên văn bản
 qua cơ sở dữ liệu văn bản (caselaw.vn, luatvietnam.vn, vnras.com…), **chưa** phải đã đọc
@@ -9,21 +9,21 @@ ghi số trang/mục cụ thể.
 |---|---|---|---|
 | Đái tháo đường típ 2 | QĐ **5481/QĐ-BYT** ngày 30/12/2020 (thay QĐ 3319/2017; sửa đổi bởi QĐ 1353/QĐ-BYT ngày 23/02/2021) | Đã xác minh số hiệu | Trích mục dinh dưỡng (hạn chế đường đơn, GI) |
 | Tăng huyết áp | QĐ **3192/QĐ-BYT** ngày 31/08/2010 | Đã xác minh số hiệu; không tìm thấy văn bản thay thế | Kiểm tra hiệu lực trên vbpl.vn; trích mục giảm muối |
-| Giới hạn muối | WHO Fact sheet *Salt reduction*: người lớn < 5 g muối (< 2.000 mg natri)/ngày | Đã xác minh | — |
+| Giới hạn muối | WHO Fact sheet *Salt reduction*: người lớn < 5 g muối (< 2.000 mg natri)/ngày | Đã xác minh | - |
 | Gout | QĐ **361/QĐ-BYT** ngày 25/01/2014 (Hướng dẫn chẩn đoán và điều trị các bệnh cơ xương khớp) | Xác minh được văn bản; **chưa xác nhận được có chương Bệnh gút** | Mở bản PDF, tìm chương gút; nếu không có thì thay nguồn |
-| Rối loạn lipid máu | Hội Tim mạch học Quốc gia Việt Nam — Khuyến cáo chẩn đoán và điều trị RLLM (2015) | Chỉ thấy qua trích dẫn thứ cấp | Tìm bản gốc; kiểm tra có bản cập nhật sau 2015 không |
+| Rối loạn lipid máu | Hội Tim mạch học Quốc gia Việt Nam - Khuyến cáo chẩn đoán và điều trị RLLM (2015) | Chỉ thấy qua trích dẫn thứ cấp | Tìm bản gốc; kiểm tra có bản cập nhật sau 2015 không |
 | Gan nhiễm mỡ | Viện Dinh dưỡng Quốc gia (chung chung) | **Chưa xác minh** | Tìm khuyến cáo cụ thể (VD Hội Gan mật VN) |
-| Bệnh thận mạn | QĐ **2388/QĐ-BYT** ngày 12/08/2024 (Hướng dẫn chẩn đoán và điều trị bệnh thận mạn và một số bệnh lý thận) — mới hơn QĐ 3931/QĐ-BYT ngày 21/09/2015 | Đã xác minh số hiệu | Trích mục kiểm soát kali/phospho/đạm |
-| Calo tối thiểu nữ 1.200 / nam 1.500 | 2013 AHA/ACC/TOS Guideline for the Management of Overweight and Obesity in Adults: chế độ 1.200–1.500 kcal/ngày (nữ), 1.500–1.800 (nam) | Thấy qua bảng trên PubMed Central (PMC5819889); cần đối chiếu bản gốc | Trích dẫn đầy đủ bài báo gốc (Jensen et al., *Circulation* 2014) |
-| Giảm cân an toàn | NHLBI (NIH): 1–2 lb/tuần (~0,5–1 kg/tuần), thâm hụt 500–1.000 kcal/ngày | Đã xác minh | Dùng cho mục 2.4.3 (ngưỡng `LOSE_WEIGHT ≤ −0,3 kg/tuần`) |
+| Bệnh thận mạn | QĐ **2388/QĐ-BYT** ngày 12/08/2024 (Hướng dẫn chẩn đoán và điều trị bệnh thận mạn và một số bệnh lý thận) - mới hơn QĐ 3931/QĐ-BYT ngày 21/09/2015 | Đã xác minh số hiệu | Trích mục kiểm soát kali/phospho/đạm |
+| Calo tối thiểu nữ 1.200 / nam 1.500 | 2013 AHA/ACC/TOS Guideline for the Management of Overweight and Obesity in Adults: chế độ 1.200-1.500 kcal/ngày (nữ), 1.500-1.800 (nam) | Thấy qua bảng trên PubMed Central (PMC5819889); cần đối chiếu bản gốc | Trích dẫn đầy đủ bài báo gốc (Jensen et al., *Circulation* 2014) |
+| Giảm cân an toàn | NHLBI (NIH): 1-2 lb/tuần (~0,5-1 kg/tuần), thâm hụt 500-1.000 kcal/ngày | Đã xác minh | Dùng cho mục 2.4.3 (ngưỡng `LOSE_WEIGHT ≤ −0,3 kg/tuần`) |
 
 ## Giải thích ngưỡng cân nặng trong `plan_evaluator.py` (mục 2.4.3)
 
-- `LOSE_WEIGHT: Δ ≤ −0,3 kg/tuần` — thấp hơn mức an toàn 0,5–1 kg/tuần của NHLBI vì
+- `LOSE_WEIGHT: Δ ≤ −0,3 kg/tuần` - thấp hơn mức an toàn 0,5-1 kg/tuần của NHLBI vì
   chu kỳ chỉ 7 ngày, cân nặng dao động trong ngày do nước/khối lượng ăn uống có thể tới
-  1–2 kg, nên mốc tối thiểu thấp hơn để tránh kết luận "KHÔNG ĐẠT" do nhiễu.
-- `MAINTAIN / MEDICAL: |Δ| ≤ 0,7 kg/tuần` — biên chịu nhiễu cho mục tiêu giữ cân.
-- `GAIN_MUSCLE: Δ ≥ 0,2 kg/tuần` — tăng cơ chậm hơn giảm mỡ.
+  1-2 kg, nên mốc tối thiểu thấp hơn để tránh kết luận "KHÔNG ĐẠT" do nhiễu.
+- `MAINTAIN / MEDICAL: |Δ| ≤ 0,7 kg/tuần` - biên chịu nhiễu cho mục tiêu giữ cân.
+- `GAIN_MUSCLE: Δ ≥ 0,2 kg/tuần` - tăng cơ chậm hơn giảm mỡ.
 - Cả ba mốc là lựa chọn thiết kế (chưa có thực nghiệm). Nếu hội đồng hỏi, trả lời theo
   lập luận nhiễu cân nặng ở trên và đề xuất hiệu chỉnh khi có dữ liệu người dùng thật.
 

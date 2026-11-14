@@ -1,6 +1,6 @@
 """Test chỉ số & thuật toán xếp hạng cho thực nghiệm trọng số Hybrid RAG (kế hoạch v2, mục 2.4.1).
 
-Logic thuần — không cần Postgres/Ollama. Script chạy thật: scripts/rag_weight_sweep.py
+Logic thuần - không cần Postgres/Ollama. Script chạy thật: scripts/rag_weight_sweep.py
 """
 import math
 
@@ -111,3 +111,33 @@ def test_best_threshold_lay_giua_khoang_hoa_de_co_bien_an_toan():
                                thresholds=[0.30, 0.32, 0.40, 0.50, 0.56, 0.58])
     # F1 = 1 với mọi ngưỡng trong (0.31, 0.56] → chọn giữa khoảng thay vì sát mép
     assert re_.best_threshold(rows)["threshold"] == 0.40
+
+
+def test_phan_lop_cau_hoi_cho_hieu_chinh_nguong():
+    # Dương: có đoạn liên quan. Âm: lạc đề, hoặc đã gán nhãn mà kho không có đoạn nào trả lời.
+    # Chưa gán nhãn → bỏ qua (không biết thuộc lớp nào).
+    qs = [
+        {"id": "a", "relevant": {1}, "labeled": True},
+        {"id": "b", "relevant": set(), "labeled": True},
+        {"id": "c", "relevant": set(), "off_topic": True},
+        {"id": "d", "relevant": set()},
+    ]
+    pos, neg = re_.split_for_threshold(qs)
+    assert [q["id"] for q in pos] == ["a"]
+    assert [q["id"] for q in neg] == ["b", "c"]
+
+
+def test_per_query_tra_diem_tung_cau():
+    rows = re_.per_query(QUERIES, lambda c: re_.hybrid_ranking(c, w=1.0), k=1)
+    assert [r["id"] for r in rows] == ["q1", "q2"]          # bỏ câu chưa gán nhãn
+    assert rows[0]["mrr"] == 1.0 and rows[1]["mrr"] == pytest.approx(1 / 3)
+
+
+def test_paired_bootstrap_khoang_tin_cay():
+    a = [0.5, 0.6, 0.7, 0.8] * 10
+    same = re_.paired_bootstrap(a, a, n_resamples=500, seed=1)
+    assert same["mean_diff"] == 0.0 and same["ci_low"] == 0.0 and same["ci_high"] == 0.0
+    better = re_.paired_bootstrap([x + 0.1 for x in a], a, n_resamples=500, seed=1)
+    assert better["mean_diff"] == pytest.approx(0.1)
+    assert better["ci_low"] > 0                              # khác biệt rõ → CI không chứa 0
+    assert better["significant"] is True

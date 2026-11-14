@@ -123,7 +123,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen font-body text-ink">
-      {/* Mobile top bar — 320–767px */}
+      {/* Mobile top bar - 320-767px */}
       <header className="glass-panel flex items-center justify-between border-b px-4 py-3 md:hidden">
         <div className="flex items-center gap-2.5">
           <LogoMark size={28} />
@@ -132,7 +132,7 @@ function Shell() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Lời chào người dùng — mobile */}
+          {/* Lời chào người dùng - mobile */}
           {userName && (
             <button
               onClick={() => navigate('/profile')}
@@ -177,7 +177,7 @@ function Shell() {
       )}
 
       <div className="flex">
-        {/* Desktop sidebar — Dark theme */}
+        {/* Desktop sidebar - Dark theme */}
         <aside className="dark-sidebar sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r p-4 md:flex">
           {brand}
           <NavList nav={nav} />
@@ -185,7 +185,7 @@ function Shell() {
         </aside>
 
         <main className="min-w-0 flex-1 overflow-y-auto">
-          {/* Top bar trên desktop — chứa lời chào người dùng góc phải, glassmorphism */}
+          {/* Top bar trên desktop - chứa lời chào người dùng góc phải, glassmorphism */}
           <div className="glass-panel hidden items-center justify-end border-b px-6 py-3 md:flex">
             {userName && (
               <button

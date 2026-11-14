@@ -22,8 +22,8 @@ NAMES = {"ALLERGEN": "Dị ứng", "CONDITION": "Bệnh nền"}
 
 def _row(case: dict) -> str:
     who = ", ".join((case.get("allergens") or []) + (case.get("conditions") or []))
-    return (f"| {case['id']} | {case['text']} | {who} | {', '.join(case.get('expect') or []) or '—'} "
-            f"| {', '.join(case['fired']) or '—'} | {case.get('note', '')} |")
+    return (f"| {case['id']} | {case['text']} | {who} | {', '.join(case.get('expect') or []) or '-'} "
+            f"| {', '.join(case['fired']) or '-'} | {case.get('note', '')} |")
 
 
 def main() -> None:
@@ -44,7 +44,7 @@ def main() -> None:
                      f"| {m['precision']:.3f} | {m['recall']:.3f} | {m['false_alarm_rate']:.3f} |")
     header = ["", "| ID | Món | Hồ sơ | Kỳ vọng | Hệ thống bật | Ghi chú |", "|---|---|---|---|---|---|"]
     lines += ["", f"## Bỏ sót ({len(r['misses'])})",
-              "Phần lớn là **dị ứng ẩn trong tên món** — từ điển chỉ thấy chữ, không biết công thức. "
+              "Phần lớn là **dị ứng ẩn trong tên món** - từ điển chỉ thấy chữ, không biết công thức. "
               "Hướng khắc phục: bảng món → nguyên liệu từ dữ liệu Viện Dinh dưỡng (GĐ1)."] + header
     lines += [_row(c) for c in r["misses"]]
     lines += ["", f"## Báo động giả ({len(r['false_alarms'])})"] + header

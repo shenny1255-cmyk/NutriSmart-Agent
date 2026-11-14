@@ -1,6 +1,6 @@
 # Bộ đánh giá NutriSmart (kế hoạch ĐATN v2)
 
-## Thực nghiệm trọng số Hybrid RAG — "tại sao 0.7 / 0.3?"
+## Thực nghiệm trọng số Hybrid RAG - "tại sao 0.7 / 0.3?"
 
 Công thức trong `app/services/retrieval.py`:
 
@@ -10,12 +10,12 @@ Thành phần thứ hai là **trigram similarity (pg_trgm)**, không phải BM25
 
 ### Quy trình (chạy từ `backend/`, cần Postgres + Ollama `bge-m3`)
 
-1. **Bổ sung câu hỏi** vào `rag_questions.json` (mục tiêu 50–100 câu, có cả câu lạc đề
+1. **Bổ sung câu hỏi** vào `rag_questions.json` (mục tiêu 50-100 câu, có cả câu lạc đề
    `"off_topic": true`). Câu hỏi nên bám nội dung kho tài liệu đã duyệt.
 2. **Xuất ứng viên:**
    `PYTHONUTF8=1 ./.venv/Scripts/python.exe scripts/rag_weight_sweep.py candidates`
    → `rag_labels.csv` (mở bằng Excel). Mỗi câu có ứng viên gộp từ top của Pure Vector,
-   Pure Trigram và Hybrid w hiện tại — để việc gán nhãn không thiên vị trọng số nào.
+   Pure Trigram và Hybrid w hiện tại - để việc gán nhãn không thiên vị trọng số nào.
 3. **Gán nhãn:** điền `1` vào cột `relevant` cho đoạn trả lời được (dù chỉ một phần) câu hỏi.
    Câu lạc đề để trống toàn bộ. Nên có 2 người gán độc lập một mẫu ngẫu nhiên để báo cáo
    độ đồng thuận; Expert duyệt mẫu.

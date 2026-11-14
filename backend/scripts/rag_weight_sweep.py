@@ -117,13 +117,16 @@ def cmd_candidates(args) -> None:
 def cmd_import_labels(args) -> None:
     data = json.loads(args.questions.read_text(encoding="utf-8"))
     labels: dict[str, list[int]] = {}
+    seen: set[str] = set()
     with args.csv.open(encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
+            seen.add(row["question_id"])
             if (row.get("relevant") or "").strip().lower() in {"1", "x", "y", "yes", "có", "co"}:
                 labels.setdefault(row["question_id"], []).append(int(row["chunk_id"]))
     for q in data["questions"]:
-        if q["id"] in labels:
-            q["relevant_chunk_ids"] = sorted(set(labels[q["id"]]))
+        if q["id"] in seen:
+            q["relevant_chunk_ids"] = sorted(set(labels.get(q["id"], [])))
+            q["labeled"] = True
     args.questions.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     labeled = sum(1 for q in data["questions"] if q.get("relevant_chunk_ids"))
     print(f"Đã nạp nhãn: {labeled}/{len(data['questions'])} câu có đoạn liên quan → {args.questions}")
@@ -132,7 +135,7 @@ def cmd_import_labels(args) -> None:
 # ---------- Bước 3: quét trọng số ----------
 
 def _svg_chart(rows: list[dict], rrf: dict, path: Path) -> None:
-    """Biểu đồ đường Recall@5 / MRR / nDCG@5 theo w — SVG thuần, không cần matplotlib."""
+    """Biểu đồ đường Recall@5 / MRR / nDCG@5 theo w - SVG thuần, không cần matplotlib."""
     W, H, L, R, T, B = 640, 380, 56, 150, 24, 48
     pw, ph = W - L - R, H - T - B
     x = lambda w: L + w * pw                       # noqa: E731
@@ -192,6 +195,7 @@ def cmd_sweep(args) -> None:
             cands = {c["id"]: (c["cos"], c["trg"]) for c in comps}
             queries.append({"id": q["id"], "off_topic": bool(q.get("off_topic")),
                             "relevant": set(q.get("relevant_chunk_ids") or []),
+                            "labeled": bool(q.get("labeled")),
                             "candidates": cands})
             print(f"[{q['id']}] {len(cands)} chunk")
 
@@ -200,7 +204,7 @@ def cmd_sweep(args) -> None:
     rrf = rag_eval.evaluate(queries, rag_eval.rrf_ranking, k)
     n = rows[0]["n"]
     if n == 0:
-        sys.exit("Chưa có câu nào được gán nhãn — chạy `candidates` rồi `import-labels` trước.")
+        sys.exit("Chưa có câu nào được gán nhãn - chạy `candidates` rồi `import-labels` trước.")
 
     best = rag_eval.best_row(rows, args.metric)
 
@@ -210,8 +214,10 @@ def cmd_sweep(args) -> None:
             return 0.0
         return max(rag_eval.hybrid_score(c, t, w) for c, t in q["candidates"].values())
 
-    on = [top1(q, CURRENT_W) for q in queries if not q["off_topic"]]
-    off = [top1(q, CURRENT_W) for q in queries if q["off_topic"]]
+    # Dương = có đoạn trả lời được; Âm = lạc đề hoặc kho không có tài liệu cho câu đó
+    pos_q, neg_q = rag_eval.split_for_threshold(queries)
+    on = [top1(q, CURRENT_W) for q in pos_q]
+    off = [top1(q, CURRENT_W) for q in neg_q]
     thresholds = [round(0.20 + i * 0.01, 2) for i in range(41)]
     th_rows = rag_eval.threshold_sweep(on, off, thresholds) if on and off else []
     best_th = rag_eval.best_threshold(th_rows) if th_rows else None
@@ -227,7 +233,7 @@ def cmd_sweep(args) -> None:
         "# Kết quả thực nghiệm trọng số Hybrid RAG",
         "",
         f"- Thời điểm chạy: {datetime.now():%Y-%m-%d %H:%M}",
-        f"- Số câu đã gán nhãn: **{n}** / {len(queries)} (câu lạc đề: {len(off)})",
+        f"- Số câu có đoạn liên quan: **{n}** / {len(queries)}; câu không nên trích dẫn (lạc đề hoặc kho không có tài liệu): {len(off)}",
         f"- Chỉ số chọn w tốt nhất: `{args.metric}`, k = {k}",
         "",
         "| Cấu hình | Recall@k | MRR | nDCG@k |",
@@ -247,6 +253,34 @@ def cmd_sweep(args) -> None:
            else "Cân nhắc đổi `W_VECTOR` trong `services/retrieval.py` theo kết quả này "
                 "(nhớ kiểm tra độ chênh có đáng kể không với cỡ mẫu hiện tại)."),
         "",
+    ]
+    # Kiểm định: chênh lệch giữa w tốt nhất và w hiện tại có vượt nhiễu không (paired bootstrap)
+    metric = args.metric
+    pq_best = rag_eval.per_query(queries, lambda c: rag_eval.hybrid_ranking(c, best["w"]), k)
+    pq_cur = rag_eval.per_query(queries, lambda c: rag_eval.hybrid_ranking(c, CURRENT_W), k)
+    pq_rrf = rag_eval.per_query(queries, rag_eval.rrf_ranking, k)
+    lines += ["", f"### Kiểm định paired bootstrap ({metric}, 10.000 lần lấy mẫu, CI 95%)", "",
+              "| So sánh | Hiệu TB | CI 95% | Có ý nghĩa? |", "|---|---|---|---|"]
+    for name, a, b in ((f"w={best['w']} vs w={CURRENT_W}", pq_best, pq_cur),
+                       (f"w={CURRENT_W} vs RRF", pq_cur, pq_rrf)):
+        bs = rag_eval.paired_bootstrap([r[metric] for r in a], [r[metric] for r in b])
+        lines.append(f"| {name} | {bs['mean_diff']:+.3f} | [{bs['ci_low']:+.3f}, {bs['ci_high']:+.3f}] "
+                     f"| {'Có' if bs['significant'] else 'Không'} |")
+
+    # Câu không dấu: lý do ban đầu để dùng trigram (chịu lỗi gõ/thiếu dấu)
+    no_accent = [q for q in questions if "không dấu" in (q.get("note") or "") and q.get("relevant_chunk_ids")]
+    if no_accent:
+        ids = {q["id"] for q in no_accent}
+        lines += ["", f"### Câu không dấu ({metric} từng câu)", "",
+                  "| Câu | w=0.0 | w=" + str(CURRENT_W) + " | w=1.0 |", "|---|---|---|---|"]
+        cols = [rag_eval.per_query([q for q in queries if q["id"] in ids],
+                                   lambda c, w=w: rag_eval.hybrid_ranking(c, w), k) for w in (0.0, CURRENT_W, 1.0)]
+        for i, q in enumerate(sorted(no_accent, key=lambda x: x["id"])):
+            vals = [next(r[metric] for r in col if r["id"] == q["id"]) for col in cols]
+            lines.append(f"| {q['id']}: {q['question']} | " + " | ".join(f"{v:.3f}" for v in vals) + " |")
+
+    lines += [
+        "",
         "![weight sweep](weight_sweep.svg)",
         "",
         "## Ngưỡng MIN_SCORE",
@@ -254,8 +288,8 @@ def cmd_sweep(args) -> None:
     ]
     if best_th:
         lines += [
-            f"Điểm top-1 hybrid (w={CURRENT_W}) — câu đúng chủ đề: "
-            f"min {min(on):.3f} / TB {sum(on) / len(on):.3f}; câu lạc đề: "
+            f"Điểm top-1 hybrid (w={CURRENT_W}) - câu có đoạn liên quan: "
+            f"min {min(on):.3f} / TB {sum(on) / len(on):.3f}; câu không nên trích dẫn: "
             f"max {max(off):.3f} / TB {sum(off) / len(off):.3f}.",
             "",
             f"Ngưỡng tốt nhất theo F1: **{best_th['threshold']:.2f}** "

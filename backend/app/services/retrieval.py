@@ -23,7 +23,7 @@ log = logging.getLogger("nutrismart.retrieval")
 W_VECTOR = 0.7
 W_TRIGRAM = 0.3
 
-# Dưới ngưỡng này coi như không liên quan — thà không trích dẫn còn hơn trích dẫn sai.
+# Dưới ngưỡng này coi như không liên quan - thà không trích dẫn còn hơn trích dẫn sai.
 # Đo trên kho tài liệu thật: câu hỏi đúng chủ đề đạt ~0.56, câu hỏi lạc đề chỉ ~0.28,
 # nên 0.35 tách sạch hai nhóm.
 MIN_SCORE = 0.35
@@ -72,8 +72,8 @@ def _has_searchable_chunks(db: Session) -> bool | None:
     """Kiểm tra nhanh kho RAG; None nghĩa là không kiểm tra được."""
     try:
         return bool(db.execute(_HAS_SEARCHABLE_CHUNKS_SQL).scalar())
-    except Exception as e:  # noqa: BLE001 — RAG không được làm hỏng chat
-        log.warning("[RAG] Không kiểm tra được kho tài liệu (%s) — tiếp tục truy hồi", e)
+    except Exception as e:  # noqa: BLE001 - RAG không được làm hỏng chat
+        log.warning("[RAG] Không kiểm tra được kho tài liệu (%s) - tiếp tục truy hồi", e)
         return None
 
 
@@ -91,7 +91,7 @@ def search_chunks(db: Session, query: str, k: int = 5) -> list[Hit]:
     try:
         qvec = _query_embedding(query)
     except OllamaError as e:
-        log.warning("[RAG] Không tạo được embedding cho câu hỏi (%s) — bỏ qua truy hồi", e)
+        log.warning("[RAG] Không tạo được embedding cho câu hỏi (%s) - bỏ qua truy hồi", e)
         return []
 
     try:
@@ -102,8 +102,8 @@ def search_chunks(db: Session, query: str, k: int = 5) -> list[Hit]:
             "w_vec": W_VECTOR,
             "w_trg": W_TRIGRAM,
         }).mappings().all()
-    except Exception as e:  # noqa: BLE001 — lỗi truy vấn không được làm hỏng chat
-        log.warning("[RAG] Truy vấn hybrid search thất bại (%s) — bỏ qua truy hồi", e)
+    except Exception as e:  # noqa: BLE001 - lỗi truy vấn không được làm hỏng chat
+        log.warning("[RAG] Truy vấn hybrid search thất bại (%s) - bỏ qua truy hồi", e)
         return []
 
     return [

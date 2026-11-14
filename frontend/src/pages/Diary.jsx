@@ -270,19 +270,19 @@ function FoodLightboxModal({ meal, open, onClose }) {
             <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
               <span className="block text-xs font-medium text-muted uppercase">Đạm</span>
               <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
-                {meal.protein_g != null ? `${meal.protein_g}g` : '—'}
+                {meal.protein_g != null ? `${meal.protein_g}g` : '-'}
               </span>
             </div>
             <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
               <span className="block text-xs font-medium text-muted uppercase">Carbs</span>
               <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
-                {meal.carb_g != null ? `${meal.carb_g}g` : '—'}
+                {meal.carb_g != null ? `${meal.carb_g}g` : '-'}
               </span>
             </div>
             <div className="rounded-xl bg-paper-2 p-2.5 border border-rule-2">
               <span className="block text-xs font-medium text-muted uppercase">Béo</span>
               <span className="font-display text-base font-bold text-ink [font-variant-numeric:tabular-nums]">
-                {meal.fat_g != null ? `${meal.fat_g}g` : '—'}
+                {meal.fat_g != null ? `${meal.fat_g}g` : '-'}
               </span>
             </div>
           </div>
@@ -346,7 +346,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
         <label className="flex flex-col gap-1 text-xs text-muted">
           Món ăn
           <Select value={foodId} onChange={(e) => setFoodId(e.target.value)} className="w-52">
-            <option value="">— Chọn món —</option>
+            <option value="">- Chọn món -</option>
             {(foods || []).map((f) => (
               <option key={f.id} value={f.id}>{f.name} ({Math.round(f.calories_kcal)} kcal)</option>
             ))}
@@ -367,7 +367,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
                 className={`w-40 ${tenMoi !== '' && !tenMonHopLe ? 'outline outline-2 outline-danger' : ''}`}
               />
               {tenMoi !== '' && !tenMonHopLe && (
-                <span className="max-w-44 text-danger">Tên món từ 2–100 ký tự, không chứa emoji hoặc ký tự đặc biệt</span>
+                <span className="max-w-44 text-danger">Tên món từ 2-100 ký tự, không chứa emoji hoặc ký tự đặc biệt</span>
               )}
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted">
@@ -379,7 +379,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
                 className={`w-24 ${kcal !== '' && !kcalHopLe ? 'outline outline-2 outline-danger' : ''}`}
               />
               {kcal !== '' && !kcalHopLe && (
-                <span className="max-w-32 text-danger">Nhập từ 1–5.000 kcal</span>
+                <span className="max-w-32 text-danger">Nhập từ 1-5.000 kcal</span>
               )}
             </label>
           </>
@@ -400,7 +400,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
             aria-invalid={!phanHopLe}
             className={`w-20 ${!phanHopLe ? 'outline outline-2 outline-danger' : ''}`}
           />
-          {!phanHopLe && <span className="max-w-28 text-danger">Từ 0,5–20 phần</span>}
+          {!phanHopLe && <span className="max-w-28 text-danger">Từ 0,5-20 phần</span>}
         </label>
 
         <Btn variant="primary" onClick={them} disabled={!hopLe || dangLuu} className="mt-5">
@@ -493,7 +493,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
         <label className="flex flex-col gap-1 text-xs text-muted">
           Bài tập
           <Select value={exId} onChange={(e) => setExId(e.target.value)} className="w-56">
-            <option value="">— Chọn bài tập —</option>
+            <option value="">- Chọn bài tập -</option>
             {(exercises || []).map((e) => (
               <option key={e.id} value={e.id}>{e.name}</option>
             ))}
@@ -508,7 +508,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
             aria-invalid={!phutHopLe}
             className={`w-28 ${!phutHopLe ? 'outline outline-2 outline-danger' : ''}`}
           />
-          {!phutHopLe && <span className="max-w-36 text-danger">Từ 1–600 phút</span>}
+          {!phutHopLe && <span className="max-w-36 text-danger">Từ 1-600 phút</span>}
         </label>
 
         <div className="flex flex-col gap-1 text-xs text-muted">
@@ -531,7 +531,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
             />
           )}
           {dungKcalThietBi && !kcalHopLe && (
-            <span className="max-w-32 text-danger">Từ 1–5.000 kcal</span>
+            <span className="max-w-32 text-danger">Từ 1-5.000 kcal</span>
           )}
         </div>
 
@@ -586,7 +586,7 @@ function CanNang({ weights, onSaved, onError }) {
       setKg('');
       onSaved(`Đã ghi cân nặng ${kgNumber} kg.`);
     } catch (e) {
-      if (e.status === 422) onError('Cân nặng không hợp lệ. Vui lòng nhập từ 20–300 kg.');
+      if (e.status === 422) onError('Cân nặng không hợp lệ. Vui lòng nhập từ 20-300 kg.');
       else onError(typeof e.detail === 'string' ? e.detail : 'Không ghi được cân nặng. Vui lòng thử lại.');
     } finally {
       setDangLuu(false);
@@ -623,7 +623,7 @@ function CanNang({ weights, onSaved, onError }) {
           Ghi nhận
         </Btn>
         {kg !== '' && !kgHopLe && (
-          <span className="text-xs text-danger">Nhập cân nặng từ 20–300 kg</span>
+          <span className="text-xs text-danger">Nhập cân nặng từ 20-300 kg</span>
         )}
 
         {ganNhat && (

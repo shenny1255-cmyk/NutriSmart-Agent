@@ -1,4 +1,4 @@
-"""Warning Engine — lớp guardrail rule-based chạy SAU khi AI trả kết quả (kế hoạch ĐATN v2, mục 2.5).
+"""Warning Engine - lớp guardrail rule-based chạy SAU khi AI trả kết quả (kế hoạch ĐATN v2, mục 2.5).
 
 Nguyên tắc:
 - Deterministic, không nhờ LLM tự kiểm tra chính nó.
@@ -25,7 +25,7 @@ LEVEL_ORDER = ["DANGER", "WARNING", "INFO"]
 # ---------- Ngưỡng ----------
 
 # Mức calo tối thiểu/ngày theo giới tính: chế độ giảm cân của Guideline AHA/ACC/TOS 2013 về
-# quản lý thừa cân, béo phì kê 1.200–1.500 kcal (nữ) và 1.500–1.800 kcal (nam) → lấy cận dưới.
+# quản lý thừa cân, béo phì kê 1.200-1.500 kcal (nữ) và 1.500-1.800 kcal (nam) → lấy cận dưới.
 # Không rõ giới tính → mốc thấp hơn để không báo động giả.
 MIN_KCAL_BY_GENDER = {"FEMALE": 1200, "MALE": 1500}
 MIN_KCAL_DEFAULT = 1200
@@ -34,7 +34,7 @@ MIN_KCAL_DEFAULT = 1200
 KCAL_HIGH_RATIO = 1.2
 
 # Vùng tin cậy của Vision. Đây chỉ là GIẢ THUYẾT BAN ĐẦU (mục 2.4.2): confidence do LLM
-# tự báo cáo, chưa hiệu chỉnh — cần chọn lại từ reliability diagram trên bộ ảnh cân thật.
+# tự báo cáo, chưa hiệu chỉnh - cần chọn lại từ reliability diagram trên bộ ảnh cân thật.
 CONF_HIGH = 0.7   # ≥ ngưỡng này: tự điền, người dùng chỉ bấm lưu
 CONF_LOW = 0.3    # < ngưỡng này: yêu cầu chụp lại; ở giữa: yêu cầu xác nhận khẩu phần
 
@@ -217,7 +217,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "tôm", "cua", "ghẹ", "mực", "sò", "hàu", "nghêu", "ốc", "hải sản",
                   "bia", "rượu"),
         negatives=("gan nhiễm mỡ", "men gan", "bệnh gan", "xơ gan", "chức năng gan"),
-        source="Bộ Y tế — QĐ 361/QĐ-BYT (25/01/2014), Hướng dẫn chẩn đoán và điều trị các bệnh cơ xương khớp",
+        source="Bộ Y tế - QĐ 361/QĐ-BYT (25/01/2014), Hướng dẫn chẩn đoán và điều trị các bệnh cơ xương khớp",
     ),
     "diabetes": _ConditionRule(
         aliases=("đái tháo đường", "tiểu đường"),
@@ -226,7 +226,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "nước mía", "mật ong", "siro", "sữa đặc", "xôi", "kem", "bánh flan",
                   "nước ép"),
         negatives=("không đường", "ít đường", "đường huyết", "chè xanh", "nước chè"),
-        source="Bộ Y tế — QĐ 5481/QĐ-BYT (30/12/2020), Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2",
+        source="Bộ Y tế - QĐ 5481/QĐ-BYT (30/12/2020), Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2",
     ),
     "hypertension": _ConditionRule(
         aliases=("tăng huyết áp", "cao huyết áp", "huyết áp cao"),
@@ -235,7 +235,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "khô gà", "tôm khô", "xúc xích", "lạp xưởng", "thịt nguội", "giăm bông",
                   "mì gói", "mì tôm", "đồ hộp", "mắm tôm", "mắm nêm", "mắm ruốc", "ruốc",
                   "snack", "muối ớt"),
-        source="Bộ Y tế — QĐ 3192/QĐ-BYT (31/08/2010), Hướng dẫn chẩn đoán và điều trị tăng huyết áp; WHO Fact sheet Salt reduction: < 5 g muối/ngày",
+        source="Bộ Y tế - QĐ 3192/QĐ-BYT (31/08/2010), Hướng dẫn chẩn đoán và điều trị tăng huyết áp; WHO Fact sheet Salt reduction: < 5 g muối/ngày",
     ),
     "dyslipidemia": _ConditionRule(
         aliases=("rối loạn lipid", "mỡ máu", "cholesterol"),
@@ -244,14 +244,14 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "lòng lợn", "óc heo", "xúc xích", "lạp xưởng", "bơ thực vật", "gà rán",
                   "khoai tây chiên"),
         negatives=("mỡ hành",),
-        source="Hội Tim mạch học Quốc gia Việt Nam — Khuyến cáo về chẩn đoán và điều trị rối loạn lipid máu (2015)",
+        source="Hội Tim mạch học Quốc gia Việt Nam - Khuyến cáo về chẩn đoán và điều trị rối loạn lipid máu (2015)",
     ),
     "fatty_liver": _ConditionRule(
         aliases=("gan nhiễm mỡ",),
         advice="người gan nhiễm mỡ nên tránh rượu bia, hạn chế đồ ngọt và đồ chiên rán",
         keywords=("bia", "rượu", "nước ngọt", "trà sữa", "chiên", "rán", "bánh ngọt",
                   "gà rán", "khoai tây chiên"),
-        source="Viện Dinh dưỡng Quốc gia — Khuyến nghị chế độ ăn cho người gan nhiễm mỡ",
+        source="Viện Dinh dưỡng Quốc gia - Khuyến nghị chế độ ăn cho người gan nhiễm mỡ",
     ),
     "ckd": _ConditionRule(
         aliases=("thận mạn", "suy thận", "bệnh thận"),
@@ -260,7 +260,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
                   "nội tạng", "dưa muối", "cà muối", "đồ hộp", "xúc xích", "mì gói",
                   "sữa", "phô mai", "đậu đỏ", "đậu đen"),
         negatives=("sữa đậu nành",),
-        source="Bộ Y tế — QĐ 2388/QĐ-BYT (12/08/2024), Hướng dẫn chẩn đoán và điều trị bệnh thận mạn và một số bệnh lý thận",
+        source="Bộ Y tế - QĐ 2388/QĐ-BYT (12/08/2024), Hướng dẫn chẩn đoán và điều trị bệnh thận mạn và một số bệnh lý thận",
     ),
 }
 
@@ -295,7 +295,7 @@ def _allergen_warnings(text: str, profile: GuardProfile, level: str, subject: st
         kw = _first_match(text, group.keywords, group.negatives)
         if kw:
             out.append(_w(level, "ALLERGEN",
-                          f"{subject} có “{kw}” — bạn khai báo dị ứng {name.strip()}."))
+                          f"{subject} có “{kw}” - bạn khai báo dị ứng {name.strip()}."))
     return out
 
 
@@ -309,7 +309,7 @@ def check_food_text(text: str, profile: GuardProfile) -> list[dict]:
         kw = _first_match(text, rule.keywords, rule.negatives)
         if kw:
             out.append(_w("WARNING", "CONDITION",
-                          f"Món có “{kw}” — {rule.advice} (bệnh nền: {name.strip()}).",
+                          f"Món có “{kw}” - {rule.advice} (bệnh nền: {name.strip()}).",
                           source=rule.source))
     return _sorted(out)
 
@@ -331,18 +331,18 @@ def check_day_kcal(total_kcal: float, profile: GuardProfile, context: str | None
 
 
 def _day_ranges(days: list[int]) -> str:
-    """[1,2,3,5] → "1–3, 5"."""
+    """[1,2,3,5] → "1-3, 5"."""
     days = sorted(set(days))
     parts, start = [], days[0]
     for prev, cur in zip(days, days[1:] + [None]):
         if cur != prev + 1 if cur is not None else True:
-            parts.append(f"{start}–{prev}" if prev > start else f"{start}")
+            parts.append(f"{start}-{prev}" if prev > start else f"{start}")
             start = cur
     return ", ".join(parts)
 
 
 def compact_contexts(locations: list[tuple[int, str | None]]) -> str:
-    """[(ngày, bữa), …] → "Trưa, Tối · ngày 1–7" — gom bữa có cùng tập ngày."""
+    """[(ngày, bữa), …] → "Trưa, Tối · ngày 1-7" - gom bữa có cùng tập ngày."""
     by_meal: dict[str | None, list[int]] = {}
     for day, meal in locations:
         by_meal.setdefault(meal, []).append(day)
@@ -411,7 +411,7 @@ def check_meal_scan(analysis: dict, profile: GuardProfile, consumed_today: float
                       f"AI không chắc chắn về món này (độ tin cậy {conf:.0%}). Hãy chụp lại rõ hơn."))
     elif conf < CONF_HIGH:
         out.append(_w("WARNING", "LOW_CONFIDENCE",
-                      f"Độ tin cậy {conf:.0%} — hãy kiểm tra lại tên món và khẩu phần trước khi lưu."))
+                      f"Độ tin cậy {conf:.0%} - hãy kiểm tra lại tên món và khẩu phần trước khi lưu."))
 
     text = " . ".join(str(analysis.get(k) or "") for k in ("food_name", "description"))
     out.extend(check_food_text(text, profile))
@@ -421,19 +421,19 @@ def check_meal_scan(analysis: dict, profile: GuardProfile, consumed_today: float
     if target and kcal > 0 and consumed_today + kcal > target * KCAL_HIGH_RATIO:
         total = consumed_today + kcal
         out.append(_w("WARNING", "KCAL_HIGH",
-                      f"Thêm món này, hôm nay bạn sẽ nạp {total:.0f} kcal — "
+                      f"Thêm món này, hôm nay bạn sẽ nạp {total:.0f} kcal - "
                       f"vượt {round(total / target * 100)}% chỉ tiêu {target} kcal."))
     return _sorted(out)
 
 
 def check_chat_reply(reply: str, profile: GuardProfile, citation_count: int) -> list[dict]:
-    """Câu trả lời chat: nhắc tới dị nguyên (vàng — có thể chỉ là lời dặn tránh) và
-    thiếu trích dẫn tài liệu đã duyệt (xanh — nhắc người dùng kiểm chứng)."""
+    """Câu trả lời chat: nhắc tới dị nguyên (vàng - có thể chỉ là lời dặn tránh) và
+    thiếu trích dẫn tài liệu đã duyệt (xanh - nhắc người dùng kiểm chứng)."""
     out = _allergen_warnings(reply, profile, "WARNING", "Câu trả lời nhắc tới")
     for w in out:
         w["message"] += " Hãy kiểm tra kỹ trước khi áp dụng."
     if citation_count == 0:
         out.append(_w("INFO", "NO_GROUNDING",
-                      "Câu trả lời không dựa trên tài liệu đã được chuyên gia duyệt — "
+                      "Câu trả lời không dựa trên tài liệu đã được chuyên gia duyệt - "
                       "hãy tham khảo thêm ý kiến chuyên môn."))
     return _sorted(out)
