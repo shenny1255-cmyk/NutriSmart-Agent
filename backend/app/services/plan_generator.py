@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import User, NutritionPlan
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
-from app.services import ollama_client, guardrails
+from app.services import ollama_client, guardrails, llm  # ollama_client: test monkeypatch qua module này
 from app.services.nutrition_context import gather_context
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def _strip_fence(reply: str) -> str:
     return reply.strip()
 
 
-def _llm_days(prompt: str, timeout: float | None = None) -> list | None:
+def _llm_days(prompt: str, timeout: float | None = None, user=None) -> list | None:
     """Ép JSON Schema, kiểm tra đủ 7 ngày và thử sửa một lần nếu model trả sai."""
     messages = [{"role": "user", "content": prompt}]
     schema = PlanOutput.model_json_schema()
@@ -114,13 +114,17 @@ def _llm_days(prompt: str, timeout: float | None = None) -> list | None:
 
     for attempt in range(2):
         try:
-            reply = ollama_client.chat(
+            reply = llm.chat(
                 messages,
-                model=settings.OLLAMA_MODEL,
+                user=user,
+                purpose="plan_generate",
+                ollama_model=settings.OLLAMA_MODEL,
                 timeout=timeout or settings.PLAN_LLM_TIMEOUT_SECONDS,
-                response_format=schema,
+                json_schema=schema,
                 # JSON dài cần cửa sổ rộng; temperature 0 giúp model nhỏ ổn định hơn.
-                options={"num_ctx": 4096, "num_predict": 2048, "temperature": 0},
+                max_tokens=2048,
+                temperature=0,
+                ollama_options={"num_ctx": 4096},
             )
         except Exception as exc:
             logger.warning("Không gọi được AI khi sinh lộ trình: %s. Dùng dữ liệu mẫu.", exc)
@@ -185,7 +189,7 @@ def generate_content(
         ctx = gather_context(db, user)
         profile_data = ctx.get("profile") or {}
 
-    days = _llm_days(build_prompt(profile_data, target, note))
+    days = _llm_days(build_prompt(profile_data, target, note), user=user)
     if days is None:
         return fallback_content(target)
     return {"days": days}

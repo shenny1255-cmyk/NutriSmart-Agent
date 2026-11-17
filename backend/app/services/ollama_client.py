@@ -9,11 +9,12 @@ import httpx
 import logging
 
 from app.config import settings
+from app.services.llm_errors import LLMError
 
 log = logging.getLogger("nutrismart.ollama")
 
 
-class OllamaError(Exception):
+class OllamaError(LLMError):
     """Không gọi được model (server tắt, timeout, hoặc trả về rỗng)."""
 
 

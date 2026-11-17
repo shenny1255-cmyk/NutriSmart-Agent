@@ -8,7 +8,7 @@ from app.config import settings
 from app.deps import get_db, get_current_user
 from app.models import User, ChatSession, ChatMessage
 from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
-from app.services import ollama_client
+from app.services import llm
 from app.services import retrieval
 from app.services import guardrails
 from app.services.nutrition_context import gather_context, render_system_prompt
@@ -19,14 +19,14 @@ HISTORY_LIMIT = 10   # số lượt gần nhất đưa lại cho model
 TOP_K = 3            # số đoạn tài liệu đưa vào ngữ cảnh (rút gọn để tăng tốc)
 
 
-def _chat(messages: list[dict]) -> str:
-    """Chat thường dùng model nhẹ để giảm thời gian phản hồi."""
-    return ollama_client.chat(messages, model=settings.OLLAMA_CHAT_MODEL)
+def _chat(messages: list[dict], user: User) -> str:
+    """Chat qua AI Provider Adapter (Ollama nội bộ hoặc cloud, xem services/llm.py)."""
+    return llm.chat(messages, user=user, purpose="chat", ollama_model=settings.OLLAMA_CHAT_MODEL)
 
 
-def _chat_stream(messages: list[dict]):
-    """Chat streaming dùng cùng model nhẹ với endpoint thường."""
-    return ollama_client.chat_stream(messages, model=settings.OLLAMA_CHAT_MODEL)
+def _chat_stream(messages: list[dict], user: User):
+    """Chat streaming qua cùng adapter với endpoint thường."""
+    return llm.chat_stream(messages, user=user, purpose="chat", ollama_model=settings.OLLAMA_CHAT_MODEL)
 
 
 def _get_or_create_session(db: Session, user: User) -> ChatSession:
@@ -135,8 +135,8 @@ def send_message(
     messages += [{"role": m.role, "content": m.content} for m in recent]
 
     try:
-        reply = _chat(messages)
-    except ollama_client.OllamaError:
+        reply = _chat(messages, user)
+    except llm.LLMError:
         raise HTTPException(
             503, "Trợ lý AI tạm thời không phản hồi được, vui lòng thử lại sau ít phút."
         )
@@ -200,7 +200,7 @@ def stream_message(
     def event_generator():
         full_reply = []
         try:
-            for token in _chat_stream(messages):
+            for token in _chat_stream(messages, user):
                 full_reply.append(token)
                 yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
         except Exception as e:

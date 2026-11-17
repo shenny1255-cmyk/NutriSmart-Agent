@@ -11,6 +11,15 @@ class Settings(BaseSettings):
     # Gemini Flash AI Key
     GEMINI_API_KEY: str = ""
 
+    # AI Provider Adapter (services/llm.py) - GĐ1 ĐATN
+    # "ollama": tự host, dữ liệu không rời máy chủ (mặc định) · "gemini": cloud, client không cần Ollama
+    LLM_PROVIDER: str = "ollama"
+    # Cloud lỗi/hết quota → tự chuyển sang Ollama nội bộ
+    LLM_FALLBACK_LOCAL: bool = True
+    GEMINI_CHAT_MODEL: str = "gemini-3.5-flash-lite"
+    # Giới hạn token đầu ra mặc định cho cloud khi caller không chỉ định
+    LLM_MAX_OUTPUT_TOKENS: int = 1024
+
     # Trợ lý AI - Ollama chạy local
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "gemma3"
