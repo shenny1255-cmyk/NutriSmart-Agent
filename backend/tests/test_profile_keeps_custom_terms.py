@@ -33,6 +33,7 @@ def test_luu_ho_so_khong_xoa_muc_tu_khai_bao(monkeypatch, user_test):
     email = f"custom_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "password123", "full_name": "Tự Khai Báo",
+        "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "FEMALE", "birth_date": "1995-05-05", "height_cm": 160, "weight_kg": 55,
             "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": [],
