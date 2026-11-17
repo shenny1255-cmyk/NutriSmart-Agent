@@ -1,4 +1,4 @@
-"""Kho bài viết — test theo TDD (spec 2026-08-24)."""
+"""Kho bài viết - test theo TDD (spec 2026-08-24)."""
 import uuid
 from datetime import datetime, timezone, timedelta
 

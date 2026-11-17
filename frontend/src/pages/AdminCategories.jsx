@@ -119,7 +119,7 @@ function BangDanhMuc({ icon: Icon, tieuDe, moTa, cot, demKey, coSlug, tai, them,
                         className={`w-full ${daChamTen && loiTen ? 'outline outline-2 outline-danger' : ''}`}
                     />
                     <p className={`mt-1 min-h-4 text-xs ${daChamTen && loiTen ? 'text-danger' : 'text-muted'}`}>
-                        {daChamTen && loiTen ? loiTen : 'Tên danh mục từ 2–100 ký tự và phải chứa chữ cái.'}
+                        {daChamTen && loiTen ? loiTen : 'Tên danh mục từ 2-100 ký tự và phải chứa chữ cái.'}
                     </p>
                 </div>
                 <Btn variant="primary" onClick={themMoi} disabled={!!loiTen || busy}>

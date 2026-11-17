@@ -186,7 +186,7 @@ class PlanEvaluation(Base):
 
 
 class BodyMetricHistory(Base):
-    """Số đo cơ thể theo ngày — mỗi lần thay đổi đều giữ lại được lịch sử."""
+    """Số đo cơ thể theo ngày - mỗi lần thay đổi đều giữ lại được lịch sử."""
     __tablename__ = "body_metrics_history"
     id: int          = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
     user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
@@ -416,7 +416,7 @@ meal_type_enum = SAEnum("BREAKFAST", "LUNCH", "DINNER", "SNACK", name="meal_type
 
 
 class MealImage(Base):
-    """Ảnh bữa ăn được phân tích bởi AI Vision — một ảnh có thể sinh ra nhiều meal_logs."""
+    """Ảnh bữa ăn được phân tích bởi AI Vision - một ảnh có thể sinh ra nhiều meal_logs."""
     __tablename__ = "meal_images"
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),

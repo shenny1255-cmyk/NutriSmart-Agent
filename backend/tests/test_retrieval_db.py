@@ -1,6 +1,6 @@
 """Integration: hybrid search thật trên Postgres + embedding thật (bge-m3).
 
-Bỏ qua nếu thiếu Postgres hoặc Ollama — CI/máy khác vẫn chạy được phần còn lại.
+Bỏ qua nếu thiếu Postgres hoặc Ollama - CI/máy khác vẫn chạy được phần còn lại.
 """
 
 import uuid
@@ -70,7 +70,13 @@ def test_finds_relevant_chunk_with_citation_fields(indexed_doc):
     top = hits[0]
     assert "gout" in top.doc_title.lower()
     assert top.score >= MIN_SCORE
-    assert top.source_url == "https://example.test/gout"   # UI cần link nguồn
+    # Kho thật cũng có bài gout đã duyệt (có thể xếp trên tài liệu test) → bám theo chunk
+    # của đúng tài liệu này để kiểm tra trường trích dẫn.
+    chunk_ids = {r[0] for r in db.execute(
+        text("SELECT id FROM doc_chunks WHERE document_id = :id"), {"id": str(doc_id)})}
+    mine = next((h for h in hits if h.chunk_id in chunk_ids), None)
+    assert mine is not None, "tài liệu test phải nằm trong kết quả"
+    assert mine.source_url == "https://example.test/gout"   # UI cần link nguồn
 
 
 def test_offtopic_question_returns_no_hits(indexed_doc):

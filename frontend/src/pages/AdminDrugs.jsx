@@ -80,13 +80,13 @@ export default function AdminDrugs() {
                         return (
                             <Tr key={d.id}>
                                 <Td className="font-medium text-ink">{d.name}</Td>
-                                <Td className="text-ink-2">{d.active_ingredient || '—'}</Td>
+                                <Td className="text-ink-2">{d.active_ingredient || '-'}</Td>
                                 <Td>
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold ${badgeCls}`}>
                                         {statusObj?.label ?? d.status}
                                     </span>
                                 </Td>
-                                <Td className="text-xs text-ink-2 max-w-xs truncate">{d.status_note || '—'}</Td>
+                                <Td className="text-xs text-ink-2 max-w-xs truncate">{d.status_note || '-'}</Td>
                                 <Td className="text-right">
                                     <Btn variant="subtle" size="sm" onClick={() => openRule(d)}>
                                         <ShieldBan size={13} />

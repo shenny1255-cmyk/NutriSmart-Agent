@@ -9,7 +9,7 @@ import PlanProgram from '../components/PlanProgram.jsx';
 
 const PLAN_JOB_KEY = 'nutrismart_plan_job';
 
-// Icon theo loại bữa — fallback UtensilsCrossed cho type lạ từ backend
+// Icon theo loại bữa - fallback UtensilsCrossed cho type lạ từ backend
 const MEAL_ICONS = [
   [/sáng|breakfast/i, Sunrise],
   [/trưa|lunch/i, Sun],
@@ -30,7 +30,7 @@ function LegacyPlan() {
   const [err, setErr] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeDay, setActiveDay] = useState(0);
-  // Trạng thái hoàn thành — UI-only (api.js chưa có endpoint lưu), key: "day-mealIdx" / "day-ex"
+  // Trạng thái hoàn thành - UI-only (api.js chưa có endpoint lưu), key: "day-mealIdx" / "day-ex"
   const [done, setDone] = useState({});
   const [checkinHistory, setCheckinHistory] = useState([]);
   const generationRun = useRef(0);
@@ -207,7 +207,7 @@ function LegacyPlan() {
         onError={setErr}
       />
 
-      {/* Tab ngày — button thường, không radio-hack nên không scroll-jump */}
+      {/* Tab ngày - button thường, không radio-hack nên không scroll-jump */}
       {days.length > 0 && (
         <>
           <div role="tablist" aria-label="Chọn ngày" className="flex gap-2 overflow-x-auto pb-1">
@@ -297,11 +297,11 @@ const SAFETY_LABELS = {
 };
 
 const ADHERENCE_OPTIONS = [
-  { value: 10, max: 20, range: '0–20%', label: 'Hầu như không thực hiện' },
-  { value: 30, max: 40, range: '21–40%', label: 'Thực hiện ít' },
-  { value: 50, max: 60, range: '41–60%', label: 'Thực hiện khoảng một nửa' },
-  { value: 70, max: 80, range: '61–80%', label: 'Thực hiện phần lớn' },
-  { value: 90, max: 100, range: '81–100%', label: 'Gần như thực hiện đầy đủ' },
+  { value: 10, max: 20, range: '0-20%', label: 'Hầu như không thực hiện' },
+  { value: 30, max: 40, range: '21-40%', label: 'Thực hiện ít' },
+  { value: 50, max: 60, range: '41-60%', label: 'Thực hiện khoảng một nửa' },
+  { value: 70, max: 80, range: '61-80%', label: 'Thực hiện phần lớn' },
+  { value: 90, max: 100, range: '81-100%', label: 'Gần như thực hiện đầy đủ' },
 ];
 
 function adherenceLabel(value) {
@@ -569,7 +569,7 @@ function CheckinResult({ checkin, busy, onDecide, onReopen }) {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <ResultMetric label="Đầu kỳ" value={`${checkin.baseline_weight_kg} kg`} />
-        <ResultMetric label="Khoảng kỳ vọng" value={`${checkin.expected_weight_min_kg}–${checkin.expected_weight_max_kg} kg`} />
+        <ResultMetric label="Khoảng kỳ vọng" value={`${checkin.expected_weight_min_kg}-${checkin.expected_weight_max_kg} kg`} />
         <ResultMetric label="Thực tế" value={`${checkin.actual_weight_kg} kg`} />
       </div>
       <div className={`rounded-md p-4 ${hasSafety ? 'bg-warning-soft' : 'bg-accent-soft'}`}>
@@ -659,7 +659,7 @@ function TimelineItem({ icon: Icon, checked, onToggle, title, tag, trailing, exe
           'has-[:focus-visible]:bg-paper-3',
         ].join(' ')}
       >
-        {/* Checkbox custom — input thật giữ accessibility */}
+        {/* Checkbox custom - input thật giữ accessibility */}
         <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
           <input
             type="checkbox"

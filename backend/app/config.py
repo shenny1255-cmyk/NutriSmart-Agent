@@ -11,14 +11,16 @@ class Settings(BaseSettings):
     # Gemini Flash AI Key
     GEMINI_API_KEY: str = ""
 
-    # Trợ lý AI — Ollama chạy local
+    # Trợ lý AI - Ollama chạy local
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "gemma3"
     OLLAMA_CHAT_MODEL: str = "gemma3:1b"
     OLLAMA_EMBEDDING_MODEL: str = "bge-m3"
     OLLAMA_KEEP_ALIVE: str = "30m"
+    # Giới hạn token mỗi câu trả lời chat; 250 làm câu trả lời dài (thực đơn theo bữa) bị cắt cụt
+    OLLAMA_CHAT_NUM_PREDICT: int = 700
 
-    # Sinh lộ trình 7 ngày bằng LLM — JSON dài, máy yếu có thể mất 3–5 phút
+    # Sinh lộ trình 7 ngày bằng LLM - JSON dài, máy yếu có thể mất 3-5 phút
     PLAN_LLM_TIMEOUT_SECONDS: float = 420.0
 
     # Job check-in 14 ngày: reconcile kỳ quá hạn và sinh feedback đang chờ.
@@ -31,7 +33,7 @@ class Settings(BaseSettings):
     # App chỉ tự tick mục vận động khi kcal thiết bị đạt ít nhất ngưỡng này.
     MOBILE_EXERCISE_MIN_KCAL: float = 350.0
 
-    # Xác minh email — SMTP (để trống SMTP_HOST → ghi link ra console thay vì gửi thật)
+    # Xác minh email - SMTP (để trống SMTP_HOST → ghi link ra console thay vì gửi thật)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
@@ -41,7 +43,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
-        # Bỏ qua biến lạ trong .env thay vì crash — .env thường mang thêm key của
+        # Bỏ qua biến lạ trong .env thay vì crash - .env thường mang thêm key của
         # nhánh khác (ví dụ SMTP_*), không nên làm backend không khởi động được.
         extra = "ignore"
 

@@ -250,7 +250,7 @@ def sua_doc_category(db: Session, actor: User, cat_id: int, payload: CategoryIn)
 
 
 def xoa_doc_category(db: Session, actor: User, cat_id: int) -> None:
-    """Xóa danh mục. Tài liệu thuộc danh mục KHÔNG bị xóa theo — FK là ON DELETE SET NULL."""
+    """Xóa danh mục. Tài liệu thuộc danh mục KHÔNG bị xóa theo - FK là ON DELETE SET NULL."""
     cat = db.query(DocCategory).filter(DocCategory.id == cat_id).first()  # type: ignore
     if not cat:
         raise HTTPException(404, "Không tìm thấy danh mục tài liệu")

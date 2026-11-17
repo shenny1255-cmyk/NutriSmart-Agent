@@ -77,7 +77,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             daily_calorie_target=target,
             custom_conditions=p.custom_conditions,
             custom_allergens=[item.model_dump() for item in p.custom_allergens],
-            # KHÔNG set bmi — generated column
+            # KHÔNG set bmi - generated column
         )
         db.add(info)
         db.flush()
@@ -132,7 +132,7 @@ def resend_verification():
 def login(payload: LoginIn, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()  # type: ignore
 
-    # Thông báo chung cho cả 2 trường hợp — tránh lộ email nào đã đăng ký
+    # Thông báo chung cho cả 2 trường hợp - tránh lộ email nào đã đăng ký
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email hoặc mật khẩu không đúng")
 

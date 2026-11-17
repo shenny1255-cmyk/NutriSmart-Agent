@@ -1,7 +1,7 @@
 /* Hallmark · route: custom (tuned) · genre: playful · theme: custom "modern emerald / health-friendly"
  * paper: oklch(96% 0.014 155) · accent: oklch(56% 0.15 155) · display: Bricolage Grotesque · body: Satoshi
  * axes: light / rounded-sans / chromatic-other(green) · nav: app-shell sidebar (no catalog N# fits) · footer: none (app, not marketing)
- * gates: pending — re-verified per page as pages are built
+ * gates: pending - re-verified per page as pages are built
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap');
@@ -35,7 +35,7 @@
   --text-display-s: 2.75rem;
   --text-display: 3.5rem;
 
-  /* ── Spacing — 4pt scale, named by role ─────────────────── */
+  /* ── Spacing - 4pt scale, named by role ─────────────────── */
   --space-3xs: 0.125rem;
   /* 2px  */
   --space-2xs: 0.25rem;
@@ -55,13 +55,13 @@
   --space-3xl: 6rem;
   /* 96px */
 
-  /* ── Colour — anchor: emerald, hue 155 ──────────────────── */
+  /* ── Colour - anchor: emerald, hue 155 ──────────────────── */
   /* Paper (page background + elevation steps) */
   --color-paper: oklch(96% 0.014 155);
   --color-paper-2: oklch(99% 0.006 155);
-  /* card / elevated surface — near-white */
+  /* card / elevated surface - near-white */
   --color-paper-3: oklch(93% 0.018 155);
-  /* deeper tint band — sidebar, section divider */
+  /* deeper tint band - sidebar, section divider */
 
   /* Ink (text) */
   --color-ink: oklch(20% 0.02 155);
@@ -76,20 +76,20 @@
   --color-rule: oklch(78% 0.02 155);
   --color-rule-2: oklch(85% 0.015 155);
 
-  /* Accent — emerald. Three roles, not one flat value. */
+  /* Accent - emerald. Three roles, not one flat value. */
   --color-accent: oklch(56% 0.15 155);
-  /* icons, links, active indicators — dark text sits on top */
+  /* icons, links, active indicators - dark text sits on top */
   --color-accent-strong: oklch(46% 0.16 155);
-  /* solid CTA / button fill — light text sits on top */
+  /* solid CTA / button fill - light text sits on top */
   --color-accent-soft: oklch(94% 0.05 155);
-  /* tinted bg — active nav item, badge, pill */
+  /* tinted bg - active nav item, badge, pill */
   --color-accent-ink: var(--color-paper-2);
   /* text colour ON --color-accent-strong */
 
   --color-focus: oklch(62% 0.20 155);
   /* :focus-visible ring only */
 
-  /* Semantic — functional colours deviate from the anchor hue on purpose (meaning > cohesion) */
+  /* Semantic - functional colours deviate from the anchor hue on purpose (meaning > cohesion) */
   --color-success: var(--color-accent);
   --color-warning: oklch(72% 0.15 70);
   --color-warning-strong: oklch(52% 0.16 55);
@@ -99,20 +99,20 @@
   --color-info: oklch(60% 0.12 235);
   --color-info-soft: oklch(94% 0.03 235);
 
-  /* ── Radius — playful genre caps at 12px for cards ──────── */
+  /* ── Radius - playful genre caps at 12px for cards ──────── */
   --radius-sm: 0.5rem;
-  /* 8px  — inputs, chips */
+  /* 8px  - inputs, chips */
   --radius-md: 0.75rem;
-  /* 12px — cards, upper bound for this genre */
+  /* 12px - cards, upper bound for this genre */
   --radius-full: 999px;
   /* pills, avatars */
 
-  /* ── Shadow — one at a time, never stacked ──────────────── */
+  /* ── Shadow - one at a time, never stacked ──────────────── */
   --shadow-whisper: 0 1px 2px oklch(20% 0.02 155 / 0.05);
   --shadow-card: 0 8px 24px -10px oklch(56% 0.15 155 / 0.18);
   --shadow-hairline: 0 0 0 1px oklch(30% 0.02 155 / 0.06);
 
-  /* ── Motion — three named easings, never browser default ── */
+  /* ── Motion - three named easings, never browser default ── */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -120,7 +120,7 @@
   --dur-short: 220ms;
   --dur-long: 420ms;
 
-  /* ── Z-index — named levels, never freestyle numbers ────── */
+  /* ── Z-index - named levels, never freestyle numbers ────── */
   --z-base: 0;
   --z-nav: 10;
   --z-dropdown: 20;
@@ -128,14 +128,14 @@
   --z-modal: 40;
   --z-toast: 50;
 
-  /* ── Glassmorphism — dùng cho sidebar, cards, top bar ───── */
+  /* ── Glassmorphism - dùng cho sidebar, cards, top bar ───── */
   --glass-bg:          rgba(255, 255, 255, 0.55);
   --glass-bg-strong:   rgba(255, 255, 255, 0.72);
   --glass-border:      rgba(255, 255, 255, 0.35);
   --glass-shadow:      0 8px 32px rgba(50, 100, 70, 0.12);
   --glass-blur:        blur(18px);
 
-  /* ── Dark Sidebar — màu tối thanh điều hướng ────────────── */
+  /* ── Dark Sidebar - màu tối thanh điều hướng ────────────── */
   --color-sidebar-bg:     #0f1c18;
   --color-sidebar-ink:    #d0dfd8;
   --color-sidebar-active: oklch(56% 0.15 155);

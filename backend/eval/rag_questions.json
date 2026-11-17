@@ -1,0 +1,510 @@
+{
+  "version": 1,
+  "note": "Bộ câu hỏi đánh giá Hybrid RAG (kế hoạch ĐATN v2, mục 2.4.1). relevant_chunk_ids điền qua scripts/rag_weight_sweep.py candidates → import-labels. off_topic=true: câu lạc đề, dùng để hiệu chỉnh MIN_SCORE. Mục tiêu 50-100 câu - bổ sung theo kho tài liệu thực tế.",
+  "questions": [
+    {
+      "id": "q01",
+      "question": "Người bệnh đái tháo đường típ 2 nên ăn bao nhiêu tinh bột mỗi bữa?",
+      "relevant_chunk_ids": [
+        103,
+        104,
+        105,
+        106
+      ],
+      "label_reason": "phương pháp đĩa 1/4 tinh bột, tính lượng carb, chọn tinh bột GI thấp",
+      "labeled": true
+    },
+    {
+      "id": "q02",
+      "question": "Chỉ số đường huyết (GI) của gạo lứt so với gạo trắng thế nào?",
+      "relevant_chunk_ids": [
+        103,
+        106
+      ],
+      "label_reason": "103: gạo lứt GI thấp; 106: bảng GI gạo lứt vs bánh mì trắng",
+      "labeled": true
+    },
+    {
+      "id": "q03",
+      "question": "Người tiểu đường có được ăn trái cây không, nên chọn loại nào?",
+      "relevant_chunk_ids": [
+        102,
+        104,
+        105
+      ],
+      "label_reason": "chọn trái cây GI thấp, tránh nước ép, hạn chế quả ngọt nhãn vải mít",
+      "labeled": true
+    },
+    {
+      "id": "q04",
+      "question": "Bệnh gút nên kiêng những thực phẩm giàu purin nào?",
+      "relevant_chunk_ids": [
+        107
+      ],
+      "label_reason": "danh sách thực phẩm giàu purin cần tránh",
+      "labeled": true
+    },
+    {
+      "id": "q05",
+      "question": "Acid uric máu cao có nên uống bia không?",
+      "relevant_chunk_ids": [
+        107
+      ],
+      "label_reason": "bia và rượu mạnh trong danh sách cần tránh",
+      "labeled": true
+    },
+    {
+      "id": "q06",
+      "question": "Người tăng huyết áp nên ăn tối đa bao nhiêu gam muối mỗi ngày?",
+      "relevant_chunk_ids": [
+        104,
+        109,
+        111,
+        113
+      ],
+      "label_reason": "104: không quá 6 g muối/ngày; 109/111/113: giảm natri cho THA",
+      "labeled": true
+    },
+    {
+      "id": "q07",
+      "question": "Chế độ ăn DASH cho người cao huyết áp gồm những gì?",
+      "relevant_chunk_ids": [
+        109,
+        113
+      ],
+      "label_reason": "thành phần chế độ ăn DASH",
+      "labeled": true
+    },
+    {
+      "id": "q08",
+      "question": "Rối loạn mỡ máu nên hạn chế chất béo bão hòa như thế nào?",
+      "relevant_chunk_ids": [
+        115
+      ],
+      "label_reason": "chất béo bão hòa < 7% năng lượng",
+      "labeled": true
+    },
+    {
+      "id": "q09",
+      "question": "Cholesterol LDL cao thì nên ăn trứng bao nhiêu quả một tuần?",
+      "relevant_chunk_ids": [
+        115
+      ],
+      "label_reason": "hàm lượng cholesterol trứng gà (600 mg%) - trả lời một phần",
+      "labeled": true
+    },
+    {
+      "id": "q10",
+      "question": "Gan nhiễm mỡ không do rượu nên ăn uống ra sao?",
+      "relevant_chunk_ids": [],
+      "label_reason": "kho không có tài liệu gan nhiễm mỡ",
+      "labeled": true
+    },
+    {
+      "id": "q11",
+      "question": "Người suy thận mạn cần hạn chế kali và phospho trong thực phẩm nào?",
+      "relevant_chunk_ids": [],
+      "label_reason": "kho không có tài liệu bệnh thận mạn",
+      "labeled": true
+    },
+    {
+      "id": "q12",
+      "question": "Lượng đạm khuyến nghị cho người bệnh thận mạn chưa lọc máu là bao nhiêu?",
+      "relevant_chunk_ids": [],
+      "label_reason": "kho không có tài liệu bệnh thận mạn",
+      "labeled": true
+    },
+    {
+      "id": "q13",
+      "question": "Thiếu máu thiếu sắt nên bổ sung thực phẩm gì?",
+      "relevant_chunk_ids": [
+        129,
+        130,
+        132,
+        133,
+        134
+      ],
+      "label_reason": "thực phẩm giàu sắt",
+      "labeled": true
+    },
+    {
+      "id": "q14",
+      "question": "Vitamin C giúp hấp thu sắt như thế nào?",
+      "relevant_chunk_ids": [
+        129,
+        130,
+        133,
+        134
+      ],
+      "label_reason": "vitamin C tăng hấp thu sắt",
+      "labeled": true
+    },
+    {
+      "id": "q15",
+      "question": "Nhu cầu năng lượng khuyến nghị cho người trưởng thành Việt Nam là bao nhiêu kcal?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có nhu cầu năng lượng chung cho người trưởng thành",
+      "labeled": true
+    },
+    {
+      "id": "q16",
+      "question": "Tháp dinh dưỡng hợp lý cho người trưởng thành gồm những tầng nào?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tháp dinh dưỡng",
+      "labeled": true
+    },
+    {
+      "id": "q17",
+      "question": "Mỗi ngày nên ăn bao nhiêu gam rau xanh và trái cây?",
+      "relevant_chunk_ids": [],
+      "label_reason": "chỉ có lượng quả cho người thiếu máu, không phải khuyến nghị chung",
+      "labeled": true
+    },
+    {
+      "id": "q18",
+      "question": "Người lớn nên uống bao nhiêu nước mỗi ngày?",
+      "relevant_chunk_ids": [
+        149,
+        152
+      ],
+      "label_reason": "149: 2,7 lít nữ / 3,7 lít nam; 152: 2 lít/ngày",
+      "labeled": true
+    },
+    {
+      "id": "q19",
+      "question": "Giảm cân an toàn bao nhiêu kg mỗi tuần là hợp lý?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tốc độ giảm cân an toàn",
+      "labeled": true
+    },
+    {
+      "id": "q20",
+      "question": "Chỉ số BMI bao nhiêu thì được coi là thừa cân ở người châu Á?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có ngưỡng BMI châu Á",
+      "labeled": true
+    },
+    {
+      "id": "q21",
+      "question": "Muốn tăng cơ cần ăn bao nhiêu gam protein trên mỗi kg cân nặng?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có protein cho tăng cơ",
+      "labeled": true
+    },
+    {
+      "id": "q22",
+      "question": "Bữa sáng thanh đạm ít dầu mỡ nên ăn món gì?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có gợi ý bữa sáng thanh đạm",
+      "labeled": true
+    },
+    {
+      "id": "q23",
+      "question": "Chất xơ hòa tan có tác dụng gì với đường ruột?",
+      "relevant_chunk_ids": [],
+      "label_reason": "chỉ liệt kê nguồn chất xơ hòa tan, không nói tác dụng với đường ruột",
+      "labeled": true
+    },
+    {
+      "id": "q24",
+      "question": "Phụ nữ mang thai cần bổ sung axit folic bao nhiêu?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có axit folic thai kỳ",
+      "labeled": true
+    },
+    {
+      "id": "q25",
+      "question": "Canxi và vitamin D quan trọng thế nào với người cao tuổi bị loãng xương?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có canxi/vitamin D loãng xương",
+      "labeled": true
+    },
+    {
+      "id": "q26",
+      "question": "Trào ngược dạ dày thực quản nên tránh ăn gì?",
+      "relevant_chunk_ids": [
+        138,
+        139,
+        147
+      ],
+      "label_reason": "thực phẩm và thói quen cần tránh khi trào ngược",
+      "labeled": true
+    },
+    {
+      "id": "q27",
+      "question": "Người bị dị ứng hải sản có vỏ cần lưu ý gia vị nào như mắm tôm, dầu hào?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tài liệu dị ứng hải sản",
+      "labeled": true
+    },
+    {
+      "id": "q28",
+      "question": "Không dung nạp lactose có uống được sữa chua không?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tài liệu lactose",
+      "labeled": true
+    },
+    {
+      "id": "q29",
+      "question": "Bệnh celiac phải kiêng gluten trong những loại thực phẩm nào?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tài liệu celiac",
+      "labeled": true
+    },
+    {
+      "id": "q30",
+      "question": "Ăn nhiều đường bổ sung gây hại gì cho sức khỏe?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không nói tác hại của đường bổ sung",
+      "labeled": true
+    },
+    {
+      "id": "q31",
+      "question": "Người béo phì nên vận động bao nhiêu phút mỗi tuần?",
+      "relevant_chunk_ids": [
+        116
+      ],
+      "label_reason": "ít nhất 150 phút/tuần (trong bài lipid máu)",
+      "labeled": true
+    },
+    {
+      "id": "q32",
+      "question": "Chế độ ăn cho người suy giáp cần chú ý i-ốt như thế nào?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có tài liệu suy giáp",
+      "labeled": true
+    },
+    {
+      "id": "q33",
+      "question": "Phở bò một bát khoảng bao nhiêu calo?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không có calo của phở",
+      "labeled": true
+    },
+    {
+      "id": "q34",
+      "question": "acid uric cao an gi",
+      "relevant_chunk_ids": [
+        107
+      ],
+      "note": "không dấu - thử khả năng chịu lỗi gõ của trigram",
+      "label_reason": "chế độ ăn cho người gout",
+      "labeled": true
+    },
+    {
+      "id": "q35",
+      "question": "tieu duong kieng an gi",
+      "relevant_chunk_ids": [
+        102,
+        103,
+        104,
+        106
+      ],
+      "note": "không dấu",
+      "label_reason": "thực phẩm người đái tháo đường cần hạn chế",
+      "labeled": true
+    },
+    {
+      "id": "q36",
+      "question": "Người thiếu máu nên tránh uống trà, cà phê lúc nào?",
+      "relevant_chunk_ids": [
+        129,
+        134
+      ],
+      "label_reason": "hạn chế trà, cà phê vì ức chế hấp thu sắt",
+      "labeled": true
+    },
+    {
+      "id": "q37",
+      "question": "Thực phẩm nào giàu sắt heme từ động vật?",
+      "relevant_chunk_ids": [
+        129,
+        130,
+        132,
+        133
+      ],
+      "label_reason": "thịt đỏ, nội tạng, hải sản - sắt heme",
+      "labeled": true
+    },
+    {
+      "id": "q38",
+      "question": "Rau xanh nào giúp bổ sung sắt cho người thiếu máu?",
+      "relevant_chunk_ids": [
+        129,
+        130,
+        133
+      ],
+      "label_reason": "rau xanh lá giàu sắt",
+      "labeled": true
+    },
+    {
+      "id": "q39",
+      "question": "Người trào ngược dạ dày có nên ăn cam, chanh không?",
+      "relevant_chunk_ids": [
+        137,
+        139,
+        146,
+        147
+      ],
+      "label_reason": "hoa quả nhiều axit, cam quýt làm nặng trào ngược",
+      "labeled": true
+    },
+    {
+      "id": "q40",
+      "question": "Sau khi ăn bao lâu thì người trào ngược mới nên nằm?",
+      "relevant_chunk_ids": [
+        138,
+        147
+      ],
+      "label_reason": "không nằm trong 2 giờ sau ăn",
+      "labeled": true
+    },
+    {
+      "id": "q41",
+      "question": "Thực phẩm nào giúp giảm trào ngược axit?",
+      "relevant_chunk_ids": [
+        139,
+        146
+      ],
+      "label_reason": "gừng, yến mạch, trái cây không phải cam, thịt nạc, lòng trắng trứng",
+      "labeled": true
+    },
+    {
+      "id": "q42",
+      "question": "Dấu hiệu cơ thể bị mất nước là gì?",
+      "relevant_chunk_ids": [
+        152,
+        153
+      ],
+      "label_reason": "dấu hiệu cơ thể thiếu nước",
+      "labeled": true
+    },
+    {
+      "id": "q43",
+      "question": "Uống quá nhiều nước có hại không?",
+      "relevant_chunk_ids": [],
+      "label_reason": "không nói tác hại của uống quá nhiều nước",
+      "labeled": true
+    },
+    {
+      "id": "q44",
+      "question": "Người bệnh gút nên uống bao nhiêu nước mỗi ngày?",
+      "relevant_chunk_ids": [],
+      "label_reason": "bài gout không nêu lượng nước",
+      "labeled": true
+    },
+    {
+      "id": "q45",
+      "question": "Người bị gút có ăn được thịt đỏ không?",
+      "relevant_chunk_ids": [
+        107
+      ],
+      "label_reason": "thịt đỏ (bò, trâu) trong danh sách hạn chế",
+      "labeled": true
+    },
+    {
+      "id": "q46",
+      "question": "Chế độ ăn DASH khuyến nghị bao nhiêu khẩu phần rau quả mỗi ngày?",
+      "relevant_chunk_ids": [],
+      "label_reason": "bài DASH không nêu số khẩu phần",
+      "labeled": true
+    },
+    {
+      "id": "q47",
+      "question": "Người tăng huyết áp nên ăn nhiều thực phẩm giàu kali nào?",
+      "relevant_chunk_ids": [
+        109,
+        113
+      ],
+      "label_reason": "chuối giàu kali, 4.700 mg kali/ngày",
+      "labeled": true
+    },
+    {
+      "id": "q48",
+      "question": "Người rối loạn lipid máu nên ăn loại cá nào?",
+      "relevant_chunk_ids": [
+        115
+      ],
+      "label_reason": "cá hồi, cá ngừ, cá thu - chất béo không bão hòa",
+      "labeled": true
+    },
+    {
+      "id": "q49",
+      "question": "Chất béo trans có trong thực phẩm nào?",
+      "relevant_chunk_ids": [
+        115
+      ],
+      "label_reason": "nguồn trans fat",
+      "labeled": true
+    },
+    {
+      "id": "q50",
+      "question": "Người đái tháo đường nên chia bữa ăn trong ngày như thế nào?",
+      "relevant_chunk_ids": [
+        104,
+        105
+      ],
+      "label_reason": "bữa phụ, giờ ăn trong thực đơn mẫu",
+      "labeled": true
+    },
+    {
+      "id": "q51",
+      "question": "bi gut co an duoc hai san khong",
+      "relevant_chunk_ids": [
+        107
+      ],
+      "note": "không dấu",
+      "label_reason": "hải sản trong danh sách thực phẩm giàu purin",
+      "labeled": true
+    },
+    {
+      "id": "x01",
+      "question": "Giá vàng hôm nay bao nhiêu một chỉ?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x02",
+      "question": "Cách cài đặt Windows 11 trên máy tính cũ?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x03",
+      "question": "Đội tuyển nào vô địch World Cup 2022?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x04",
+      "question": "Thủ tục làm hộ chiếu ở Hà Nội cần giấy tờ gì?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x05",
+      "question": "Viết giúp tôi một bài thơ về mùa thu.",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x06",
+      "question": "Lãi suất gửi tiết kiệm ngân hàng nào cao nhất?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x07",
+      "question": "Cách sửa lỗi Python ModuleNotFoundError?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    },
+    {
+      "id": "x08",
+      "question": "Thời tiết Đà Nẵng cuối tuần này thế nào?",
+      "relevant_chunk_ids": [],
+      "off_topic": true
+    }
+  ],
+  "labeler": "Nhãn do AI (Claude Opus 5.5) gán ngày 14/11/2026, dựa trên câu trích trong chunk. Nhóm/Chuyên gia cần duyệt lại ngẫu nhiên >= 20% và báo cáo độ đồng thuận trước khi đưa vào khóa luận."
+}

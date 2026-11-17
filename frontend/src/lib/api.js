@@ -117,7 +117,7 @@ export const api = {
                 onToken?.(parsed.token);
               }
               if (parsed.done) {
-                onDone?.(parsed.citations || []);
+                onDone?.(parsed.citations || [], parsed.warnings || []);
               }
             } catch (e) {
               console.error('Lỗi parse SSE token:', e);
@@ -143,7 +143,7 @@ export const api = {
   verifyEmail: (token) => request(`/auth/verify?token=${encodeURIComponent(token)}`),
   resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
 
-  // dữ liệu cho dropdown/checkbox — lấy từ bảng medical_conditions, allergens
+  // dữ liệu cho dropdown/checkbox - lấy từ bảng medical_conditions, allergens
   conditions: () => request('/catalog/conditions'),
   allergens: () => request('/catalog/allergens'),
   foods: (q = '') => request(`/catalog/foods${q ? `?q=${encodeURIComponent(q)}` : ''}`),
@@ -216,7 +216,7 @@ export const api = {
   todayActivity: () => request('/tracking/today-activity'),
   syncActivity: (payload) => request('/tracking/daily-activity', { method: 'POST', body: payload }),
 
-  // Nhật ký thủ công — bữa ăn, vận động, cân nặng
+  // Nhật ký thủ công - bữa ăn, vận động, cân nặng
   meals: (d) => request(`/tracking/meals${d ? `?d=${d}` : ''}`),
   addMeal: (payload) => request('/tracking/meals', { method: 'POST', body: payload }),
   deleteMeal: (id) => request(`/tracking/meals/${id}`, { method: 'DELETE' }),

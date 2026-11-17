@@ -53,7 +53,7 @@ function DataBlock({ title, data }) {
           {entries.map(([key, value]) => (
             <div key={key} className="grid grid-cols-[minmax(100px,1fr)_2fr] gap-3 py-2">
               <dt className="font-medium text-ink-2">{FIELD_LABELS[key] || key}</dt>
-              <dd className="break-words text-ink">{value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
+              <dd className="break-words text-ink">{value == null ? '-' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
             </div>
           ))}
         </dl>
@@ -158,7 +158,7 @@ export default function AdminAudit() {
                 <Td className="whitespace-nowrap"><span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${action.cls}`}>{action.label}</span></Td>
                 <Td>
                   <p className="font-medium text-ink-2">{ENTITIES[log.entity] || log.entity}</p>
-                  <p className="max-w-48 truncate text-xs text-muted" title={log.target_label}>{log.target_label || '—'}</p>
+                  <p className="max-w-48 truncate text-xs text-muted" title={log.target_label}>{log.target_label || '-'}</p>
                 </Td>
                 <Td className="max-w-md text-ink-2">{log.description}</Td>
                 <Td className="text-right">
@@ -184,8 +184,8 @@ export default function AdminAudit() {
           <dl className="grid gap-2 rounded-sm bg-paper-3 p-3 text-sm sm:grid-cols-2">
             <div><dt className="text-muted">Người thực hiện</dt><dd className="font-medium">{detail.actor_name || 'Hệ thống'} {detail.actor_email ? `(${detail.actor_email})` : ''}</dd></div>
             <div><dt className="text-muted">Thời gian</dt><dd>{new Date(detail.created_at).toLocaleString('vi-VN')}</dd></div>
-            <div><dt className="text-muted">Đối tượng</dt><dd>{ENTITIES[detail.entity] || detail.entity} · {detail.target_label || '—'}</dd></div>
-            <div><dt className="text-muted">ID kỹ thuật</dt><dd className="break-all font-mono text-xs">{detail.entity_id || '—'}</dd></div>
+            <div><dt className="text-muted">Đối tượng</dt><dd>{ENTITIES[detail.entity] || detail.entity} · {detail.target_label || '-'}</dd></div>
+            <div><dt className="text-muted">ID kỹ thuật</dt><dd className="break-all font-mono text-xs">{detail.entity_id || '-'}</dd></div>
             <div><dt className="text-muted">Địa chỉ IP</dt><dd>{detail.ip_address || 'Chưa ghi nhận'}</dd></div>
           </dl>
           <DataBlock title="Dữ liệu trước thay đổi" data={detail.before_data} />

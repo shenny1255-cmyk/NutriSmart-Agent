@@ -12,16 +12,19 @@ from sqlalchemy.orm import Session
 
 from app.models import User, NutritionPlan, PlanEvaluation
 from app.services import ollama_client, plan_generator
+from app.services.guardrails import min_kcal_for
 
 logger = logging.getLogger(__name__)
 
 PERIOD_DAYS = 7          # một chu kỳ đánh giá
 KCAL_TOLERANCE = 0.10    # lệch calo trong ±10% coi là tuân thủ tốt
 KCAL_STEP = 0.10         # mức hiệu chỉnh calo cho phiên bản kế tiếp
-MIN_KCAL = 1200          # ngưỡng an toàn, không hạ thấp hơn
+MIN_KCAL = 1200          # sàn mặc định khi không rõ giới tính; sàn theo giới tính ở guardrails
 MAX_KCAL = 4000
 
-# Kỳ vọng biến thiên cân nặng sau 7 ngày theo từng mục tiêu
+# Kỳ vọng biến thiên cân nặng sau 7 ngày theo từng mục tiêu. Mốc giảm cân (−0,3 kg) cố ý thấp
+# hơn mức an toàn 0,5-1 kg/tuần (NHLBI) vì chu kỳ chỉ 7 ngày và cân nặng dao động do nước có thể
+# tới 1-2 kg/ngày. Lập luận đầy đủ + nguồn: eval/sources.md (kế hoạch ĐATN v2, mục 2.4.3).
 WEIGHT_RULES = {
     "LOSE_WEIGHT": lambda d: d <= -0.3,
     "GAIN_MUSCLE": lambda d: d >= 0.2,
@@ -67,7 +70,7 @@ def decide_result(
 ) -> str:
     """ACHIEVED khi đạt cả 2 tiêu chí, PARTIAL khi đạt 1, còn lại NOT_ACHIEVED.
 
-    Thiếu dữ liệu cân nặng thì cao nhất chỉ được PARTIAL — chưa đủ căn cứ kết luận ĐẠT.
+    Thiếu dữ liệu cân nặng thì cao nhất chỉ được PARTIAL - chưa đủ căn cứ kết luận ĐẠT.
     """
     ok_kcal = kcal_ok(avg_kcal_intake, target)
     ok_weight = weight_ok(goal, weight_change_kg)
@@ -86,8 +89,9 @@ def next_kcal_target(
     result: str,
     goal: str,
     weight_change_kg: float | None,
+    gender: str | None = None,
 ) -> int:
-    """Hiệu chỉnh calo cho lộ trình kế tiếp — chỉ đổi khi kỳ vừa rồi chưa ĐẠT."""
+    """Hiệu chỉnh calo cho lộ trình kế tiếp - chỉ đổi khi kỳ vừa rồi chưa ĐẠT."""
     if result == "ACHIEVED":
         return current_target
 
@@ -100,7 +104,7 @@ def next_kcal_target(
     elif goal == "GAIN_MUSCLE" and chua_dung_huong:
         delta = round(current_target * KCAL_STEP)
 
-    return max(MIN_KCAL, min(MAX_KCAL, current_target + delta))
+    return max(min_kcal_for(gender), min(MAX_KCAL, current_target + delta))
 
 
 def build_note(result: str, target: int, new_target: int, avg_kcal: float | None,
@@ -227,7 +231,8 @@ def run_plan_job(db: Session, user: User, force: bool = False) -> dict:
 
     avg_kcal, weight_change = compute_metrics(db, user.id, period_start, period_end)
     result = decide_result(avg_kcal, target, goal, weight_change)
-    new_target = next_kcal_target(target, result, goal, weight_change)
+    gender = user.profile.gender if user.profile else None
+    new_target = next_kcal_target(target, result, goal, weight_change, gender=gender)
 
     from app.services.nutrition_context import gather_context
     profile_ctx = (gather_context(db, user).get("profile")) or {"goal": goal}

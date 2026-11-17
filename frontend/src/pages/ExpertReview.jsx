@@ -220,7 +220,7 @@ export default function ExpertReview() {
       {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">Duyệt tài liệu y–dược & Cào tri thức</h1>
+          <h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">Duyệt tài liệu y-dược & Cào tri thức</h1>
           <p className="mt-1 text-base text-ink-2">
             Thu thập bài viết y tế uy tín, bóc tách văn bản, xem trước Semantic Chunks và duyệt vào kho RAG.
           </p>
@@ -299,7 +299,7 @@ export default function ExpertReview() {
                     onChange={(e) => setPresetCategoryId(e.target.value)}
                     className="w-full text-sm"
                   >
-                    <option value="">— Gán danh mục (Tùy chọn) —</option>
+                    <option value="">- Gán danh mục (Tùy chọn) -</option>
                     {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </Select>
                 </div>
@@ -338,7 +338,7 @@ export default function ExpertReview() {
                   onChange={(e) => setCrawlCategoryId(e.target.value)}
                   className="w-full sm:w-60 text-sm"
                 >
-                  <option value="">— Chưa phân loại —</option>
+                  <option value="">- Chưa phân loại -</option>
                   {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
                 <Btn type="submit" variant="primary" disabled={crawling} size="md" className="text-sm font-semibold">
@@ -514,7 +514,7 @@ export default function ExpertReview() {
                         onChange={(e) => setDocCategoryMap(prev => ({ ...prev, [d.id]: e.target.value }))}
                         className="rounded border border-paper-3 bg-paper px-2 py-1 text-xs font-medium text-ink focus:border-accent-strong focus:outline-none"
                       >
-                        <option value="">— Chưa phân loại —</option>
+                        <option value="">- Chưa phân loại -</option>
                         {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     </div>
@@ -604,7 +604,7 @@ export default function ExpertReview() {
                   }}
                   className="rounded border border-paper-3 bg-paper px-3 py-1.5 text-sm font-medium text-ink focus:border-accent-strong focus:outline-none"
                 >
-                  <option value="">— Chưa phân loại —</option>
+                  <option value="">- Chưa phân loại -</option>
                   {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
@@ -703,7 +703,7 @@ function UploadTaiLieu({ onDone, onError }) {
           className="w-full flex-1 sm:w-auto text-sm"
         />
         <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full sm:w-60 text-sm">
-          <option value="">— Chưa phân loại —</option>
+          <option value="">- Chưa phân loại -</option>
           {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
       </div>

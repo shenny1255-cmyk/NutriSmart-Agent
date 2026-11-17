@@ -14,4 +14,4 @@ def write_audit(
         before_data=before,
         after_data=after,
     ))
-    # KHÔNG commit ở đây — để commit chung transaction với thao tác chính
+    # KHÔNG commit ở đây - để commit chung transaction với thao tác chính

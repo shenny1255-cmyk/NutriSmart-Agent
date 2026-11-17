@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services import ollama_client
+from app.services.guardrails import min_kcal_for
 
 
 PERIOD_DAYS = 14
@@ -167,7 +168,8 @@ def derive_recommendation(
     return "CONTINUE_AND_TRACK"
 
 
-def propose_kcal_target(current_target: int, goal: str, recommendation: str) -> int | None:
+def propose_kcal_target(current_target: int, goal: str, recommendation: str,
+                        gender: str | None = None) -> int | None:
     if recommendation != "ADJUST_PLAN" or goal == "MEDICAL":
         return None
     delta = 0
@@ -175,7 +177,7 @@ def propose_kcal_target(current_target: int, goal: str, recommendation: str) -> 
         delta = -round(current_target * KCAL_STEP)
     elif goal == "GAIN_MUSCLE":
         delta = round(current_target * KCAL_STEP)
-    return max(MIN_KCAL, min(MAX_KCAL, current_target + delta))
+    return max(min_kcal_for(gender), min(MAX_KCAL, current_target + delta))
 
 
 # ---------- Truy cập dữ liệu và vòng đời kỳ check-in ----------
@@ -641,7 +643,8 @@ def submit_checkin(db: Session, user: User, checkin_id, payload, today: date | N
     checkin.recommendation = recommendation  # type: ignore
     checkin.recommendation_reason = RECOMMENDATION_REASONS[recommendation]  # type: ignore
     checkin.proposed_kcal_target = propose_kcal_target(  # type: ignore
-        checkin.target_kcal_snapshot, str(checkin.goal_snapshot), recommendation
+        checkin.target_kcal_snapshot, str(checkin.goal_snapshot), recommendation,
+        gender=user.profile.gender if user.profile else None,
     )
     checkin.feedback_status = "PENDING"  # type: ignore
     checkin.status = "COMPLETED"  # type: ignore

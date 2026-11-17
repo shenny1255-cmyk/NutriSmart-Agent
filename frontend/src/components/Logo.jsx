@@ -1,4 +1,4 @@
-// Logo mark NutriSmart Agent — bubble chat (AI agent) + lá (dinh dưỡng).
+// Logo mark NutriSmart Agent - bubble chat (AI agent) + lá (dinh dưỡng).
 // SVG tự dựng, màu qua Tailwind class → token. Cùng hình học với public/favicon.svg.
 
 export function LogoMark({ size = 40, className = '' }) {

@@ -1,5 +1,5 @@
 // Bộ primitive UI dùng chung cho các trang bảng biểu (Admin + Expert)
-// Mọi màu tham chiếu token qua Tailwind class — không inline OKLCH.
+// Mọi màu tham chiếu token qua Tailwind class - không inline OKLCH.
 
 import { useEffect, useId, useState, useRef, useCallback } from 'react';
 
@@ -46,7 +46,7 @@ export function Td({ className = '', children }) {
   return <td className={`px-4 py-3 align-middle ${className}`}>{children}</td>;
 }
 
-// Nút — 4 biến thể, đủ 8 trạng thái qua pseudo-class + disabled + loading (caller tự đổi label)
+// Nút - 4 biến thể, đủ 8 trạng thái qua pseudo-class + disabled + loading (caller tự đổi label)
 const BTN_VARIANTS = {
   primary:
     'bg-accent-strong text-accent-ink shadow-whisper hover:-translate-y-px hover:shadow-card active:translate-y-0 active:shadow-whisper',

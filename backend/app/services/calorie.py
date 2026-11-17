@@ -50,7 +50,7 @@ def daily_calorie_target(
 ) -> int:
     age = calc_age(birth_date)
 
-    # BMR — Mifflin-St Jeor
+    # BMR - Mifflin-St Jeor
     bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age
     bmr += 5 if gender == "MALE" else -161
 
@@ -59,6 +59,6 @@ def daily_calorie_target(
 
     target = tdee + GOAL_ADJUST.get(goal, 0)
 
-    # Sàn an toàn — không để lộ trình gợi ý mức nguy hiểm
+    # Sàn an toàn - không để lộ trình gợi ý mức nguy hiểm
     floor = 1500 if gender == "MALE" else 1200
     return int(max(target, floor))

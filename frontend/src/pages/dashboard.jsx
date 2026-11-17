@@ -10,7 +10,7 @@ const MOCK = Array.from({ length: 7 }, (_, i) => ({
   kcal_burned: 300 + Math.round(Math.random() * 300),
 }));
 
-// Recharts vẽ SVG attribute nên không nhận var() trực tiếp — đọc token 1 lần từ :root,
+// Recharts vẽ SVG attribute nên không nhận var() trực tiếp - đọc token 1 lần từ :root,
 // giữ đúng kỷ luật "màu chỉ khai báo ở tokens.css, component chỉ tham chiếu".
 function useTokens(names) {
   return useMemo(() => {
@@ -127,7 +127,7 @@ export default function Dashboard() {
           <h1 className="font-display text-2xl font-bold tracking-tight">Tổng quan</h1>
           {offline && (
             <p className="rounded-full bg-warning-soft px-3 py-1 text-xs font-medium text-warning-strong">
-              Chưa kết nối backend — đang hiển thị dữ liệu mẫu
+              Chưa kết nối backend - đang hiển thị dữ liệu mẫu
             </p>
           )}
           {syncStatus === 'ok' && (
@@ -180,7 +180,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Stats — 1 cột mobile, 4 cột từ md */}
+      {/* Stats - 1 cột mobile, 4 cột từ md */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:[grid-template-columns:repeat(4,minmax(0,1fr))]">
         <Stat
           icon={Target} label="Mục tiêu hôm nay"
@@ -267,7 +267,7 @@ export default function Dashboard() {
                 iconType="plainline"
                 wrapperStyle={{ fontSize: 13, fontFamily: 'var(--font-body)' }}
               />
-              {/* Đường mục tiêu — nhìn phát biết ngày nào Nạp vào vượt mục tiêu */}
+              {/* Đường mục tiêu - nhìn phát biết ngày nào Nạp vào vượt mục tiêu */}
               <ReferenceLine
                 y={target}
                 stroke={t['--color-warning-strong']}
@@ -305,7 +305,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </section>
 
-        {/* Widget gợi ý bữa ăn tiếp theo — nổi góc phải trên biểu đồ */}
+        {/* Widget gợi ý bữa ăn tiếp theo - nổi góc phải trên biểu đồ */}
         <div className="absolute right-4 top-4 hidden w-56 glass-card rounded-xl p-3 shadow-card sm:block">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Gợi ý bữa ăn tiếp theo

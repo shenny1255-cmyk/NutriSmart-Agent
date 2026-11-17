@@ -75,12 +75,12 @@ export default function CustomHealthTerms({ kind, values, existingNames, onChang
           </label>
           {touched && error
             ? <p className="text-xs font-medium text-danger">{error}</p>
-            : <p className="text-xs text-muted">Từ 2–80 ký tự, không chứa emoji hoặc ký tự đặc biệt.</p>}
+            : <p className="text-xs text-muted">Từ 2-80 ký tự, không chứa emoji hoặc ký tự đặc biệt.</p>}
           {!isCondition && (
             <label className="block text-sm font-medium text-ink-2">
               Mức độ phản ứng
               <Select value={severity} onChange={(e) => setSeverity(e.target.value)} className="mt-1 w-full">
-                <option value="">— Chọn mức độ —</option>
+                <option value="">- Chọn mức độ -</option>
                 <option value="MILD">Nhẹ</option>
                 <option value="MODERATE">Trung bình</option>
                 <option value="SEVERE">Nghiêm trọng</option>

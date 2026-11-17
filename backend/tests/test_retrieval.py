@@ -30,7 +30,7 @@ def test_context_block_empty_when_no_hits():
 
 
 def test_search_returns_empty_when_embedding_fails(monkeypatch):
-    """Ollama/bge-m3 hỏng thì chat vẫn phải chạy — retrieval chỉ trả về rỗng."""
+    """Ollama/bge-m3 hỏng thì chat vẫn phải chạy - retrieval chỉ trả về rỗng."""
     def boom(*a, **k):
         raise OllamaError("ollama down")
 

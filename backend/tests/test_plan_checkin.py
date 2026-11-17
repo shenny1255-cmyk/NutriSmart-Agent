@@ -294,3 +294,8 @@ def test_adjustment_lap_chi_tao_mot_plan_version(monkeypatch):
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
     db.close()
+
+
+def test_de_xuat_calo_khong_duoi_san_theo_gioi_tinh():
+    assert propose_kcal_target(1600, "LOSE_WEIGHT", "ADJUST_PLAN", gender="MALE") == 1500
+    assert propose_kcal_target(1300, "LOSE_WEIGHT", "ADJUST_PLAN", gender="FEMALE") == 1200
