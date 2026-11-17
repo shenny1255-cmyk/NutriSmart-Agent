@@ -7,7 +7,7 @@ from app.deps import get_db, get_current_user
 from app.models import User, UserProfile, UserMedicalCondition, UserAllergen, BodyMetricHistory
 from app.schemas import (
     RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn,
-    EmailAvailabilityIn, EmailAvailabilityOut,
+    EmailAvailabilityIn, EmailAvailabilityOut, ConsentOut,
     validate_body_metrics,
 )
 from app.security import (
@@ -18,6 +18,7 @@ from app.services.calorie import daily_calorie_target
 from app.services.email import build_verify_link, send_verification_email
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services.activity_levels import get_activity_level
+from app.services import consent
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -77,6 +78,8 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             daily_calorie_target=target,
             custom_conditions=p.custom_conditions,
             custom_allergens=[item.model_dump() for item in p.custom_allergens],
+            # Không đồng ý gửi dữ liệu ra AI đám mây → chỉ dùng AI nội bộ
+            ai_local_only=not payload.consents.cloud_ai,
             # KHÔNG set bmi - generated column
         )
         db.add(info)
@@ -93,6 +96,11 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
             db.add(UserMedicalCondition(user_id=user.id, condition_id=cid))
         for aid in p.allergen_ids:
             db.add(UserAllergen(user_id=user.id, allergen_id=aid))
+
+        # 4. ghi nhận đồng ý (cùng giao dịch: không có tài khoản nào thiếu bằng chứng đồng ý)
+        c = payload.consents
+        for ctype, granted in (("TERMS", c.terms), ("HEALTH_DATA", c.health_data), ("CLOUD_AI", c.cloud_ai)):
+            consent.record(db, user.id, ctype, granted, source="REGISTER")
 
         db.commit()
 
@@ -237,8 +245,10 @@ def update_me(
         setattr(info, "custom_conditions", payload.custom_conditions)
     if payload.custom_allergens is not None:
         setattr(info, "custom_allergens", [item.model_dump() for item in payload.custom_allergens])
-    if payload.ai_local_only is not None:
+    if payload.ai_local_only is not None and bool(info.ai_local_only) != payload.ai_local_only:
         info.ai_local_only = payload.ai_local_only  # type: ignore
+        # Bật "chỉ AI nội bộ" = rút lại đồng ý gửi dữ liệu ra AI đám mây (và ngược lại)
+        consent.record(db, user.id, "CLOUD_AI", not payload.ai_local_only, source="PROFILE")
 
     db.commit()
     db.refresh(user)
@@ -255,3 +265,9 @@ def update_me(
         role_permission=user.role_permission,
         profile=profile_out,
     )
+
+
+@router.get("/consents", response_model=list[ConsentOut])
+def my_consents(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Lịch sử đồng ý/rút lại của chính mình, mới nhất trước."""
+    return consent.history(db, user.id)

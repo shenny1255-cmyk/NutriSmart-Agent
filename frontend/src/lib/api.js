@@ -209,6 +209,7 @@ export const api = {
   articleCategories: () => request('/articles/categories'),
   me: () => request('/auth/me'),
   updateProfile: (payload) => request('/auth/me', { method: 'PUT', body: payload }),
+  consents: () => request('/auth/consents'),
 
 
 

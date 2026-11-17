@@ -356,6 +356,18 @@ class ChatMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class UserConsent(Base):
+    """Nhật ký đồng ý xử lý dữ liệu (chỉ thêm). Dòng mới nhất mỗi loại = trạng thái hiện tại."""
+    __tablename__ = "user_consents"
+    id: int            = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    user_id: uuid.UUID = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    consent_type: str  = Column(String(20), nullable=False)  # type: ignore
+    granted: bool      = Column(Boolean, nullable=False)  # type: ignore
+    version: str       = Column(String(20), nullable=False)  # type: ignore
+    source: str        = Column(String(20), nullable=False)  # type: ignore
+    created_at         = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id          = Column(BigInteger, primary_key=True, autoincrement=True)

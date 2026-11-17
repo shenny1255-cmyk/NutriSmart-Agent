@@ -184,7 +184,8 @@ def _gemini_stream(messages: list[dict], *, timeout=180.0, max_tokens=None) -> I
 
 def _audit_external_call(*, actor_id, provider: str, model: str | None, purpose: str,
                          chars_sent: int, redactions: dict, latency_ms: int, ok: bool,
-                         usage: dict | None = None, error: str | None = None) -> None:
+                         usage: dict | None = None, error: str | None = None,
+                         extra: dict | None = None) -> None:
     """Ghi audit_logs bằng session riêng - lỗi ghi vết không được làm hỏng câu trả lời."""
     try:
         from app.database import SessionLocal
@@ -194,6 +195,7 @@ def _audit_external_call(*, actor_id, provider: str, model: str | None, purpose:
                 "provider": provider, "model": model, "purpose": purpose,
                 "chars_sent": chars_sent, "redactions": redactions,
                 "latency_ms": latency_ms, "ok": ok, "usage": usage, "error": error,
+                **(extra or {}),
             })
             db.commit()
     except Exception as e:  # noqa: BLE001
