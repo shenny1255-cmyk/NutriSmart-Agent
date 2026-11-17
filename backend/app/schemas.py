@@ -233,6 +233,13 @@ class ProfileOut(BaseModel):
     allergens: list[ItemOut] = []
     custom_conditions: list[str] = []
     custom_allergens: list[CustomAllergenItem] = []
+    ai_local_only: bool = False
+
+    @field_validator("ai_local_only", mode="before")
+    @classmethod
+    def _none_la_tat(cls, value):
+        # Hồ sơ chưa flush xuống DB thì default của cột chưa được gán → None nghĩa là tắt
+        return bool(value) if value is not None else False
 
 
 class MeOut(UserOut):
@@ -254,6 +261,8 @@ class UserProfileUpdateIn(BaseModel):
     allergen_ids: list[int] | None = None
     custom_conditions: list[CustomHealthTerm] | None = Field(default=None, max_length=10)
     custom_allergens: list[CustomAllergen] | None = Field(default=None, max_length=10)
+    # Quyền riêng tư: chỉ xử lý bằng AI nội bộ (không gửi dữ liệu ra cloud)
+    ai_local_only: bool | None = None
 
     @field_validator("custom_conditions")
     @classmethod

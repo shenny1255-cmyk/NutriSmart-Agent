@@ -237,6 +237,8 @@ def update_me(
         setattr(info, "custom_conditions", payload.custom_conditions)
     if payload.custom_allergens is not None:
         setattr(info, "custom_allergens", [item.model_dump() for item in payload.custom_allergens])
+    if payload.ai_local_only is not None:
+        info.ai_local_only = payload.ai_local_only  # type: ignore
 
     db.commit()
     db.refresh(user)

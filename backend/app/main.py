@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from app.config import settings
 from app.routers import auth, catalog, tracking, plans, chat, demo, admin, expert, vision, notifications, articles
 from app.services import plan_checkin
-from app.services import ollama_client
+from app.services import llm
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ async def lifespan(_: FastAPI):
     task = None
     warmup_task = asyncio.create_task(
         asyncio.to_thread(
-            ollama_client.warmup,
+            llm.warmup,
             model=settings.OLLAMA_CHAT_MODEL,
             timeout=90.0,
         )

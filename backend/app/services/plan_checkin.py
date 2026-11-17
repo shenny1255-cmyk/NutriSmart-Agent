@@ -23,7 +23,7 @@ from app.models import (
     User,
 )
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
-from app.services import ollama_client
+from app.services import llm
 from app.services.guardrails import min_kcal_for
 
 
@@ -745,7 +745,7 @@ def _fallback_feedback(checkin: PlanCheckin) -> str:
     )
 
 
-def generate_feedback(checkin: PlanCheckin) -> tuple[str, str]:
+def generate_feedback(checkin: PlanCheckin, user=None) -> tuple[str, str]:
     prompt = f"""Bạn là chuyên gia dinh dưỡng. Viết tối đa 3 câu tiếng Việt, không markdown.
 Chỉ diễn giải kết quả đã được hệ thống quyết định, không thay đổi recommendation và không chẩn đoán bệnh.
 Mục tiêu: {checkin.goal_snapshot}; kcal: {checkin.target_kcal_snapshot};
@@ -753,8 +753,10 @@ thay đổi cân nặng: {checkin.weight_change_kg} kg; tuân thủ: {checkin.ad
 năng lượng/đói/ngủ: {checkin.energy_level}/{checkin.hunger_level}/{checkin.sleep_quality};
 recommendation: {checkin.recommendation}; lý do: {checkin.recommendation_reason}."""
     try:
-        feedback = ollama_client.chat(
-            [{"role": "user", "content": prompt}], timeout=60.0, options={"num_predict": 180}
+        # Truyền user để adapter tôn trọng lựa chọn "chỉ xử lý bằng AI nội bộ" kể cả trong job nền
+        feedback = llm.chat(
+            [{"role": "user", "content": prompt}], user=user, purpose="checkin_feedback",
+            timeout=60.0, max_tokens=180,
         )
         return feedback, "COMPLETED"
     except Exception as exc:
@@ -771,7 +773,7 @@ def process_pending_feedback(db: Session, limit: int = 10) -> int:
         .all()
     )
     for row in rows:
-        feedback, feedback_status = generate_feedback(row)
+        feedback, feedback_status = generate_feedback(row, user=db.get(User, row.user_id))
         db.refresh(row)
         # Người dùng có thể mở lại báo cáo trong lúc Ollama đang chạy.
         if row.status != "COMPLETED" or row.feedback_status != "PENDING":

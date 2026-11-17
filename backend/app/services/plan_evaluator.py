@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models import User, NutritionPlan, PlanEvaluation
-from app.services import ollama_client, plan_generator
+from app.services import llm, plan_generator
 from app.services.guardrails import min_kcal_for
 
 logger = logging.getLogger(__name__)
@@ -159,7 +159,7 @@ def compute_metrics(db: Session, user_id, period_start: date, period_end: date) 
 
 
 def _llm_feedback(profile_ctx: dict, result: str, target: int, avg_kcal: float | None,
-                  weight_change_kg: float | None) -> str:
+                  weight_change_kg: float | None, user=None) -> str:
     """Nhận xét ngắn bằng tiếng Việt; rơi về câu mẫu khi Ollama lỗi."""
     prompt = f"""Bạn là chuyên gia dinh dưỡng. Hãy viết nhận xét NGẮN (tối đa 3 câu, tiếng Việt)
 cho người dùng sau khi kết thúc 7 ngày áp dụng lộ trình:
@@ -171,10 +171,12 @@ cho người dùng sau khi kết thúc 7 ngày áp dụng lộ trình:
 - Kết luận của hệ thống: {RESULT_LABELS[result]}
 Nêu 1 điểm làm tốt và 1 việc cần chỉnh cho tuần tới. Không dùng markdown."""
     try:
-        return ollama_client.chat(
+        return llm.chat(
             [{"role": "user", "content": prompt}],
+            user=user,
+            purpose="plan_evaluate",
             timeout=120.0,
-            options={"num_predict": 220},
+            max_tokens=220,
         )
     except Exception as e:
         logger.warning("Không sinh được nhận xét AI: %s", e)
@@ -236,7 +238,7 @@ def run_plan_job(db: Session, user: User, force: bool = False) -> dict:
 
     from app.services.nutrition_context import gather_context
     profile_ctx = (gather_context(db, user).get("profile")) or {"goal": goal}
-    feedback = _llm_feedback(profile_ctx, result, target, avg_kcal, weight_change)
+    feedback = _llm_feedback(profile_ctx, result, target, avg_kcal, weight_change, user=user)
 
     evaluation = PlanEvaluation(
         plan_id=plan.id,

@@ -68,6 +68,8 @@ class UserProfile(Base):
     daily_calorie_target: int | None = Column(Integer)  # type: ignore
     custom_conditions = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
     custom_allergens  = Column(JSONB, nullable=False, default=list, server_default="'[]'::jsonb")
+    # Quyền riêng tư (GĐ1): True → chỉ xử lý bằng AI nội bộ, không gửi dữ liệu ra cloud
+    ai_local_only: bool = Column(Boolean, nullable=False, default=False, server_default="false")  # type: ignore
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

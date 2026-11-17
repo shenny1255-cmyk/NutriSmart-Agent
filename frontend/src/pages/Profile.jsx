@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Check, Save, User } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Save, ShieldCheck, User } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
 import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
@@ -51,6 +51,7 @@ export default function Profile() {
     condition_ids: [], allergen_ids: [],
     custom_conditions: [], custom_allergens: [],
     daily_calorie_target: null,
+    ai_local_only: false,
   });
 
   const set = (k, v) => {
@@ -85,6 +86,7 @@ export default function Profile() {
         custom_conditions: p?.custom_conditions || [],
         custom_allergens: p?.custom_allergens || [],
         daily_calorie_target: p?.daily_calorie_target ?? null,
+        ai_local_only: Boolean(p?.ai_local_only),
       };
       setForm(loadedForm);
       initialFormRef.current = JSON.stringify(loadedForm);
@@ -200,6 +202,25 @@ export default function Profile() {
       return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Công tắc quyền riêng tư lưu NGAY, độc lập với form hồ sơ: người chưa điền đủ số đo
+  // (nút Lưu bị khóa) vẫn phải bật/tắt được việc gửi dữ liệu ra AI bên ngoài.
+  const [privacySaving, setPrivacySaving] = useState(false);
+  async function togglePrivacy(next) {
+    setPrivacySaving(true);
+    setForm((f) => ({ ...f, ai_local_only: next }));
+    try {
+      await api.updateProfile({ ai_local_only: next });
+      const base = JSON.parse(initialFormRef.current || '{}');
+      initialFormRef.current = JSON.stringify({ ...base, ai_local_only: next });
+      show(next ? 'Đã bật: chỉ xử lý bằng AI nội bộ.' : 'Đã tắt: cho phép dùng AI bên ngoài (đã ẩn danh).', 'success');
+    } catch (e) {
+      setForm((f) => ({ ...f, ai_local_only: !next }));
+      show(typeof e.detail === 'string' ? e.detail : 'Không lưu được cài đặt, thử lại sau.', 'danger');
+    } finally {
+      setPrivacySaving(false);
     }
   }
 
@@ -382,6 +403,35 @@ export default function Profile() {
                 onChange={(values) => set('allergen_ids', values)} />
             </FieldGroup>
           </div>
+        </section>
+
+        <section className="rounded-md bg-paper-2 p-5 shadow-hairline sm:p-6" aria-labelledby="privacy-heading">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
+              <ShieldCheck size={18} aria-hidden="true" />
+            </span>
+            <h2 id="privacy-heading" className="font-display text-lg font-bold">Quyền riêng tư và AI</h2>
+          </div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent-strong)]"
+              checked={form.ai_local_only}
+              disabled={privacySaving}
+              onChange={(e) => togglePrivacy(e.target.checked)}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink">Chỉ xử lý bằng AI nội bộ</span>
+              <span className="mt-1 block text-sm text-ink-2">
+                Khi bật, hồ sơ sức khỏe và tin nhắn của bạn chỉ được xử lý trên máy chủ của NutriSmart,
+                không gửi tới nhà cung cấp AI bên ngoài. Câu trả lời có thể chậm hơn.
+              </span>
+              <span className="mt-1 block text-xs text-muted">
+                Khi dùng AI bên ngoài, hệ thống luôn ẩn họ tên, email, số điện thoại và chỉ gửi khoảng tuổi.
+                Riêng tính năng phân tích ảnh món ăn vẫn dùng AI bên ngoài (ảnh không chứa hồ sơ sức khỏe).
+              </span>
+            </span>
+          </label>
         </section>
 
         {err && <Alert tone="danger">{err}</Alert>}
