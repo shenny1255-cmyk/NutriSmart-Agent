@@ -20,13 +20,20 @@ from app.services.ollama_client import get_embedding, OllamaError
 log = logging.getLogger("nutrismart.retrieval")
 
 # Trọng số hybrid: ưu tiên ngữ nghĩa (vector), trigram bổ trợ khi trùng thuật ngữ.
-W_VECTOR = 0.7
-W_TRIGRAM = 0.3
+# Ban đầu chọn 0.7 theo kinh nghiệm; thực nghiệm quét w=0.0→1.0 trên 59 câu hỏi
+# (GĐ2 ĐATN) cho thấy w=0.9 đạt nDCG@5=0.701 so với w=0.7 đạt 0.674, chênh lệch
+# có ý nghĩa thống kê (paired bootstrap 10.000 lần, hiệu +0.028, CI95%=[+0.001;+0.070]).
+# w=1.0 chỉ hơn w=0.9 +0.001 (không có ý nghĩa thống kê).
+# Giữ 0.1 trigram để không mất hoàn toàn khả năng khớp tên riêng/thuật ngữ đặc thù.
+W_VECTOR = 0.9
+W_TRIGRAM = 0.1
 
-# Dưới ngưỡng này coi như không liên quan - thà không trích dẫn còn hơn trích dẫn sai.
-# Đo trên kho tài liệu thật: câu hỏi đúng chủ đề đạt ~0.56, câu hỏi lạc đề chỉ ~0.28,
-# nên 0.35 tách sạch hai nhóm.
-MIN_SCORE = 0.35
+# Ngưỡng lọc: dưới ngưỡng này coi như không liên quan.
+# Hiệu chỉnh theo F1 trên bộ 59 câu hỏi GĐ2, TÍNH VỚI w=0.9 (ngưỡng phụ thuộc trọng số:
+# tăng w thì điểm cả kho tăng theo, nên ngưỡng 0.41 hiệu chỉnh cho w=0.7 không dùng lại được).
+# Với w=0.9: ngưỡng 0.51 cho P=0.786, R=0.759, F1=0.772 (6/30 câu trích dẫn sai);
+# giữ 0.41 thì P=0.553, 21/30 câu trích dẫn sai. Đổi W_VECTOR phải chạy lại sweep để chọn lại ngưỡng.
+MIN_SCORE = 0.51
 
 SNIPPET_CHARS = 200
 

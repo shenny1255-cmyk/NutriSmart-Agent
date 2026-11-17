@@ -24,8 +24,8 @@
 <text x="446.6" y="350" text-anchor="middle" fill="#6b7280">0.9</text>
 <text x="490.0" y="350" text-anchor="middle" fill="#6b7280">1.0</text>
 <text x="273.0" y="372" text-anchor="middle">w (trọng số vector; 1 − w cho trigram)</text>
-<line x1="359.8" x2="359.8" y1="24" y2="332" stroke="#9ca3af" stroke-dasharray="4 4"/>
-<text x="363.8" y="36" fill="#6b7280">hiện tại w=0.7</text>
+<line x1="446.6" x2="446.6" y1="24" y2="332" stroke="#9ca3af" stroke-dasharray="4 4"/>
+<text x="450.6" y="36" fill="#6b7280">hiện tại w=0.9</text>
 <polyline points="56.0,262.8 99.4,153.6 142.8,137.6 186.2,132.3 229.6,128.8 273.0,115.5 316.4,108.4 359.8,104.9 403.2,99.6 446.6,99.6 490.0,99.6" fill="none" stroke="#2563eb" stroke-width="2"/>
 <circle cx="56.0" cy="262.8" r="3" fill="#2563eb"/>
 <circle cx="99.4" cy="153.6" r="3" fill="#2563eb"/>
