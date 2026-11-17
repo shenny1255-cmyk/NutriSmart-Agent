@@ -444,6 +444,31 @@ class Food(Base):
     source: str      = Column(String(100), default="AI Gemini")  # type: ignore
 
 
+
+class FoodComposition(Base):
+    """Bảng thành phần thực phẩm Việt Nam (Viện Dinh dưỡng 2007), giá trị/100 g phần ăn được."""
+    __tablename__ = "food_composition"
+    code: str        = Column(String(10), primary_key=True)  # type: ignore
+    name_vi: str     = Column(String(200), nullable=False)  # type: ignore
+    name_en: str | None = Column(String(200))  # type: ignore
+    food_group: str | None = Column(String(100))  # type: ignore
+    waste_pct        = Column(Numeric(5, 1))
+    energy_kcal      = Column(Numeric(7, 1), nullable=False)
+    protein_g        = Column(Numeric(6, 2))
+    fat_g            = Column(Numeric(6, 2))
+    carb_g           = Column(Numeric(6, 2))
+    fiber_g          = Column(Numeric(6, 2))
+    sugar_g          = Column(Numeric(6, 2))
+    water_g          = Column(Numeric(6, 2))
+    sodium_mg        = Column(Numeric(8, 1))
+    cholesterol_mg   = Column(Numeric(8, 1))
+    purine_mg        = Column(Numeric(8, 1))
+    book_page: int | None = Column(SmallInteger)  # type: ignore
+    source: str      = Column(String(255), nullable=False)  # type: ignore
+    check_note: str | None = Column(Text)  # type: ignore
+    review_status: str = Column(String(20), nullable=False, default="CHUA_DUYET")  # type: ignore
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class MealLog(Base):
     __tablename__ = "meal_logs"
     id: int            = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore

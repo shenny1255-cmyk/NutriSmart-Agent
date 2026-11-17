@@ -6,6 +6,7 @@ import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js
 import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
 import { Btn, Field as TextInput, Select, Alert, Modal, useToast, Toast } from '../components/ui.jsx';
 import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
+import CustomHealthTerms from '../components/CustomHealthTerms.jsx';
 
 // Danh sách fallback khi backend chưa chạy
 const FALLBACK_CONDITIONS = [{ id: 1, name: 'Đái tháo đường típ 2' }, { id: 2, name: 'Tăng huyết áp' }, { id: 3, name: 'Rối loạn lipid máu' }];
@@ -38,6 +39,7 @@ export default function Profile() {
   const [pendingTarget, setPendingTarget] = useState(null);
   const [err, setErr] = useState(null);
   const initialFormRef = useRef('');
+  const countLabel = (label, n) => (n ? `${label} (${n})` : label);
 
   // Dữ liệu dropdown
   const [conditions, setConditions] = useState(FALLBACK_CONDITIONS);
@@ -178,9 +180,13 @@ export default function Profile() {
         goal: form.goal,
         condition_ids: form.condition_ids,
         allergen_ids: form.allergen_ids,
-        custom_conditions: [],
-        custom_allergens: [],
       };
+      // Mục tự khai báo chỉ gửi khi người dùng thật sự xóa bớt. Gửi mặc định có rủi ro: nếu lúc
+      // tải trang lỗi, form còn [] và bấm Lưu sẽ xóa sạch dị ứng mà Warning Engine đang dùng.
+      const initial = initialFormRef.current ? JSON.parse(initialFormRef.current) : {};
+      for (const key of ['custom_conditions', 'custom_allergens']) {
+        if (JSON.stringify(form[key]) !== JSON.stringify(initial[key])) payload[key] = form[key];
+      }
       const updated = await api.updateProfile(payload);
 
       // Cập nhật lại form với dữ liệu mới từ server (bao gồm calo mục tiêu đã tính lại)
@@ -372,14 +378,18 @@ export default function Profile() {
           </div>
 
           <div className="mt-4 space-y-4">
-            <FieldGroup label={`Bệnh nền${form.condition_ids.length ? ` (${form.condition_ids.length})` : ''}`}>
+            <FieldGroup label={countLabel('Bệnh nền', form.condition_ids.length + form.custom_conditions.length)}>
               <CatalogMultiSelect kind="condition" items={conditions} selected={form.condition_ids}
-                onChange={(values) => set('condition_ids', values)} />
+                hideEmpty={form.custom_conditions.length > 0} onChange={(values) => set('condition_ids', values)} />
+              <CustomHealthTerms kind="condition" allowAdd={false} values={form.custom_conditions}
+                onChange={(values) => set('custom_conditions', values)} />
             </FieldGroup>
 
-            <FieldGroup label={`Dị ứng thực phẩm${form.allergen_ids.length ? ` (${form.allergen_ids.length})` : ''}`}>
+            <FieldGroup label={countLabel('Dị ứng thực phẩm', form.allergen_ids.length + form.custom_allergens.length)}>
               <CatalogMultiSelect kind="allergen" items={allergens} selected={form.allergen_ids}
-                onChange={(values) => set('allergen_ids', values)} />
+                hideEmpty={form.custom_allergens.length > 0} onChange={(values) => set('allergen_ids', values)} />
+              <CustomHealthTerms kind="allergen" allowAdd={false} values={form.custom_allergens}
+                onChange={(values) => set('custom_allergens', values)} />
             </FieldGroup>
           </div>
         </section>

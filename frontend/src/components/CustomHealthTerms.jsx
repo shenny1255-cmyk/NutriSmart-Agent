@@ -3,7 +3,8 @@ import { AlertTriangle, Plus, X } from 'lucide-react';
 import { Btn, Field, Modal, Select } from './ui.jsx';
 import { customHealthTermError } from '../lib/validation.js';
 
-export default function CustomHealthTerms({ kind, values, existingNames, onChange }) {
+// allowAdd=false: chỉ xem và xóa mục đã có (trang Hồ sơ không cho tự khai báo thêm)
+export default function CustomHealthTerms({ kind, values, existingNames = [], onChange, allowAdd = true }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [touched, setTouched] = useState(false);
@@ -52,11 +53,13 @@ export default function CustomHealthTerms({ kind, values, existingNames, onChang
           );})}
         </div>
       )}
+      {allowAdd && (
       <Btn type="button" size="sm" variant="ghost" className="px-1 text-base text-ink-2 hover:text-accent-strong" onClick={() => setOpen(true)} disabled={values.length >= 10}>
         <Plus size={14} />Không có trong danh sách? Tự khai báo
       </Btn>
+      )}
 
-      <Modal open={open} onClose={close} icon={<Plus size={18} />} title={`Thêm ${label} tự khai báo`}
+      {allowAdd && <Modal open={open} onClose={close} icon={<Plus size={18} />} title={`Thêm ${label} tự khai báo`}
         footer={<><Btn variant="ghost" onClick={close}>Hủy</Btn><Btn variant="primary" onClick={add} disabled={!normalized || !!error || (!isCondition && !severity)}>Thêm</Btn></>}>
         <div className="space-y-3">
           <div className="flex gap-2 rounded-sm bg-warning-soft p-3 text-sm text-ink-2">
@@ -89,7 +92,7 @@ export default function CustomHealthTerms({ kind, values, existingNames, onChang
             </label>
           )}
         </div>
-      </Modal>
+      </Modal>}
     </div>
   );
 }

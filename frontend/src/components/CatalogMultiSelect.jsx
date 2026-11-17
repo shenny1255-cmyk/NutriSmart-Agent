@@ -6,7 +6,8 @@ function normalizeSearch(value) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('vi').trim();
 }
 
-export default function CatalogMultiSelect({ kind, items, selected, onChange }) {
+// hideEmpty: còn mục tự khai báo hiển thị bên dưới → không ghi "Chưa ghi nhận" gây hiểu lầm
+export default function CatalogMultiSelect({ kind, items, selected, onChange, hideEmpty = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState(new Set());
@@ -45,7 +46,7 @@ export default function CatalogMultiSelect({ kind, items, selected, onChange }) 
 
   return (
     <div className="space-y-2">
-      {selectedItems.length === 0 ? (
+      {selectedItems.length === 0 ? (hideEmpty ? null :
         <p className="rounded-sm bg-paper-3 px-3 py-2.5 text-base text-ink-2">Chưa ghi nhận {label}.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
