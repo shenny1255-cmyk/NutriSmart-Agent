@@ -434,6 +434,33 @@ class FoodOut(BaseModel):
     fat_g: float | None = None
 
 
+
+class FoodCompositionOut(BaseModel):
+    """Một dòng Bảng thành phần thực phẩm Việt Nam 2007 (giá trị/100 g phần ăn được)."""
+    model_config = ConfigDict(from_attributes=True)
+    code: str
+    name_vi: str
+    name_en: str | None = None
+    food_group: str | None = None
+    waste_pct: float | None = None
+    energy_kcal: float
+    protein_g: float | None = None
+    fat_g: float | None = None
+    carb_g: float | None = None
+    fiber_g: float | None = None
+    sugar_g: float | None = None
+    sodium_mg: float | None = None
+    cholesterol_mg: float | None = None
+    purine_mg: float | None = None
+    book_page: int | None = None
+    source: str
+    check_note: str | None = None
+    review_status: str
+
+
+class FoodCompositionDetailOut(FoodCompositionOut):
+    per_portion: dict | None = None   # giá trị đã quy đổi theo ?grams=
+
 class ExerciseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -15,10 +15,12 @@ Mỗi cảnh báo là dict: {level, code, message, source, context}
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 LEVEL_ORDER = ["DANGER", "WARNING", "INFO"]
 
@@ -123,7 +125,7 @@ ALLERGEN_GROUPS: dict[str, _Group] = {
     "fish": _Group(
         aliases=("cá",),
         keywords=("cá", "nước mắm", "mắm nêm", "mắm cá", "mắm sặc", "mắm linh", "chả cá",
-                  "mắm", "dầu cá"),
+                  "mắm", "dầu cá", "lươn"),
         negatives=("cá nhân", "cá thể", "cá tính", "cá cược", "mắm tôm", "mắm ruốc"),
     ),
     "peanut": _Group(
@@ -173,7 +175,7 @@ ALLERGEN_GROUPS: dict[str, _Group] = {
     "beef": _Group(
         aliases=("thịt bò", "bò"),
         keywords=("bò", "thịt bò", "bò viên", "nước dùng bò"),
-        negatives=("bò bía", "sữa bò", "bơ bò", "bò sữa"),
+        negatives=("bò bía", "sữa bò", "bơ bò", "bò sữa", "bánh bò"),
     ),
 }
 
@@ -195,6 +197,64 @@ def _resolve_allergen(name: str) -> _Group | None:
         if n in group.keywords:      # gõ "tôm" → hiểu là cả nhóm giáp xác
             return group
     return _Group(aliases=(n,), keywords=(n,))
+
+
+# ---------- Bảng món → nguyên liệu (dị ứng ẩn trong tên món) ----------
+
+DISHES_PATH = Path(__file__).resolve().parents[2] / "data" / "dish_ingredients.json"
+
+
+@dataclass(frozen=True)
+class Dish:
+    name: str                     # tên hiển thị trong thông điệp
+    names: tuple[str, ...]        # tên + alias đã chuẩn hóa, dùng để so khớp
+    ingredients: tuple[str, ...]  # nguyên liệu theo công thức phổ biến (kèm cờ lượng)
+
+    @property
+    def ingredient_text(self) -> str:
+        return " , ".join(self.ingredients)
+
+
+@lru_cache(maxsize=1)
+def load_dishes() -> tuple[Dish, ...]:
+    """Đọc data/dish_ingredients.json (nhóm duyệt qua PR). Thiếu file → không mở rộng."""
+    try:
+        raw = json.loads(DISHES_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ()
+    dishes = []
+    for d in raw.get("dishes", []):
+        names = tuple(dict.fromkeys(_norm(n) for n in [d["name"], *d.get("aliases", [])] if _norm(n)))
+        dishes.append(Dish(name=d["name"], names=names,
+                           ingredients=tuple(_norm(i) for i in d.get("ingredients", []) if _norm(i))))
+    return tuple(dishes)
+
+
+@lru_cache(maxsize=2048)
+def match_dishes(text: str) -> tuple[Dish, ...]:
+    """Các món có tên xuất hiện trong text. Tên dài khớp trước và "ăn" mất đoạn đó, nên
+    "Bún bò Nam Bộ" không bị hiểu thành alias "bún bò" (của Bún bò Huế)."""
+    t = _norm(text)
+    if not t:
+        return ()
+    pairs = sorted(((n, d) for d in load_dishes() for n in d.names), key=lambda x: len(x[0]), reverse=True)
+    found: list[Dish] = []
+    for name, dish in pairs:
+        rx = _word_re(name)
+        if rx.search(t):
+            if dish not in found:
+                found.append(dish)
+            t = rx.sub(" | ", t)
+    return tuple(found)
+
+
+def _match_in_dishes(dishes: tuple[Dish, ...], keywords: tuple[str, ...],
+                     negatives: tuple[str, ...]) -> tuple[Dish, str] | None:
+    for dish in dishes:
+        kw = _first_match(dish.ingredient_text, keywords, negatives)
+        if kw:
+            return dish, kw
+    return None
 
 
 # ---------- Bệnh nền: bảng chống chỉ định ----------
@@ -234,7 +294,7 @@ CONDITION_RULES: dict[str, _ConditionRule] = {
         keywords=("dưa muối", "cà muối", "dưa cải muối", "cá khô", "mực khô", "khô bò",
                   "khô gà", "tôm khô", "xúc xích", "lạp xưởng", "thịt nguội", "giăm bông",
                   "mì gói", "mì tôm", "đồ hộp", "mắm tôm", "mắm nêm", "mắm ruốc", "ruốc",
-                  "snack", "muối ớt"),
+                  "snack", "muối ớt", "nhiều muối"),
         source="Bộ Y tế - QĐ 3192/QĐ-BYT (31/08/2010), Hướng dẫn chẩn đoán và điều trị tăng huyết áp; WHO Fact sheet Salt reduction: < 5 g muối/ngày",
     ),
     "dyslipidemia": _ConditionRule(
@@ -286,7 +346,8 @@ def _sorted(warnings: list[dict]) -> list[dict]:
     return sorted(warnings, key=lambda w: LEVEL_ORDER.index(w["level"]))
 
 
-def _allergen_warnings(text: str, profile: GuardProfile, level: str, subject: str) -> list[dict]:
+def _allergen_warnings(text: str, profile: GuardProfile, level: str, subject: str,
+                       dishes: tuple[Dish, ...] = ()) -> list[dict]:
     out = []
     for name in profile.allergens:
         group = _resolve_allergen(name)
@@ -296,12 +357,24 @@ def _allergen_warnings(text: str, profile: GuardProfile, level: str, subject: st
         if kw:
             out.append(_w(level, "ALLERGEN",
                           f"{subject} có “{kw}” - bạn khai báo dị ứng {name.strip()}."))
+            continue
+        hit = _match_in_dishes(dishes, group.keywords, group.negatives)
+        if hit:
+            dish, kw = hit
+            out.append(_w(level, "ALLERGEN",
+                          f"{subject} “{dish.name}” thường có “{kw}” (theo công thức phổ biến) - "
+                          f"bạn khai báo dị ứng {name.strip()}. Hãy hỏi lại người nấu."))
     return out
 
 
 def check_food_text(text: str, profile: GuardProfile) -> list[dict]:
-    """Kiểm tra tên/mô tả một món theo dị ứng (đỏ) và bệnh nền (vàng)."""
-    out = _allergen_warnings(text, profile, "DANGER", "Món")
+    """Kiểm tra tên/mô tả một món theo dị ứng (đỏ) và bệnh nền (vàng).
+
+    Ngoài chữ có trong tên món, tra thêm bảng món → nguyên liệu để bắt dị ứng ẩn
+    ("Bánh xèo" có tôm, "Bún chả" chấm nước mắm).
+    """
+    dishes = match_dishes(text) if (profile.allergens or profile.conditions) else ()
+    out = _allergen_warnings(text, profile, "DANGER", "Món", dishes)
     for name in profile.conditions:
         rule = _resolve_condition(name)
         if rule is None:
@@ -310,6 +383,13 @@ def check_food_text(text: str, profile: GuardProfile) -> list[dict]:
         if kw:
             out.append(_w("WARNING", "CONDITION",
                           f"Món có “{kw}” - {rule.advice} (bệnh nền: {name.strip()}).",
+                          source=rule.source))
+            continue
+        hit = _match_in_dishes(dishes, rule.keywords, rule.negatives)
+        if hit:
+            dish, kw = hit
+            out.append(_w("WARNING", "CONDITION",
+                          f"Món “{dish.name}” thường có “{kw}” - {rule.advice} (bệnh nền: {name.strip()}).",
                           source=rule.source))
     return _sorted(out)
 
