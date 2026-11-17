@@ -1,5 +1,6 @@
 from datetime import date
 import logging
+import time
 
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
@@ -10,11 +11,19 @@ from app.models import User, Food, MealLog
 from app.schemas import MealAnalyzeOut, MealLogIn
 from app.services.gemini_vision import analyze_food_image
 from app.services import guardrails
+from app.services.llm import _audit_external_call
 from app.services.plan_progress import sync_meal_log_with_plan
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vision", tags=["vision"])
+
+
+def _audit_vision(user, nbytes: int, t0: float, ok: bool, error: str | None = None) -> None:
+    """Mỗi ảnh gửi ra Gemini đều ghi audit như lời gọi chat (không gửi kèm hồ sơ nên không có gì để ẩn danh)."""
+    _audit_external_call(actor_id=user.id, provider="gemini", model=None, purpose="meal_scan",
+                         chars_sent=0, redactions={}, latency_ms=int((time.perf_counter() - t0) * 1000),
+                         ok=ok, error=error, extra={"bytes_sent": nbytes})
 
 
 @router.post("/analyze-meal", response_model=MealAnalyzeOut)
@@ -32,15 +41,29 @@ async def analyze_meal_image(
             detail="File tải lên phải là định dạng hình ảnh (JPEG, PNG, WEBP...)"
         )
 
+    # Ảnh luôn được phân tích bằng Gemini (không có model Vision nội bộ). Người dùng đã từ chối
+    # gửi dữ liệu ra AI đám mây thì KHÔNG gửi ảnh, kể cả khi ảnh không kèm hồ sơ sức khỏe.
+    if user.profile is not None and user.profile.ai_local_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=("Bạn đang chọn chỉ xử lý bằng AI nội bộ, còn phân tích ảnh cần gửi ảnh tới AI đám mây "
+                    "(Google Gemini). Bạn có thể đổi lựa chọn trong Hồ sơ > Quyền riêng tư và AI, "
+                    "hoặc ghi món vào Nhật ký thủ công."),
+        )
+
+    contents = await file.read()
+    t0 = time.perf_counter()
     try:
-        contents = await file.read()
         analysis_result = analyze_food_image(contents, mime_type=file.content_type or "image/jpeg")
     except Exception as e:
+        _audit_vision(user, len(contents), t0, ok=False, error=type(e).__name__)
         logger.error(f"Lỗi phân tích hình ảnh món ăn: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Dịch vụ phân tích ảnh tạm thời không khả dụng. Vui lòng thử lại sau."
         )
+
+    _audit_vision(user, len(contents), t0, ok=True)
 
     # Guardrail chạy SAU Vision: độ tin cậy, dị ứng/bệnh nền, vượt chỉ tiêu ngày.
     # Lỗi ở bước này không được làm mất kết quả phân tích.

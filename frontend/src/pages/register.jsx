@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
 import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
@@ -10,6 +10,7 @@ import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { LogoMark } from '../components/Logo.jsx';
 import { inputCls } from './login.jsx';
+import { POLICY_VERSION } from './Privacy.jsx';
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
@@ -37,7 +38,11 @@ const INITIAL_FORM = {
   gender: 'MALE', birth_date: '', height_cm: '', weight_kg: '',
   activity_level: 3, goal: 'MAINTAIN',
   condition_ids: [], allergen_ids: [],
+  // Đồng ý (Nghị định 13/2023): KHÔNG tick sẵn - người dùng phải tự chọn từng mục
+  consent_terms: false, consent_health: false, consent_cloud: false,
 };
+
+const STEP_TITLES = ['Thông tin tài khoản', 'Hồ sơ sức khỏe', 'Quyền riêng tư'];
 
 export default function Register() {
   const [step, setStep] = useState(1);
@@ -74,6 +79,8 @@ export default function Register() {
   const weightValid = form.weight_kg !== '' && Number.isFinite(weightNumber) && weightNumber >= 20 && weightNumber <= 300;
   const metricsValid = heightValid && weightValid && areBodyMetricsPlausible(heightNumber, weightNumber);
   const step2Valid = isValidBirthDate(form.birth_date) && metricsValid;
+  const step3Valid = form.consent_terms && form.consent_health;
+  const stepValid = [step1Valid, step2Valid, step3Valid][step - 1];
 
   useEffect(() => {
     api.conditions().then(setConditions).catch(() => { });
@@ -117,15 +124,26 @@ export default function Register() {
     setStep(2);
   }
 
+  function profileError() {
+    if (!isValidBirthDate(form.birth_date)) return 'Ngày sinh không hợp lệ. Vui lòng chọn ngày từ lịch và không vượt quá hôm nay.';
+    if (!metricsValid) return 'Chiều cao hoặc cân nặng chưa hợp lệ. Vui lòng kiểm tra lại.';
+    return null;
+  }
+
+  function toConsent(e) {
+    e.preventDefault();
+    const msg = profileError();
+    setErr(msg);
+    if (!msg) setStep(3);
+  }
+
   async function submit(e) {
     e.preventDefault();
     setErr(null);
-    if (!isValidBirthDate(form.birth_date)) {
-      setErr('Ngày sinh không hợp lệ. Vui lòng chọn ngày từ lịch và không vượt quá hôm nay.');
-      return;
-    }
-    if (!metricsValid) {
-      setErr('Chiều cao hoặc cân nặng chưa hợp lệ. Vui lòng kiểm tra lại.');
+    const msg = profileError();
+    if (msg) { setErr(msg); setStep(2); return; }
+    if (!step3Valid) {
+      setErr('Bạn cần đồng ý hai mục bắt buộc để tạo tài khoản.');
       return;
     }
     setLoading(true);
@@ -146,6 +164,11 @@ export default function Register() {
         allergen_ids: form.allergen_ids,
         custom_conditions: form.custom_conditions,
         custom_allergens: form.custom_allergens,
+      },
+      consents: {
+        terms: form.consent_terms,
+        health_data: form.consent_health,
+        cloud_ai: form.consent_cloud,
       },
     };
 
@@ -177,7 +200,7 @@ export default function Register() {
   return (
     <AuthLayout>
       <form
-        onSubmit={step === 1 ? nextStep : submit}
+        onSubmit={step === 1 ? nextStep : step === 2 ? toConsent : submit}
         autoComplete="off"
         className="mx-auto w-full max-w-lg rounded-md bg-paper-2 p-6 shadow-card sm:p-8"
       >
@@ -188,7 +211,7 @@ export default function Register() {
               Nutri<span className="text-accent-strong">Smart</span>
             </h1>
             <p className="text-sm text-muted">
-              Bước {step}/2 - {step === 1 ? 'Thông tin tài khoản' : 'Hồ sơ sức khỏe'}
+              Bước {step}/3 - {STEP_TITLES[step - 1]}
             </p>
           </div>
         </div>
@@ -197,7 +220,7 @@ export default function Register() {
         <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-paper-3">
           <div
             className="h-full origin-left rounded-full bg-accent transition-transform duration-long ease-out"
-            style={{ transform: step === 1 ? 'scaleX(0.5)' : 'scaleX(1)' }}
+            style={{ transform: `scaleX(${step / 3})` }}
           />
         </div>
 
@@ -354,17 +377,48 @@ export default function Register() {
           </div>
         )}
 
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="flex gap-3 rounded-sm bg-accent-soft p-4 text-sm text-ink-2">
+              <ShieldCheck size={20} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+              <div className="space-y-1.5">
+                <p>Hồ sơ sức khỏe (bệnh nền, dị ứng, số đo cơ thể) là <strong>dữ liệu cá nhân nhạy cảm</strong>.
+                  NutriSmart chỉ dùng nó để tính calo, gợi ý thực đơn và cảnh báo an toàn cho chính bạn,
+                  không bán và không dùng cho quảng cáo.</p>
+                <p>Bạn đổi lựa chọn về AI đám mây bất cứ lúc nào trong trang Hồ sơ.{' '}
+                  <Link to="/privacy" target="_blank" rel="noopener"
+                    className="font-medium text-accent-strong underline underline-offset-2">Đọc chính sách đầy đủ</Link>
+                </p>
+              </div>
+            </div>
+
+            <ConsentBox checked={form.consent_terms} onChange={(v) => set('consent_terms', v)} required
+              title="Tôi đã đọc và đồng ý Điều khoản sử dụng và Chính sách quyền riêng tư"
+              desc={`Phiên bản ${POLICY_VERSION}. NutriSmart hỗ trợ tham khảo, không thay thế chẩn đoán hay tư vấn của bác sĩ.`} />
+
+            <ConsentBox checked={form.consent_health} onChange={(v) => set('consent_health', v)} required
+              title="Tôi đồng ý cho NutriSmart xử lý dữ liệu sức khỏe của tôi"
+              desc="Gồm bệnh nền, dị ứng, số đo cơ thể và nhật ký ăn uống - cần để tính calo mục tiêu, lập lộ trình và cảnh báo món không an toàn. Thiếu mục này ứng dụng không hoạt động được." />
+
+            <ConsentBox checked={form.consent_cloud} onChange={(v) => set('consent_cloud', v)}
+              title="Cho phép dùng AI đám mây (Google Gemini) - không bắt buộc"
+              desc="Trả lời nhanh hơn (khoảng 3 giây thay vì 15-20 giây) và mở khóa phân tích ảnh món ăn. Trước khi gửi, hệ thống xóa họ tên, email, số điện thoại và chỉ gửi khoảng tuổi. Không chọn: mọi xử lý chạy bằng AI nội bộ trên máy chủ NutriSmart, tính năng phân tích ảnh tạm khóa." />
+          </div>
+        )}
+
         {err && <div className="mt-4"><Alert tone="danger">{err}</Alert></div>}
 
         <div className="mt-6 flex gap-3">
-          {step === 2 && (
-            <Btn type="button" variant="ghost" onClick={() => setStep(1)}>
+          {step > 1 && (
+            <Btn type="button" variant="ghost" onClick={() => { setErr(null); setStep(step - 1); }}>
               Quay lại
             </Btn>
           )}
           <Btn type="submit" variant="primary"
-            disabled={loading || emailStatus === 'checking' || (step === 1 ? !step1Valid : !step2Valid)} className="flex-1">
-            {step === 1 ? emailStatus === 'checking' ? 'Đang kiểm tra email…' : 'Tiếp tục' : loading ? 'Đang tạo tài khoản…' : 'Hoàn tất đăng ký'}
+            disabled={loading || emailStatus === 'checking' || !stepValid} className="flex-1">
+            {step === 1 && emailStatus === 'checking' ? 'Đang kiểm tra email…'
+              : step < 3 ? 'Tiếp tục'
+              : loading ? 'Đang tạo tài khoản…' : 'Đồng ý và tạo tài khoản'}
           </Btn>
         </div>
 
@@ -390,5 +444,21 @@ function FieldGroup({ label, hint, required, children }) {
       {children}
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
+  );
+}
+
+function ConsentBox({ checked, onChange, title, desc, required }) {
+  return (
+    <label className={`flex cursor-pointer items-start gap-3 rounded-sm border p-3.5 transition-colors duration-micro ${
+      checked ? 'border-accent bg-accent-soft/40' : 'border-rule-2 bg-paper'}`}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent-strong)]" aria-required={required || undefined} />
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-ink">
+          {title}{required && <span className="ml-1 text-danger" aria-hidden="true">*</span>}
+        </span>
+        <span className="mt-1 block text-sm text-ink-2">{desc}</span>
+      </span>
+    </label>
   );
 }

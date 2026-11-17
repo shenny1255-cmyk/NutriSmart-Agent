@@ -37,6 +37,7 @@ def auth_headers(user_test):
     r = client.post("/api/v1/auth/register", json={
         "email": email,
         "password": "password123", "full_name": "RAG Test", "country_code": cc,
+        "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "MALE", "birth_date": "1996-01-01", "height_cm": 175,
                     "weight_kg": 72, "activity_level": 3, "goal": "MAINTAIN",
                     "condition_ids": [], "allergen_ids": []},

@@ -17,6 +17,7 @@ import ExpertReview from './pages/ExpertReview.jsx';
 import Articles from './pages/Articles.jsx';
 import Profile from './pages/Profile.jsx';
 import Verify from './pages/Verify.jsx';
+import Privacy from './pages/Privacy.jsx';
 import { Logo, LogoMark } from './components/Logo.jsx';
 import VerifyBanner from './components/VerifyBanner.jsx';
 import { api } from './lib/api.js';
@@ -222,6 +223,8 @@ export default function App() {
 
       {/* Công khai: bấm link trong email để xác minh (kể cả khi chưa/đã đăng nhập) */}
       <Route path="/verify" element={<Verify />} />
+      {/* Công khai: chính sách quyền riêng tư (mở từ bước đồng ý khi đăng ký và từ Hồ sơ) */}
+      <Route path="/privacy" element={<Privacy />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>

@@ -152,11 +152,37 @@ class ProfileIn(BaseModel):
         return self
 
 
+class ConsentsIn(BaseModel):
+    """Đồng ý khi đăng ký (Nghị định 13/2023): tách từng mục đích, không có giá trị mặc định
+    'đã đồng ý' - client phải gửi tường minh."""
+    terms: bool
+    health_data: bool
+    cloud_ai: bool = False
+
+    @model_validator(mode="after")
+    def _bat_buoc(self):
+        if not self.terms:
+            raise ValueError("Cần đồng ý Điều khoản sử dụng và Chính sách quyền riêng tư")
+        if not self.health_data:
+            raise ValueError("Cần đồng ý cho phép xử lý dữ liệu sức khỏe để dùng NutriSmart")
+        return self
+
+
 class RegisterIn(BaseModel):
     email: NormalizedEmail
     password: str = Field(min_length=8)
     full_name: FullName
     profile: ProfileIn
+    consents: ConsentsIn
+
+
+class ConsentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    consent_type: str
+    granted: bool
+    version: str
+    source: str
+    created_at: datetime
 
 
 class LoginIn(BaseModel):

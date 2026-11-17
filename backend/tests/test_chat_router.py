@@ -41,6 +41,7 @@ def _register(user_test) -> str:
         "password": "password123",
         "full_name": "Người Dùng Thử",
         "country_code": country_code,
+        "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "MALE", "birth_date": "1996-01-01",
             "height_cm": 175, "weight_kg": 82, "activity_level": 3,
@@ -108,6 +109,7 @@ def test_stream_gui_canh_bao_di_ung_trong_su_kien_done(monkeypatch, user_test):
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "password123", "full_name": "Người Dùng Thử",
         "country_code": "VN",
+        "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "FEMALE", "birth_date": "1998-01-01",
             "height_cm": 160, "weight_kg": 55, "activity_level": 3,

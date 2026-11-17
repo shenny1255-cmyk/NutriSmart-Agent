@@ -9,6 +9,7 @@ def _register_data(full_name: str) -> dict:
         "email": "name@example.com",
         "password": "password123",
         "full_name": full_name,
+        "consents": {"terms": True, "health_data": True},
         "profile": {
             "gender": "MALE",
             "birth_date": "2000-01-01",

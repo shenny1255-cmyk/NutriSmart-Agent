@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, Save, ShieldCheck, User } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
@@ -59,6 +59,8 @@ export default function Profile() {
     setForm((f) => ({ ...f, [k]: v }));
   };
 
+  const [termsConsent, setTermsConsent] = useState(null);
+
   // Lấy thông tin người dùng hiện tại + dropdown khi mount
   useEffect(() => {
     Promise.all([
@@ -92,6 +94,10 @@ export default function Profile() {
       initialFormRef.current = JSON.stringify(loadedForm);
       setLoading(false);
     }).catch(() => setLoading(false));
+    // Lần đồng ý điều khoản gần nhất (mới nhất trước); lỗi thì chỉ ẩn dòng thông tin
+    api.consents()
+      .then((rows) => setTermsConsent(rows.find((r) => r.consent_type === 'TERMS' && r.granted) || null))
+      .catch(() => {});
   }, []);
 
   const fullNameValid = isValidFullName(form.full_name);
@@ -428,10 +434,16 @@ export default function Profile() {
               </span>
               <span className="mt-1 block text-xs text-muted">
                 Khi dùng AI bên ngoài, hệ thống luôn ẩn họ tên, email, số điện thoại và chỉ gửi khoảng tuổi.
-                Riêng tính năng phân tích ảnh món ăn vẫn dùng AI bên ngoài (ảnh không chứa hồ sơ sức khỏe).
+                Phân tích ảnh món ăn cần gửi ảnh tới AI bên ngoài nên sẽ tạm khóa khi bật mục này.
               </span>
             </span>
           </label>
+          <p className="mt-4 border-t border-rule-2 pt-3 text-xs text-muted">
+            {termsConsent
+              ? `Bạn đã đồng ý Chính sách quyền riêng tư phiên bản ${termsConsent.version} ngày ${new Date(termsConsent.created_at).toLocaleDateString('vi-VN')}. `
+              : 'Chưa có bản ghi đồng ý (tài khoản tạo trước khi có bước đồng ý). '}
+            <Link to="/privacy" className="font-medium text-accent-strong underline underline-offset-2">Xem chính sách</Link>
+          </p>
         </section>
 
         {err && <Alert tone="danger">{err}</Alert>}
