@@ -105,9 +105,12 @@ export default function Login() {
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </Btn>
 
+        {/* Nút dùng thử Demo - tạm ẩn để giao diện chuyên nghiệp khi nộp bài & bảo vệ đồ án */}
+        {/*
         <Btn type="button" variant="subtle" onClick={tryDemo} disabled={demoLoading} className="mt-3 w-full">
           {demoLoading ? 'Đang chuẩn bị dữ liệu…' : 'Dùng thử ngay (Demo)'}
         </Btn>
+        */}
 
         <p className="mt-5 text-center text-sm text-muted">
           Chưa có tài khoản?{' '}
