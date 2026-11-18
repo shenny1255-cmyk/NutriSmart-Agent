@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import WarningList from '../components/WarningList.jsx';
+import PortionAdjuster, { portionTotals } from '../components/PortionAdjuster.jsx';
 
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
@@ -92,6 +93,7 @@ export default function MealScan() {
   const [isSaved, setIsSaved] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [portion, setPortion] = useState(1.0);
+  const [items, setItems] = useState(sessionRef.current.result?.components ?? []);
   const [mealType, setMealType] = useState(getSuggestedMealType());
   const [dragging, setDragging] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -112,6 +114,10 @@ export default function MealScan() {
       // Ignore storage errors for large images
     }
   }, [preview, result]);
+
+  useEffect(() => {
+    setItems(result?.components ?? []);
+  }, [result]);
 
   async function handleFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -168,10 +174,13 @@ export default function MealScan() {
 
   const confidence = Math.round((result?.confidence ?? 0) * 100);
   const baseKcal = result?.calories_kcal ?? result?.estimated_kcal ?? 0;
-  const kcalVal = Math.round(baseKcal * portion);
-  const proteinVal = result?.protein_g ? Math.round(result.protein_g * portion * 10) / 10 : null;
-  const carbVal = (result?.carb_g ?? result?.carbs_g) ? Math.round((result.carb_g ?? result.carbs_g) * portion * 10) / 10 : null;
-  const fatVal = result?.fat_g ? Math.round(result.fat_g * portion * 10) / 10 : null;
+  // Có thành phần: tính theo gram đang chỉnh. Kết quả cũ không có thành phần: nhân theo số phần.
+  const hasComponents = (result?.components?.length ?? 0) > 0;
+  const sums = portionTotals(items);
+  const kcalVal = hasComponents ? sums.kcal : Math.round(baseKcal * portion);
+  const proteinVal = hasComponents ? sums.protein : (result?.protein_g ? Math.round(result.protein_g * portion * 10) / 10 : null);
+  const carbVal = hasComponents ? sums.carb : ((result?.carb_g ?? result?.carbs_g) ? Math.round((result.carb_g ?? result.carbs_g) * portion * 10) / 10 : null);
+  const fatVal = hasComponents ? sums.fat : (result?.fat_g ? Math.round(result.fat_g * portion * 10) / 10 : null);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -320,8 +329,8 @@ export default function MealScan() {
           </header>
 
           {!isSaved && (
-            <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/5 bg-black/5 p-4 sm:grid-cols-2">
-              <div>
+            <div className={`grid grid-cols-1 gap-4 rounded-xl border border-black/5 bg-black/5 p-4 ${hasComponents ? '' : 'sm:grid-cols-2'}`}>
+              {!hasComponents && <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-ink-2">Khẩu phần ăn</label>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {PORTIONS.map((p) => (
@@ -340,7 +349,7 @@ export default function MealScan() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </div>}
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-ink-2">Bữa ăn</label>
@@ -364,6 +373,8 @@ export default function MealScan() {
               </div>
             </div>
           )}
+
+          {hasComponents && !isSaved && <PortionAdjuster items={items} onChange={setItems} />}
 
           <dl className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(4,minmax(0,1fr))]">
             <Macro label="Calo" value={kcalVal} unit="kcal" primary />
@@ -394,12 +405,25 @@ export default function MealScan() {
                 onClick={async () => {
                   try {
                     setSaving(true);
-                    const res = await api.logMeal({
+                    // Backend nhân calories_kcal với quantity nên kết quả cũ phải gửi số của 1 phần.
+                    const res = await api.logMeal(hasComponents ? {
                       food_name: result.food_name,
                       calories_kcal: kcalVal,
                       protein_g: proteinVal ?? 0,
                       carb_g: carbVal ?? 0,
                       fat_g: fatVal ?? 0,
+                      quantity: 1,
+                      meal_type: mealType,
+                      ...(result.scan_id ? {
+                        scan_id: result.scan_id,
+                        components: items.map(({ name, grams, fct_code }) => ({ name, grams, fct_code })),
+                      } : {}),
+                    } : {
+                      food_name: result.food_name,
+                      calories_kcal: baseKcal,
+                      protein_g: result.protein_g ?? 0,
+                      carb_g: result.carb_g ?? result.carbs_g ?? 0,
+                      fat_g: result.fat_g ?? 0,
                       quantity: portion,
                       meal_type: mealType,
                     });
@@ -409,14 +433,15 @@ export default function MealScan() {
                     const planMsg = res.plan_synced?.auto_checked
                       ? ` và tự động hoàn thành ${mealLabel} trên Lộ trình!`
                       : '!';
-                    setSavedMsg(`✅ Đã lưu ${result.food_name} (${portion} phần) vào Nhật ký (+${res.added_calories} kcal)${planMsg}`);
+                    const amount = hasComponents ? '' : ` (${portion} phần)`;
+                    setSavedMsg(`✅ Đã lưu ${result.food_name}${amount} vào Nhật ký (+${Math.round(res.added_calories)} kcal)${planMsg}`);
                   } catch (e) {
                     alert(e.detail || 'Vui lòng đăng nhập để lưu bữa ăn.');
                   } finally {
                     setSaving(false);
                   }
                 }}
-                disabled={saving}
+                disabled={saving || (hasComponents && items.length === 0)}
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent-strong px-4 py-2.5 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:opacity-50"
               >
                 <Utensils size={16} />

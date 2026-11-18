@@ -4,8 +4,8 @@ import { LogoMark } from '../components/Logo.jsx';
 
 // Phiên bản chính sách - phải khớp CONSENT_VERSION ở backend/app/services/consent.py.
 // Đổi nội dung (thêm mục đích xử lý, thêm bên nhận dữ liệu...) → tăng phiên bản.
-export const POLICY_VERSION = '1.0';
-export const POLICY_DATE = '17/11/2026';
+export const POLICY_VERSION = '1.1';
+export const POLICY_DATE = '18/11/2026';
 
 const SECTIONS = [
   {
@@ -31,6 +31,7 @@ const SECTIONS = [
       'Trả lời câu hỏi của bạn bằng trợ lý AI, dựa trên tài liệu đã được chuyên gia duyệt.',
       'Cảnh báo an toàn: món có chất bạn dị ứng, món không phù hợp bệnh nền, khẩu phần quá thấp hoặc quá cao.',
       'Ước lượng dinh dưỡng từ ảnh món ăn.',
+      'Đo sai số và cải thiện ước lượng khẩu phần: hệ thống lưu tên món, gram AI dự đoán và gram bạn chốt. Ảnh món ăn không được lưu lại.',
     ],
     after: 'Chúng tôi không bán dữ liệu, không dùng cho quảng cáo và không chia sẻ cho bên thứ ba nào ngoài nhà cung cấp AI nêu ở mục 4 (chỉ khi bạn đồng ý).',
   },

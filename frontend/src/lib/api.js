@@ -137,6 +137,7 @@ export const api = {
     return request('/vision/analyze-meal', { method: 'POST', body: fd, isForm: true });
   },
   logMeal: (payload) => request('/vision/log-meal', { method: 'POST', body: payload }),
+  foodComposition: (q) => request(`/catalog/food-composition?q=${encodeURIComponent(q)}&limit=8`),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   checkEmail: (email) => request('/auth/check-email', { method: 'POST', body: { email } }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),

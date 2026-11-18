@@ -500,6 +500,24 @@ class MealLog(Base):
     item_name_snapshot: str | None = Column(String(200))  # type: ignore
 
 
+class VisionFeedback(Base):
+    """Dự đoán khẩu phần từ ảnh và số người dùng chốt. Không lưu ảnh."""
+    __tablename__ = "vision_feedback"
+    id: uuid.UUID        = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    user_id: uuid.UUID   = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    food_name: str       = Column(String(200), nullable=False)  # type: ignore
+    ai_total_kcal        = Column(Numeric(8, 2))
+    predicted_kcal       = Column(Numeric(8, 2), nullable=False)
+    final_kcal           = Column(Numeric(8, 2))
+    predicted_components = Column(JSONB, nullable=False)
+    final_components     = Column(JSONB)
+    status: str          = Column(String(20), nullable=False, default="PREDICTED")  # type: ignore
+    review_status: str   = Column(String(20), nullable=False, default="PENDING")  # type: ignore
+    meal_log_id          = Column(BigInteger, ForeignKey("meal_logs.id", ondelete="SET NULL"))
+    created_at           = Column(DateTime(timezone=True), server_default=func.now())
+    confirmed_at         = Column(DateTime(timezone=True))
+
+
 class CrawlSource(Base):
     """Nguồn cào dữ liệu y khoa tự động."""
     __tablename__ = "crawl_sources"

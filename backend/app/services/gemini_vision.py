@@ -25,8 +25,18 @@ Cấu trúc JSON bắt buộc:
   "carb_g": 70.0,
   "fat_g": 22.0,
   "description": "Mô tả ngắn về thành phần dinh dưỡng ước tính trong đĩa thức ăn",
-  "confidence": 0.92
+  "confidence": 0.92,
+  "components": [
+    {"name": "Cơm trắng", "grams": 180, "kcal_per_100g": 130, "protein_per_100g": 2.7, "carb_per_100g": 28, "fat_per_100g": 0.3},
+    {"name": "Sườn nướng", "grams": 90, "kcal_per_100g": 250, "protein_per_100g": 20, "carb_per_100g": 5, "fat_per_100g": 17}
+  ]
 }
+
+Quy tắc cho components:
+- Liệt kê từng thành phần nhìn thấy trong ảnh, tối đa 12 mục. Gộp rau gia vị rất nhỏ vào thành phần chính.
+- name là tên nguyên liệu ngắn gọn, phổ biến, không kèm mô tả (ví dụ "Thịt bò", "Bún", "Trứng gà", "Rau muống").
+- grams là khối lượng phần ăn được ở trạng thái đang thấy trong ảnh, ước lượng theo kích thước bát đĩa và vật xung quanh.
+- Các trường *_per_100g là giá trị ước tính cho 100 g của chính thành phần đó.
 
 Nếu không phải ảnh món ăn hoặc không đủ rõ:
 {
@@ -39,7 +49,8 @@ Nếu không phải ảnh món ăn hoặc không đủ rõ:
   "carb_g": null,
   "fat_g": null,
   "description": null,
-  "confidence": 0.0
+  "confidence": 0.0,
+  "components": []
 }
 """
 
@@ -88,7 +99,7 @@ def normalize_food_analysis(parsed: dict) -> dict:
     if any(parsed.get(field) is None for field in required):
         raise ValueError("Phản hồi AI thiếu dữ liệu dinh dưỡng bắt buộc")
 
-    return {
+    result = {
         "is_food_image": True,
         "food_probability": min(1.0, probability),
         "rejection_reason": None,
@@ -100,6 +111,10 @@ def normalize_food_analysis(parsed: dict) -> dict:
         "description": str(parsed.get("description") or "Ước tính dinh dưỡng từ ảnh món ăn."),
         "confidence": max(0.0, min(1.0, float(parsed.get("confidence") or probability))),
     }
+    if parsed.get("components"):
+        result["components"] = parsed["components"]
+    return result
+
 
 def analyze_food_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     """
