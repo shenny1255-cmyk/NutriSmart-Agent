@@ -202,6 +202,14 @@ def test_vi_du_da_duyet_duoc_dung_cho_lan_quet_sau_va_tat_duoc(monkeypatch, user
 
 
 @db_only
+def test_nguong_ten_mon_khop_bien_the_cua_cung_mon():
+    sql = text("SELECT similarity(f_unaccent(lower(:a)), f_unaccent(lower(:b)))")
+    with SessionLocal() as db:
+        score = db.execute(sql, {"a": "Phở bò tái", "b": "Phở bò chín"}).scalar()
+    assert few_shot.MIN_NAME_SIMILARITY == 0.35 and score >= few_shot.MIN_NAME_SIMILARITY
+
+
+@db_only
 def test_tinh_chinh_loi_van_giu_ket_qua_ban_dau(monkeypatch, user_test, dish):
     user = _user(monkeypatch, user_test)
     expert = _user(monkeypatch, user_test, "EXPERT")

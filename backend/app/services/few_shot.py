@@ -23,8 +23,9 @@ from app.services.ollama_client import OllamaError, get_embedding
 log = logging.getLogger("nutrismart.few_shot")
 
 TOP_K = 3
-# Ngưỡng khởi điểm, cần hiệu chỉnh lại trên bộ ảnh cân thật khi đo learning curve.
-MIN_NAME_SIMILARITY = 0.45
+# Nhóm chốt 0.35 trước khi đo learning curve, không đổi sau khi đã xem kết quả.
+MIN_NAME_SIMILARITY = 0.35
+# Giá trị khởi điểm, chưa kiểm chứng vì máy đo chưa có model bge-m3.
 MIN_COSINE = 0.82
 EMBED_TIMEOUT_SECONDS = 5.0
 MAX_NAME_CHARS = 80
