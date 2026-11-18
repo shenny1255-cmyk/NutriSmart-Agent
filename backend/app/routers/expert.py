@@ -1,14 +1,17 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, Form, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
-from app.models import User, Document, ChatMessage, DocChunk, CrawlSource
+from app.models import User, Document, ChatMessage, DocChunk, CrawlSource, VisionFeedback, FewShotExample
 from app.schemas import (
     DocumentOut, DocumentReviewIn, DocumentCategoryUpdateIn, CrawlIn, CrawlOut, CrawlPresetIn,
     DocPreviewOut, CrawlSourceOut, CrawlSourceCreateIn,
+    VisionFeedbackReviewOut, VisionFeedbackReviewIn, FewShotExampleOut, FewShotExampleUpdateIn,
 )
+from app.services import few_shot
 from app.services.audit import write_audit
 from app.services.doc_upload import (
     doc_text_tu_file, LoaiFileKhongHoTro, DUOI_FILE_HO_TRO, KICH_THUOC_TOI_DA,
@@ -21,6 +24,65 @@ DO_DAI_NOI_DUNG_TOI_THIEU = 100
 router = APIRouter(prefix="/expert", tags=["expert"])
 
 expert_or_admin = Depends(require_role("EXPERT", "ADMIN"))
+
+
+@router.get("/vision-feedback", response_model=list[VisionFeedbackReviewOut])
+def vision_feedback_queue(limit: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), _: User = expert_or_admin):
+    """Ca người dùng đã sửa khẩu phần và đang chờ duyệt, cũ nhất trước."""
+    return (
+        db.query(VisionFeedback)
+        .filter(VisionFeedback.status == "CORRECTED", VisionFeedback.review_status == "PENDING")  # type: ignore
+        .order_by(VisionFeedback.created_at)
+        .limit(limit)
+        .all()
+    )
+
+
+@router.patch("/vision-feedback/{feedback_id}/review", response_model=VisionFeedbackReviewOut)
+def review_vision_feedback(
+    feedback_id: UUID, payload: VisionFeedbackReviewIn,
+    db: Session = Depends(get_db), expert: User = expert_or_admin,
+):
+    """Duyệt ca sửa vào kho few-shot hoặc từ chối. Mỗi ca chỉ được xử lý một lần."""
+    row = db.query(VisionFeedback).filter(VisionFeedback.id == feedback_id).with_for_update().first()  # type: ignore
+    if row is None or row.status != "CORRECTED":
+        raise HTTPException(404, "Không tìm thấy ca sửa")
+    if row.review_status != "PENDING":
+        raise HTTPException(409, "Ca sửa này đã được duyệt")
+    try:
+        if payload.action == "APPROVE":
+            items = [c.model_dump() for c in payload.components] if payload.components else None
+            few_shot.approve(db, row, expert, items, payload.note)
+        else:
+            few_shot.reject(row, expert, payload.note)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(422, str(e))
+    write_audit(db, expert.id, payload.action, "vision_feedback", str(row.id), after={"review_status": row.review_status})
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.get("/few-shot", response_model=list[FewShotExampleOut])
+def few_shot_store(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db), _: User = expert_or_admin):
+    return db.query(FewShotExample).order_by(FewShotExample.created_at.desc()).limit(limit).all()
+
+
+@router.patch("/few-shot/{example_id}", response_model=FewShotExampleOut)
+def update_few_shot(
+    example_id: UUID, payload: FewShotExampleUpdateIn,
+    db: Session = Depends(get_db), expert: User = expert_or_admin,
+):
+    """Tắt hoặc bật lại một ví dụ; giữ bản ghi để truy vết các lần dự đoán đã dùng ví dụ này."""
+    row = db.get(FewShotExample, example_id)
+    if row is None:
+        raise HTTPException(404, "Không tìm thấy ví dụ")
+    row.is_active = payload.is_active
+    write_audit(db, expert.id, "UPDATE", "few_shot_examples", str(row.id), after={"is_active": row.is_active})
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 @router.get("/documents/pending", response_model=list[DocumentOut])

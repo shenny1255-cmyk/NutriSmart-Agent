@@ -516,6 +516,24 @@ class VisionFeedback(Base):
     meal_log_id          = Column(BigInteger, ForeignKey("meal_logs.id", ondelete="SET NULL"))
     created_at           = Column(DateTime(timezone=True), server_default=func.now())
     confirmed_at         = Column(DateTime(timezone=True))
+    reviewed_by          = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at          = Column(DateTime(timezone=True))
+    review_note: str | None = Column(Text)  # type: ignore
+    few_shot_ids         = Column(JSONB, nullable=False, default=list, server_default="[]")
+
+
+class FewShotExample(Base):
+    """Ca sửa khẩu phần đã được Expert duyệt. Không chứa định danh người dùng hay ảnh."""
+    __tablename__ = "few_shot_examples"
+    id: uuid.UUID   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
+    feedback_id     = Column(UUID(as_uuid=True), ForeignKey("vision_feedback.id", ondelete="SET NULL"), unique=True)
+    food_name: str  = Column(String(200), nullable=False)  # type: ignore
+    components      = Column(JSONB, nullable=False)
+    total_kcal      = Column(Numeric(8, 2), nullable=False)
+    embedding       = Column(Vector(1024))
+    is_active: bool = Column(Boolean, nullable=False, default=True)  # type: ignore
+    approved_by     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class CrawlSource(Base):

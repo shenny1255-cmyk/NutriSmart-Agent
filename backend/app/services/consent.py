@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.models import UserConsent
 
 # Đổi nội dung chính sách → tăng phiên bản (và đồng bộ POLICY_VERSION ở Privacy.jsx).
-CONSENT_VERSION = "1.1"
+CONSENT_VERSION = "1.2"
 TYPES = ("TERMS", "HEALTH_DATA", "CLOUD_AI")
 
 
