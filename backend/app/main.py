@@ -18,14 +18,16 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     """Bật job nền reconcile check-in và sinh phản hồi AI không đồng bộ."""
     task = None
-    warmup_task = asyncio.create_task(
-        asyncio.to_thread(
-            llm.warmup,
-            model=settings.OLLAMA_CHAT_MODEL,
-            timeout=90.0,
+    warmup_task = None
+    if settings.LLM_PROVIDER == "ollama":
+        warmup_task = asyncio.create_task(
+            asyncio.to_thread(
+                llm.warmup,
+                model=settings.OLLAMA_CHAT_MODEL,
+                timeout=90.0,
+            )
         )
-    )
-    logger.info("Đã bắt đầu warm-up Ollama model chat ở tác vụ nền")
+        logger.info("Đã bắt đầu warm-up Ollama model chat ở tác vụ nền")
     if settings.PLAN_CHECKIN_INTERVAL_MINUTES > 0:
         task = asyncio.create_task(plan_checkin.scheduler_loop())
         logger.info("Đã bật job check-in mỗi %s phút",
@@ -35,15 +37,28 @@ async def lifespan(_: FastAPI):
     finally:
         if task:
             task.cancel()
-        if not warmup_task.done():
+        if warmup_task and not warmup_task.done():
             warmup_task.cancel()
 
 
 app = FastAPI(title="NutriSmart Agent API", version="0.1.0", lifespan=lifespan)
 
+# Cấu hình CORS: Cho phép localhost, Vercel (*.vercel.app), Render (*.onrender.com)
+# và các domain chỉ định thêm qua biến môi trường CORS_ORIGINS
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if settings.CORS_ORIGINS:
+    extra = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    allowed_origins.extend(extra)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$|^https://.*\.onrender\.com$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
