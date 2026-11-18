@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    # CORS configuration: danh sách domain frontend phân cách bởi dấu phẩy
+    # Ví dụ: "https://my-app.vercel.app,http://localhost:5173"
+    CORS_ORIGINS: str = ""
+
     # Gemini Flash AI Key
     GEMINI_API_KEY: str = ""
 

@@ -1,4 +1,7 @@
-const BASE = '/api/v1';
+// Nếu cấu hình VITE_API_URL (ví dụ: https://nutrismart-backend.onrender.com), gọi trực tiếp backend đó.
+// Khi chạy local dev với Vite proxy (/api -> localhost:8000), để trống sẽ tự động dùng tương đối '/api/v1'.
+const API_BASE = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/+$/, '') : '';
+const BASE = API_BASE ? `${API_BASE}/api/v1` : '/api/v1';
 
 // Lỗi API mang theo status + detail để UI hiển thị đúng nguyên nhân.
 // Lỗi mạng (backend không chạy) → status === undefined.
