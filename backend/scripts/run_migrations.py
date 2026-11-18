@@ -41,7 +41,17 @@ def find_migrations_dir() -> Path:
     raise FileNotFoundError("Không tìm thấy thư mục `db/migrations/` chứa các file SQL!")
 
 
-def run_migrations(target_db_url: str | None = None) -> None:
+def is_effectively_empty(sql_text: str) -> bool:
+    """Kiểm tra file SQL có rỗng hoặc chỉ toàn comment/khoảng trắng không."""
+    clean_lines = [
+        line.strip()
+        for line in sql_text.splitlines()
+        if line.strip() and not line.strip().startswith("--")
+    ]
+    return len(clean_lines) == 0
+
+
+def run_migrations(target_db_url: str | None = None, reset: bool = True) -> None:
     db_url = target_db_url or default_db_url
     if not db_url:
         print("[LỖI] Không có DATABASE_URL! Hãy cấu hình trong .env hoặc truyền qua tham số dòng lệnh.")
@@ -64,25 +74,40 @@ def run_migrations(target_db_url: str | None = None) -> None:
     print(f" Số lượng file : {len(sql_files)}")
     print("=" * 65)
 
-    engine = create_engine(db_url, pool_pre_ping=True)
+    import psycopg2
 
-    with engine.connect() as conn:
-        for idx, file_path in enumerate(sql_files, start=1):
-            file_name = file_path.name
-            print(f"[{idx:02d}/{len(sql_files):02d}] Đang chạy {file_name:<30} ... ", end="", flush=True)
-            sql_content = file_path.read_text(encoding="utf-8")
-            
-            try:
-                # Sử dụng text(sql_content) và commit sau mỗi file
-                conn.execute(text(sql_content))
-                conn.commit()
-                print("✓ THÀNH CÔNG")
-            except Exception as e:
-                # Rollback nếu xảy ra lỗi trong file
-                conn.rollback()
-                print("✗ THẤT BÀI")
-                print(f"\n[LỖI CHI TIẾT] File {file_name}:\n{e}\n")
-                sys.exit(1)
+    # psycopg2 nhận postgresql:// hoặc URI chuẩn
+    dsn = db_url.replace("postgresql+psycopg2://", "postgresql://")
+    conn = psycopg2.connect(dsn)
+    conn.autocommit = True
+
+    try:
+        with conn.cursor() as cur:
+            if reset:
+                print("Đang khởi tạo lại schema public... ", end="", flush=True)
+                cur.execute("DROP SCHEMA IF EXISTS public CASCADE;")
+                cur.execute("CREATE SCHEMA public;")
+                cur.execute("GRANT ALL ON SCHEMA public TO public;")
+                print("✓ XONG\n")
+
+            for idx, file_path in enumerate(sql_files, start=1):
+                file_name = file_path.name
+                print(f"[{idx:02d}/{len(sql_files):02d}] Đang chạy {file_name:<30} ... ", end="", flush=True)
+                sql_content = file_path.read_text(encoding="utf-8")
+
+                if is_effectively_empty(sql_content):
+                    print("✓ BỎ QUA (File trống/chỉ có comment)")
+                    continue
+
+                try:
+                    cur.execute(sql_content)
+                    print("✓ THÀNH CÔNG")
+                except Exception as e:
+                    print("✗ THẤT BÀI")
+                    print(f"\n[LỖI CHI TIẾT] File {file_name}:\n{e}\n")
+                    sys.exit(1)
+    finally:
+        conn.close()
 
     print("\n" + "=" * 65)
     print("✓ Toàn bộ cơ sở dữ liệu đã được khởi tạo và seed dữ liệu thành công!")
