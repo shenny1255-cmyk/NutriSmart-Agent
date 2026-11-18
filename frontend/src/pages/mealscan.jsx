@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
-  CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar, Maximize2, Eye, X,
+  CloudUpload, ImagePlus, ScanLine, AlertTriangle, RefreshCw, Utensils, Check, Calendar, Maximize2, Eye, X, Camera,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import WarningList from '../components/WarningList.jsx';
@@ -97,7 +97,8 @@ export default function MealScan() {
   const [mealType, setMealType] = useState(getSuggestedMealType());
   const [dragging, setDragging] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
-  const inputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     mealScanCache = { preview, result };
@@ -216,21 +217,42 @@ export default function MealScan() {
             </p>
 
             <p className="mt-2 text-xs text-muted">
-              Hỗ trợ định dạng <b>PNG, JPG</b>. Chụp trên điện thoại rất nhanh!
+              Hỗ trợ định dạng <b>PNG, JPG</b>. Tải ảnh từ thư viện hoặc chụp trực tiếp.
             </p>
 
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="mt-5 inline-flex min-h-10 items-center justify-center rounded-full bg-accent-strong px-6 py-2 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card active:translate-y-0"
-            >
-              Chọn ảnh
-            </button>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-accent-strong px-5 py-2 text-sm font-semibold text-white shadow-whisper transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card active:translate-y-0"
+              >
+                <ImagePlus size={17} />
+                Chọn từ Album
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-accent-strong bg-white px-5 py-2 text-sm font-semibold text-accent-strong shadow-hairline transition-all duration-short ease-out hover:-translate-y-0.5 hover:bg-accent-soft active:translate-y-0"
+              >
+                <Camera size={17} />
+                Chụp ảnh ngay
+              </button>
+            </div>
           </label>
         )}
 
+        {/* Input mở Album / Thư viện ảnh (không có capture -> mở thư viện ảnh) */}
         <input
-          ref={inputRef}
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          onChange={onFile}
+          className="sr-only"
+        />
+
+        {/* Input mở trực tiếp Camera trên điện thoại */}
+        <input
+          ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
@@ -256,15 +278,24 @@ export default function MealScan() {
                 </span>
               </div>
             </div>
-            <div className="flex justify-center p-3 pb-1">
+            <div className="flex flex-wrap justify-center gap-2.5 p-3 pb-1">
               <button
                 type="button"
-                onClick={() => inputRef.current?.click()}
+                onClick={() => galleryInputRef.current?.click()}
                 disabled={loading}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-accent-strong shadow-hairline transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-accent-strong shadow-hairline transition-all duration-short ease-out hover:-translate-y-0.5 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ImagePlus size={17} />
-                Chọn ảnh khác
+                <ImagePlus size={16} />
+                Chọn từ Album
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={loading}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-accent-soft px-4 py-2 text-sm font-semibold text-accent-strong transition-all duration-short ease-out hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Camera size={16} />
+                Chụp ảnh lại
               </button>
             </div>
           </div>
