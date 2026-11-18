@@ -11,6 +11,7 @@ import PortionAdjuster, { portionTotals } from '../components/PortionAdjuster.js
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
 import sampleChickenRice from '../assets/sample_chicken_rice.jpg';
+import { saveScannedMealImage } from '../lib/mealImages.js';
 
 const MEAL_TYPES = [
   { value: 'BREAKFAST', label: 'Bữa Sáng' },
@@ -123,7 +124,8 @@ export default function MealScan() {
   async function handleFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
 
-    setPreview(await fileToDataUrl(file));
+    const dataUrl = await fileToDataUrl(file);
+    setPreview(dataUrl);
     setResult(null);
     setIsSaved(false);
     setSavedMsg('');
@@ -132,7 +134,11 @@ export default function MealScan() {
     setLoading(true);
 
     try {
-      setResult(await api.analyzeMeal(file));
+      const res = await api.analyzeMeal(file);
+      setResult(res);
+      if (res?.food_name) {
+        saveScannedMealImage(res.food_name, dataUrl);
+      }
     } catch (error) {
       setResult({ error: error.detail || 'Dịch vụ phân tích ảnh chưa sẵn sàng. Vui lòng thử lại sau.' });
     } finally {
@@ -155,6 +161,9 @@ export default function MealScan() {
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
       const apiResult = await api.analyzeMeal(file);
       setResult(apiResult);
+      if (apiResult?.food_name) {
+        saveScannedMealImage(apiResult.food_name, sample.img);
+      }
     } catch (error) {
       setResult({ error: error.detail || 'Dịch vụ phân tích ảnh chưa sẵn sàng. Vui lòng thử lại sau.' });
     } finally {
@@ -441,6 +450,9 @@ export default function MealScan() {
                 onClick={async () => {
                   try {
                     setSaving(true);
+                    if (result?.food_name && preview) {
+                      await saveScannedMealImage(result.food_name, preview);
+                    }
                     // Backend nhân calories_kcal với quantity nên kết quả cũ phải gửi số của 1 phần.
                     const res = await api.logMeal(hasComponents ? {
                       food_name: result.food_name,

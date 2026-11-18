@@ -12,8 +12,15 @@ import { Btn, Field, Select, Alert, Toast, useToast } from '../components/ui.jsx
 import samplePho from '../assets/sample_pho.jpg';
 import sampleSalad from '../assets/sample_salad.jpg';
 import sampleChickenRice from '../assets/sample_chicken_rice.jpg';
+import { getCustomMealImage } from '../lib/mealImages.js';
 
 function getFoodImage(name = '') {
+  if (!name) return samplePho;
+  // 1. Ưu tiên hiển thị ảnh thật người dùng đã chụp/tải lên khi quét món
+  const custom = getCustomMealImage(name);
+  if (custom) return custom;
+
+  // 2. Fallback ảnh mẫu nếu là món chọn thủ công từ danh mục
   const n = (name || '').toLowerCase();
   if (n.includes('phở') || n.includes('pho') || n.includes('bún') || n.includes('hủ tiếu') || n.includes('mì') || n.includes('mi')) return samplePho;
   if (n.includes('salad') || n.includes('rau') || n.includes('gỏi') || n.includes('bơ') || n.includes('trái cây') || n.includes('hoa quả')) return sampleSalad;
