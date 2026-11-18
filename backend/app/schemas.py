@@ -766,6 +766,22 @@ class ChatReplyOut(BaseModel):
 
 
 # ---------- Vision & Meal Logging ----------
+class VisionComponentOut(BaseModel):
+    name: str
+    grams: float
+    ai_grams: float
+    source: Literal["FCT", "AI_ESTIMATE"]
+    fct_code: str | None = None
+    fct_name: str | None = None
+    per_100g: dict[str, float]
+
+
+class VisionComponentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    grams: float = Field(gt=0, le=3000)
+    fct_code: str | None = Field(default=None, max_length=10)
+
+
 class MealAnalyzeOut(BaseModel):
     is_food_image: bool
     food_probability: float = Field(ge=0, le=1)
@@ -778,6 +794,9 @@ class MealAnalyzeOut(BaseModel):
     description: str | None = None
     confidence: float = Field(default=0, ge=0, le=1)
     warnings: list[GuardWarningOut] = []
+    scan_id: UUID | None = None
+    ai_total_kcal: float | None = None
+    components: list[VisionComponentOut] = []
 
 
 class MealLogIn(BaseModel):
@@ -789,6 +808,8 @@ class MealLogIn(BaseModel):
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
     quantity: float = Field(default=1.0, gt=0)
     log_date: date | None = None
+    scan_id: UUID | None = None
+    components: list[VisionComponentIn] | None = Field(default=None, min_length=1, max_length=15)
 
 
 # ---------- Kho bài viết (Articles) ----------

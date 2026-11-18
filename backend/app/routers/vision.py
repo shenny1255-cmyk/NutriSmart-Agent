@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 import logging
 import time
 
@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.deps import get_db, get_current_user
-from app.models import User, Food, MealLog
+from app.models import User, Food, MealLog, VisionFeedback
 from app.schemas import MealAnalyzeOut, MealLogIn
 from app.services.gemini_vision import analyze_food_image
-from app.services import guardrails
+from app.services import guardrails, portion
 from app.services.llm import _audit_external_call
 from app.services.plan_progress import sync_meal_log_with_plan
 
@@ -24,6 +24,24 @@ def _audit_vision(user, nbytes: int, t0: float, ok: bool, error: str | None = No
     _audit_external_call(actor_id=user.id, provider="gemini", model=None, purpose="meal_scan",
                          chars_sent=0, redactions={}, latency_ms=int((time.perf_counter() - t0) * 1000),
                          ok=ok, error=error, extra={"bytes_sent": nbytes})
+
+
+def _save_prediction(db: Session, user: User, analysis: dict):
+    """Ghi dự đoán để so với số người dùng chốt. Lỗi ghi log không được làm mất kết quả phân tích."""
+    if not analysis.get("components"):
+        return None
+    try:
+        row = VisionFeedback(
+            user_id=user.id, food_name=analysis["food_name"], ai_total_kcal=analysis.get("ai_total_kcal"),
+            predicted_kcal=analysis["calories_kcal"], predicted_components=analysis["components"],
+        )
+        db.add(row)
+        db.commit()
+        return row.id
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.warning("Không ghi được dự đoán khẩu phần: %s", e)
+        return None
 
 
 @router.post("/analyze-meal", response_model=MealAnalyzeOut)
@@ -64,6 +82,8 @@ async def analyze_meal_image(
         )
 
     _audit_vision(user, len(contents), t0, ok=True)
+    analysis_result = portion.enrich(analysis_result)
+    analysis_result["scan_id"] = _save_prediction(db, user, analysis_result)
 
     # Guardrail chạy SAU Vision: độ tin cậy, dị ứng/bệnh nền, vượt chỉ tiêu ngày.
     # Lỗi ở bước này không được làm mất kết quả phân tích.
@@ -73,8 +93,10 @@ async def analyze_meal_image(
             .filter(MealLog.user_id == user.id, MealLog.log_date == date.today())  # type: ignore
             .scalar()
         )
+        names = ", ".join(c["name"] for c in analysis_result["components"])
+        guard_input = {**analysis_result, "description": f"{analysis_result.get('description') or ''} . {names}"}
         analysis_result["warnings"] = guardrails.check_meal_scan(
-            analysis_result, guardrails.profile_from_user(user), consumed_today
+            guard_input, guardrails.profile_from_user(user), consumed_today
         )
     except Exception as e:  # noqa: BLE001
         logger.warning("Không chạy được Warning Engine cho ảnh món ăn: %s", e)
@@ -92,6 +114,24 @@ def log_meal(
     Sau khi lưu, card 'ĐÃ NẠP' trên Web & Mobile tự động cộng dồn
     và tự động tick mục tương ứng trong Lộ trình hôm nay.
     """
+    scan, final_components = None, None
+    if payload.scan_id is not None and payload.components:
+        scan = db.get(VisionFeedback, payload.scan_id)
+        if scan is None or scan.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy lần phân tích ảnh này")
+        if scan.status != "PREDICTED":
+            raise HTTPException(status.HTTP_409_CONFLICT, "Lần phân tích này đã được lưu vào nhật ký")
+        try:
+            final_components = portion.recalculate(
+                [item.model_dump() for item in payload.components], scan.predicted_components)
+        except ValueError as e:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e))
+        sums = portion.totals(final_components)
+        payload = payload.model_copy(update={
+            "calories_kcal": sums["energy_kcal"], "protein_g": sums["protein_g"], "carb_g": sums["carb_g"],
+            "fat_g": sums["fat_g"], "quantity": 1.0,
+        })
+
     try:
         log_date = payload.log_date or date.today()
 
@@ -121,6 +161,14 @@ def log_meal(
         )
         db.add(meal_log)
         db.flush()
+
+        if scan is not None:
+            corrected = portion.was_corrected(scan.predicted_components, final_components)
+            scan.status = "CORRECTED" if corrected else "CONFIRMED"
+            scan.final_components = final_components
+            scan.final_kcal = total_calories
+            scan.meal_log_id = meal_log.id
+            scan.confirmed_at = datetime.now(timezone.utc)
 
         # 3. Tự động đồng bộ với Lộ trình (Plan) nếu có
         plan_sync = sync_meal_log_with_plan(db, user, meal_log, log_date)
