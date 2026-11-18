@@ -6,6 +6,7 @@ Script chạy và ghi báo cáo: scripts/guardrail_eval.py
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 from app.services import guardrails
@@ -25,6 +26,34 @@ def check_case(case: dict) -> set[str]:
 
 def _ratio(a: int, b: int) -> float:
     return a / b if b else 0.0
+
+
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Khoảng tin cậy Wilson 95% cho tỷ lệ k/n (dùng được cả khi k = 0 hoặc k = n)."""
+    if n == 0:
+        return 0.0, 0.0
+    p = k / n
+    d = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / d
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return max(0.0, center - half), min(1.0, center + half)
+
+
+def applicable_counts(cases: list[dict], check: Callable[[dict], set[str]] = check_case) -> dict:
+    """Đếm theo từng loại CHỈ trên ca có khai báo loại đó.
+
+    `evaluate_cases` tính TN cả những ca không khai báo dị ứng/bệnh nền tương ứng, các ca đó
+    không thể báo nhầm nên làm tỷ lệ báo động giả trông tốt hơn thực tế.
+    """
+    fields = {"ALLERGEN": "allergens", "CONDITION": "conditions"}
+    out = {}
+    for code, field in fields.items():
+        scoped = [c for c in cases if c.get(field)]
+        pos = [c for c in scoped if code in (c.get("expect") or [])]
+        neg = [c for c in scoped if code not in (c.get("expect") or [])]
+        out[code] = {"pos": len(pos), "tp": sum(code in check(c) for c in pos),
+                     "neg": len(neg), "fp": sum(code in check(c) for c in neg)}
+    return out
 
 
 def evaluate_cases(cases: list[dict], check: Callable[[dict], set[str]] = check_case,

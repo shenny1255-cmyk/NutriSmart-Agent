@@ -38,3 +38,21 @@ def test_khong_co_mau_duong_thi_chi_so_bang_0_khong_chia_cho_0():
 def test_check_case_dung_warning_engine_that():
     case = {"text": "Bún đậu mắm tôm", "allergens": ["Hải sản có vỏ"], "conditions": []}
     assert ge.check_case(case) == {"ALLERGEN"}
+
+
+def test_khoang_tin_cay_wilson():
+    lo, hi = ge.wilson_interval(16, 18)
+    assert round(lo, 3) == 0.672 and round(hi, 3) == 0.969
+    assert ge.wilson_interval(0, 13)[0] == 0.0
+    assert ge.wilson_interval(0, 0) == (0.0, 0.0)
+
+
+def test_chi_dem_ca_co_khai_bao_loai_tuong_ung():
+    cases = [
+        {"id": "1", "text": "Tôm rang", "allergens": ["Hải sản có vỏ"], "expect": ["ALLERGEN"]},
+        {"id": "2", "text": "Rau muống luộc", "allergens": ["Hải sản có vỏ"], "expect": []},
+        {"id": "3", "text": "Rau muống luộc", "conditions": ["Bệnh gout"], "expect": []},
+    ]
+    out = ge.applicable_counts(cases)
+    assert out["ALLERGEN"] == {"pos": 1, "tp": 1, "neg": 1, "fp": 0}
+    assert out["CONDITION"] == {"pos": 0, "tp": 0, "neg": 1, "fp": 0}
