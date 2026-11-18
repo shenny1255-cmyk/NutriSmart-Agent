@@ -9,8 +9,8 @@ from sqlalchemy import func
 from app.deps import get_db, get_current_user
 from app.models import User, Food, MealLog, VisionFeedback
 from app.schemas import MealAnalyzeOut, MealLogIn
-from app.services.gemini_vision import analyze_food_image
-from app.services import guardrails, portion
+from app.services.gemini_vision import analyze_food_image, refine_components
+from app.services import few_shot, guardrails, portion
 from app.services.llm import _audit_external_call
 from app.services.plan_progress import sync_meal_log_with_plan
 
@@ -19,11 +19,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/vision", tags=["vision"])
 
 
-def _audit_vision(user, nbytes: int, t0: float, ok: bool, error: str | None = None) -> None:
+def _audit_vision(user, nbytes: int, t0: float, ok: bool, error: str | None = None,
+                  purpose: str = "meal_scan") -> None:
     """Mỗi ảnh gửi ra Gemini đều ghi audit như lời gọi chat (không gửi kèm hồ sơ nên không có gì để ẩn danh)."""
-    _audit_external_call(actor_id=user.id, provider="gemini", model=None, purpose="meal_scan",
+    _audit_external_call(actor_id=user.id, provider="gemini", model=None, purpose=purpose,
                          chars_sent=0, redactions={}, latency_ms=int((time.perf_counter() - t0) * 1000),
                          ok=ok, error=error, extra={"bytes_sent": nbytes})
+
+
+def _apply_few_shot(db: Session, user: User, image: bytes, mime_type: str, analysis: dict) -> dict:
+    """Tinh chỉnh gram bằng ca Expert đã duyệt. Lỗi ở đây luôn giữ nguyên kết quả lượt đầu."""
+    if not portion.build_components(analysis.get("components")):
+        return analysis
+    examples = few_shot.retrieve(db, analysis.get("food_name"))
+    if not examples:
+        return analysis
+    t0 = time.perf_counter()
+    try:
+        refined = refine_components(image, mime_type, analysis, few_shot.prompt_examples(examples))
+    except Exception as e:  # noqa: BLE001
+        _audit_vision(user, len(image), t0, ok=False, error=type(e).__name__, purpose="meal_scan_refine")
+        logger.warning("Không tinh chỉnh được bằng few-shot: %s", e)
+        return analysis
+    _audit_vision(user, len(image), t0, ok=True, purpose="meal_scan_refine")
+    merged = portion.merge_refined_grams(analysis["components"], refined)
+    if merged is None:
+        return analysis
+    return {**analysis, "components": merged, "few_shot_ids": [str(e.id) for e in examples]}
 
 
 def _save_prediction(db: Session, user: User, analysis: dict):
@@ -34,6 +56,7 @@ def _save_prediction(db: Session, user: User, analysis: dict):
         row = VisionFeedback(
             user_id=user.id, food_name=analysis["food_name"], ai_total_kcal=analysis.get("ai_total_kcal"),
             predicted_kcal=analysis["calories_kcal"], predicted_components=analysis["components"],
+            few_shot_ids=analysis.get("few_shot_ids") or [],
         )
         db.add(row)
         db.commit()
@@ -82,7 +105,9 @@ async def analyze_meal_image(
         )
 
     _audit_vision(user, len(contents), t0, ok=True)
+    analysis_result = _apply_few_shot(db, user, contents, file.content_type or "image/jpeg", analysis_result)
     analysis_result = portion.enrich(analysis_result)
+    analysis_result["few_shot_used"] = len(analysis_result.get("few_shot_ids") or [])
     analysis_result["scan_id"] = _save_prediction(db, user, analysis_result)
 
     # Guardrail chạy SAU Vision: độ tin cậy, dị ứng/bệnh nền, vượt chỉ tiêu ngày.

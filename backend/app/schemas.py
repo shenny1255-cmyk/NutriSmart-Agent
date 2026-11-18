@@ -782,6 +782,42 @@ class VisionComponentIn(BaseModel):
     fct_code: str | None = Field(default=None, max_length=10)
 
 
+class VisionFeedbackReviewOut(BaseModel):
+    """Ca sửa cho Expert. Cố ý không có thông tin định danh người gửi."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    food_name: str
+    ai_total_kcal: float | None = None
+    predicted_kcal: float
+    final_kcal: float | None = None
+    predicted_components: list[VisionComponentOut]
+    final_components: list[VisionComponentOut]
+    status: str
+    review_status: str
+    review_note: str | None = None
+    created_at: datetime
+
+
+class VisionFeedbackReviewIn(BaseModel):
+    action: Literal["APPROVE", "REJECT"]
+    note: str | None = Field(default=None, max_length=500)
+    components: list[VisionComponentIn] | None = Field(default=None, min_length=1, max_length=15)
+
+
+class FewShotExampleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    food_name: str
+    components: list[dict]
+    total_kcal: float
+    is_active: bool
+    created_at: datetime
+
+
+class FewShotExampleUpdateIn(BaseModel):
+    is_active: bool
+
+
 class MealAnalyzeOut(BaseModel):
     is_food_image: bool
     food_probability: float = Field(ge=0, le=1)
@@ -796,6 +832,7 @@ class MealAnalyzeOut(BaseModel):
     warnings: list[GuardWarningOut] = []
     scan_id: UUID | None = None
     ai_total_kcal: float | None = None
+    few_shot_used: int = 0
     components: list[VisionComponentOut] = []
 
 

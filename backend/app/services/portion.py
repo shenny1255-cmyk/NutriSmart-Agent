@@ -92,6 +92,17 @@ def build_components(raw_items) -> list[dict]:
     return out
 
 
+def merge_refined_grams(original: list[dict], refined) -> list[dict] | None:
+    """Lượt tinh chỉnh chỉ được đổi gram. Thiếu, thừa hoặc đổi tên thành phần → bỏ kết quả tinh chỉnh."""
+    if not isinstance(refined, list) or not all(isinstance(c, dict) for c in refined):
+        return None
+    grams = {_norm(str(c.get("name") or "")): _valid_grams(c.get("grams")) for c in refined}
+    names = [_norm(str(c.get("name") or "")) for c in original]
+    if len(refined) != len(original) or set(grams) != set(names) or None in grams.values():
+        return None
+    return [{**c, "grams": grams[_norm(str(c.get("name") or ""))]} for c in original]
+
+
 def totals(components: list[dict]) -> dict:
     return {k: round(sum(c["per_100g"][k] * c["grams"] / 100 for c in components), 1) for k in NUTRIENTS}
 
@@ -121,7 +132,7 @@ def recalculate(final_items: list[dict], predicted: list[dict]) -> list[dict]:
             out.append({**base, "grams": float(item["grams"])})
         elif code in by_code:
             row = by_code[code]
-            out.append({"name": name, "grams": float(item["grams"]), "ai_grams": 0.0, "source": "FCT",
+            out.append({"name": row["name_vi"], "grams": float(item["grams"]), "ai_grams": 0.0, "source": "FCT",
                         "fct_code": code, "fct_name": row["name_vi"], "per_100g": _per_100g(row)})
         else:
             raise ValueError(f"Thành phần không hợp lệ: {name}")

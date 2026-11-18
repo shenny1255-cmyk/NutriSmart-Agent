@@ -169,6 +169,10 @@ export const api = {
   updateDocCategory: (id, payload) => request(`/admin/doc-categories/${id}`, { method: 'PATCH', body: payload }),
   deleteDocCategory: (id) => request(`/admin/doc-categories/${id}`, { method: 'DELETE' }),
   // Expert
+  visionFeedbackQueue: () => request('/expert/vision-feedback'),
+  reviewVisionFeedback: (id, payload) => request(`/expert/vision-feedback/${id}/review`, { method: 'PATCH', body: payload }),
+  fewShotExamples: () => request('/expert/few-shot'),
+  updateFewShot: (id, payload) => request(`/expert/few-shot/${id}`, { method: 'PATCH', body: payload }),
   pendingDocs: () => request('/expert/documents/pending'),
   previewDoc: (id) => request(`/expert/documents/${id}/preview`),
   reviewDoc: (id, status, category_id = null) => request(`/expert/documents/${id}/review`, {

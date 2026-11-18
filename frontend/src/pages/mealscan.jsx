@@ -374,6 +374,11 @@ export default function MealScan() {
             </div>
           )}
 
+          {hasComponents && !isSaved && result.few_shot_used > 0 && (
+            <p className="rounded-lg bg-accent-soft px-3 py-2 text-xs font-medium text-accent-strong">
+              Khẩu phần đã tham khảo {result.few_shot_used} ca do chuyên gia duyệt.
+            </p>
+          )}
           {hasComponents && !isSaved && <PortionAdjuster items={items} onChange={setItems} />}
 
           <dl className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(4,minmax(0,1fr))]">
