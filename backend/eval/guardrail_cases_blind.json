@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "note": "Bộ BLIND TEST đánh giá độc lập Warning Engine (40 ca do tester độc lập xây dựng).",
+  "cases": [
+    {
+      "id": "blind_01",
+      "text": "Bún bò Huế",
+      "allergens": [
+        "Hải sản có vỏ"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Nước dùng bún bò Huế truyền thống bắt buộc nêm mắm ruốc Huế (chế biến từ con ruốc/tép biển thuộc nhóm giáp xác có vỏ)."
+    },
+    {
+      "id": "blind_02",
+      "text": "Thịt ba chỉ luộc chấm nước mắm tỏi ớt",
+      "allergens": [
+        "Hải sản có vỏ"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Chỉ gồm thịt heo luộc và nước mắm làm từ cá, hoàn toàn không chứa tôm, cua, ốc hay động vật có vỏ."
+    },
+    {
+      "id": "blind_03",
+      "text": "Phở bò tái nạm",
+      "allergens": [
+        "Cá"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Dù nguyên liệu chính là thịt bò nhưng nước dùng phở truyền thống luôn nêm nước mắm cá cốt để dậy mùi thơm đặc trưng."
+    },
+    {
+      "id": "blind_04",
+      "text": "Gỏi ngó sen tôm thịt",
+      "allergens": [
+        "Đậu phộng"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Món gỏi miền Nam truyền thống luôn rắc đậu phộng rang giã dập lên bề mặt để tạo độ bùi béo."
+    },
+    {
+      "id": "blind_05",
+      "text": "Canh khổ qua nhồi thịt",
+      "allergens": [
+        "Đậu phộng"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Món canh làm từ khổ qua, thịt heo băm, nấm mèo và hành lá, không sử dụng đậu phộng trong chế biến."
+    },
+    {
+      "id": "blind_06",
+      "text": "Bò lúc lắc",
+      "allergens": [
+        "Đậu nành"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Công thức ướp thịt bò lúc lắc truyền thống luôn dùng nước tương (xì dầu làm từ đậu nành) và dầu hào để làm mềm và đậm vị thịt."
+    },
+    {
+      "id": "blind_07",
+      "text": "Cơm tấm sườn bì chả",
+      "allergens": [
+        "Trứng"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Miếng chả trứng hấp đặc trưng trong dĩa cơm tấm được làm từ trứng vịt/trứng gà đánh tan hấp cùng thịt băm và bún tàu."
+    },
+    {
+      "id": "blind_08",
+      "text": "Phở gà ta",
+      "allergens": [
+        "Sữa bò"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Món nước truyền thống nấu từ xương gà, thịt gà, bánh phở gạo và rau thơm, không chứa sữa bò hay chế phẩm từ sữa."
+    },
+    {
+      "id": "blind_09",
+      "text": "Bánh flan caramen",
+      "allergens": [
+        "Sữa bò"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Món tráng miệng phổ biến được chế biến trực tiếp từ hỗn hợp sữa tươi, sữa đặc có đường và trứng gà."
+    },
+    {
+      "id": "blind_10",
+      "text": "Bánh mì thịt nướng",
+      "allergens": [
+        "Gluten"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Vỏ bánh mì Việt Nam được làm từ bột mì chứa hàm lượng gluten cao."
+    },
+    {
+      "id": "blind_11",
+      "text": "Bánh đúc lá dứa",
+      "allergens": [
+        "Gluten"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Bánh đúc miền Nam được khuấy từ bột gạo tẻ, bột năng và nước cốt lá dứa, hoàn toàn không chứa bột mì hay gluten."
+    },
+    {
+      "id": "blind_12",
+      "text": "Hến xúc bánh đa",
+      "allergens": [
+        "Mè"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Bánh đa nướng ăn kèm hến xào đặc sản miền Trung luôn được phủ nhiều hạt mè (vừng) rang trên bề mặt bánh."
+    },
+    {
+      "id": "blind_13",
+      "text": "Bánh trung thu thập cẩm",
+      "allergens": [
+        "Hạt cây"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Nhân bánh thập cẩm truyền thống luôn có hạt điều (thuộc nhóm hạt cây) trộn cùng mứt bí, lạp xưởng và mỡ đường."
+    },
+    {
+      "id": "blind_14",
+      "text": "Canh bầu nấu thịt băm",
+      "allergens": [],
+      "conditions": [
+        "Bệnh Gút"
+      ],
+      "expect": [],
+      "note": "Bầu thuộc nhóm rau củ có hàm lượng purin rất thấp, kết hợp lượng nhỏ thịt heo nạc băm nên an toàn cho người bệnh Gút."
+    },
+    {
+      "id": "blind_15",
+      "text": "Lẩu lòng bò",
+      "allergens": [],
+      "conditions": [
+        "Bệnh Gút"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Nội tạng động vật (lòng, gan, lá lách) và nước hầm thịt đỏ chứa hàm lượng nhân purin cực cao, dễ kích phát cơn gút cấp."
+    },
+    {
+      "id": "blind_16",
+      "text": "Xôi mặn thập cẩm",
+      "allergens": [],
+      "conditions": [
+        "Đái tháo đường típ 2"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Gạo nếp có chỉ số đường huyết (GI) rất cao, dễ gây tăng vọt đường huyết sau ăn ở người đái tháo đường típ 2."
+    },
+    {
+      "id": "blind_17",
+      "text": "Cá diêu hồng hấp gừng hành",
+      "allergens": [],
+      "conditions": [
+        "Đái tháo đường típ 2"
+      ],
+      "expect": [],
+      "note": "Món hấp giàu đạm lành mạnh, ít tinh bột và không chứa đường đơn, giúp ổn định đường huyết."
+    },
+    {
+      "id": "blind_18",
+      "text": "Cá kho tộ",
+      "allergens": [],
+      "conditions": [
+        "Tăng huyết áp"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Món kho truyền thống miền Nam nêm nhiều nước mắm, muối và nước màu để kho kẹo, chứa lượng natri rất cao gây tăng huyết áp."
+    },
+    {
+      "id": "blind_19",
+      "text": "Bông cải xanh luộc",
+      "allergens": [],
+      "conditions": [
+        "Tăng huyết áp"
+      ],
+      "expect": [],
+      "note": "Rau xanh luộc thanh đạm, không nêm muối hay gia vị mặn, lại giàu kali tự nhiên có lợi cho việc kiểm soát huyết áp."
+    },
+    {
+      "id": "blind_20",
+      "text": "Cháo lòng tiết canh",
+      "allergens": [],
+      "conditions": [
+        "Rối loạn lipid máu"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Lòng heo, dồi trường, tim gan và tiết chứa hàm lượng cholesterol cùng chất béo bão hòa rất cao, làm nặng thêm tình trạng mỡ máu."
+    },
+    {
+      "id": "blind_21",
+      "text": "Bún đậu mắm tôm",
+      "allergens": [
+        "Hải sản có vỏ"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Chấm kèm mắm tôm lên men từ con moi/tép biển (giáp xác có vỏ), gây phản ứng dị ứng nghiêm trọng."
+    },
+    {
+      "id": "blind_22",
+      "text": "Gà nướng muối ớt",
+      "allergens": [
+        "Cá"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Nguyên liệu gồm thịt gà ướp muối, ớt, sả, tỏi và dầu ăn, không sử dụng cá hay nước mắm cá."
+    },
+    {
+      "id": "blind_23",
+      "text": "Canh chua cá lóc",
+      "allergens": [
+        "Cá"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Thành phần chính là cá lóc đồng và thường nêm thêm nước mắm cá để tạo vị đậm đà."
+    },
+    {
+      "id": "blind_24",
+      "text": "Bánh tráng trộn",
+      "allergens": [
+        "Đậu phộng"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Món ăn vặt đường phố luôn trộn kèm đậu phộng rang giã dập cùng muối tôm, khô bò và rau răm."
+    },
+    {
+      "id": "blind_25",
+      "text": "Cơm gà xé phay Hội An",
+      "allergens": [
+        "Đậu nành"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Gồm cơm nấu nước luộc gà, thịt gà ta xé, hành tây, rau răm và nước mắm chua ngọt, không dùng đậu nành hay nước tương."
+    },
+    {
+      "id": "blind_26",
+      "text": "Đậu hũ nhồi thịt sốt cà chua",
+      "allergens": [
+        "Đậu nành"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Thành phần chính là đậu hũ (đậu phụ) được chế biến trực tiếp từ hạt đậu nành."
+    },
+    {
+      "id": "blind_27",
+      "text": "Canh bí đỏ hầm xương",
+      "allergens": [
+        "Trứng"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Món canh gia đình nấu từ bí đỏ và xương sườn heo, hoàn toàn không có thành phần trứng."
+    },
+    {
+      "id": "blind_28",
+      "text": "Bánh mì chảo thập cẩm",
+      "allergens": [
+        "Trứng"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Suất ăn sáng phổ biến này luôn có trứng gà ốp la đi kèm cùng pate, xúc xích và xíu mại."
+    },
+    {
+      "id": "blind_29",
+      "text": "Bánh mì bơ tỏi phô mai",
+      "allergens": [
+        "Sữa bò"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Chứa phô mai tan chảy và bơ động vật, đều là chế phẩm trực tiếp từ sữa bò."
+    },
+    {
+      "id": "blind_30",
+      "text": "Mì hoành thánh",
+      "allergens": [
+        "Gluten"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Cả sợi mì tươi và lớp vỏ bánh hoành thánh đều được cán từ bột mì giàu gluten."
+    },
+    {
+      "id": "blind_31",
+      "text": "Canh chua cá diêu hồng",
+      "allergens": [
+        "Mè"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Canh chua nấu từ cá diêu hồng, cà chua, thơm (dứa), bạc hà và rau om, không sử dụng hạt mè hay dầu mè."
+    },
+    {
+      "id": "blind_32",
+      "text": "Bánh rán ngọt phủ vừng",
+      "allergens": [
+        "Mè"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Lớp vỏ bánh rán truyền thống miền Bắc được áo một lớp vừng (mè) trắng rang thơm bên ngoài."
+    },
+    {
+      "id": "blind_33",
+      "text": "Bò kho bánh mì",
+      "allergens": [
+        "Hạt cây"
+      ],
+      "conditions": [],
+      "expect": [],
+      "note": "Bò kho nấu từ thịt bò, cà rốt, sả, hoa hồi, quế và ăn kèm bánh mì bột mì, không chứa các loại hạt cây như hạt điều hay hạnh nhân."
+    },
+    {
+      "id": "blind_34",
+      "text": "Gà xào hạt điều",
+      "allergens": [
+        "Hạt cây"
+      ],
+      "conditions": [],
+      "expect": [
+        "ALLERGEN"
+      ],
+      "note": "Món xào này sử dụng trực tiếp hạt điều (thuộc nhóm hạt cây gây dị ứng) đảo cùng thịt gà và rau củ."
+    },
+    {
+      "id": "blind_35",
+      "text": "Ốc len xào dừa",
+      "allergens": [],
+      "conditions": [
+        "Bệnh Gút"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Hải sản có vỏ như ốc len chứa nhiều nhân purin làm tăng nhanh nồng độ acid uric trong máu."
+    },
+    {
+      "id": "blind_36",
+      "text": "Chè đậu xanh nước cốt dừa",
+      "allergens": [],
+      "conditions": [
+        "Đái tháo đường típ 2"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Chè nấu với lượng lớn đường tinh luyện kết hợp tinh bột đậu xanh làm tăng đường huyết sau ăn rất nhanh."
+    },
+    {
+      "id": "blind_37",
+      "text": "Cà pháo muối chua chấm mắm tôm",
+      "allergens": [],
+      "conditions": [
+        "Tăng huyết áp"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Cà muối nén và mắm tôm đều có hàm lượng muối (natri) cực kỳ cao, chống chỉ định với người tăng huyết áp."
+    },
+    {
+      "id": "blind_38",
+      "text": "Ức gà áp chảo",
+      "allergens": [],
+      "conditions": [
+        "Rối loạn lipid máu"
+      ],
+      "expect": [],
+      "note": "Ức gà bỏ da chứa rất ít chất béo bão hòa và cholesterol, phù hợp cho thực đơn kiểm soát mỡ máu."
+    },
+    {
+      "id": "blind_39",
+      "text": "Cơm chiên dương châu",
+      "allergens": [],
+      "conditions": [
+        "Rối loạn lipid máu"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Cơm được chiên đảo nhiều dầu mỡ cùng lạp xưởng, chả lụa và trứng, giàu chất béo bão hòa và năng lượng."
+    },
+    {
+      "id": "blind_40",
+      "text": "Mắm chưng thịt hột vịt",
+      "allergens": [],
+      "conditions": [
+        "Bệnh thận mạn"
+      ],
+      "expect": [
+        "CONDITION"
+      ],
+      "note": "Món mắm chưng miền Nam chứa lượng muối (natri) cực cao cùng nhiều đạm và phospho từ mắm cá, thịt heo và trứng vịt, gây quá tải cho thận."
+    }
+  ]
+}
