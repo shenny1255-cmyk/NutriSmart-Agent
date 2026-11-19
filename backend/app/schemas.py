@@ -521,6 +521,8 @@ class MealLogOut(BaseModel):
     fat_g: float | None = None
     log_date: date
     source_type: str | None = None
+    # True khi bữa ăn vừa ghi đã tự đánh dấu hoàn thành ô tương ứng trên Lộ trình.
+    plan_synced: bool = False
 
 
 class ManualActivityIn(BaseModel):

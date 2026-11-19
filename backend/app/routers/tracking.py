@@ -289,7 +289,7 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
     )
     db.add(log)
     db.flush()
-    plan_progress.sync_meal_log_with_plan(db, user, log, log_date)
+    synced = plan_progress.sync_meal_log_with_plan(db, user, log, log_date)
     db.commit()
     db.refresh(log)
 
@@ -304,6 +304,7 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
         fat_g=round(float(food.fat_g or 0) * float(log.quantity), 1) if food.fat_g is not None else None,
         log_date=log.log_date,  # type: ignore
         source_type=cast(str | None, log.source_type),
+        plan_synced=synced is not None,
     )
 
 

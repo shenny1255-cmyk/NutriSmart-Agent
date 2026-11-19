@@ -112,6 +112,7 @@ def test_ghi_bua_an_thu_cong_roi_liet_ke_va_xoa(nguoi_dung):
     ))
     # 430 kcal × 2 phần
     assert ket_qua.calories_kcal == pytest.approx(860, abs=0.5)
+    assert ket_qua.plan_synced is False      # chưa có lộ trình thì không báo đã đồng bộ
 
     hom_nay = danh_sach_bua_an(db, u, date.today())
     assert [m.food_name for m in hom_nay] == ["Phở bò"]

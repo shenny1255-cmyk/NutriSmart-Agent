@@ -555,3 +555,27 @@ def test_meal_log_sync_auto_checks_plan_meal_slot():
     db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
     db.commit()
     db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_ghi_mon_thu_cong_bao_da_dong_bo_va_lo_trinh_biet_bua_tu_nhat_ky():
+    from app.routers.tracking import them_bua_an
+    from app.schemas import ManualMealIn
+    from app.services.plan_progress import list_progress
+
+    db = SessionLocal()
+    user, plan, checkin = _create_program(db)
+    try:
+        sang = them_bua_an(db, user, ManualMealIn(
+            food_name="Bánh mì trứng", calories_kcal=350, meal_type="BREAKFAST", log_date=date.today()))
+        assert sang.plan_synced is True
+        phu = them_bua_an(db, user, ManualMealIn(
+            food_name="Sữa chua", calories_kcal=100, meal_type="SNACK", log_date=date.today()))
+        assert phu.plan_synced is False          # bữa phụ không có ô trên lộ trình
+
+        today = next(r for r in list_progress(db, user, checkin) if r["progress_date"] == date.today())
+        assert "meal:0" in today["checked_items"] and today["diary_items"] == ["meal:0"]
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()

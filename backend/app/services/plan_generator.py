@@ -15,12 +15,17 @@ from app.config import settings
 from app.models import User, NutritionPlan
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services import ollama_client, guardrails, llm  # ollama_client: test monkeypatch qua module này
-from app.services.nutrition_context import gather_context
+from app.services.nutrition_context import gather_context, tracking_summary
 
 logger = logging.getLogger(__name__)
 
 PLAN_DAYS = 7
 PLAN_VALID_DAYS = 14
+MIN_TRACKED_DAYS = 3  # dưới mức này dữ liệu Nhật ký chỉ mang tính tham khảo
+# temperature 0 khiến hồ sơ không đổi thì thực đơn lần sau y hệt lần trước. 0.5 đủ đổi món,
+# cấu trúc JSON vẫn được giữ nhờ json_schema và vòng thử sửa một lần trong _llm_days.
+PLAN_TEMPERATURE = 0.5
+MAX_PREVIOUS_MEALS = 21  # tối đa 7 ngày x 3 bữa của lộ trình trước
 
 
 class PlanMealOutput(BaseModel):
@@ -44,7 +49,53 @@ class PlanOutput(BaseModel):
     days: list[PlanDayOutput] = Field(min_length=PLAN_DAYS, max_length=PLAN_DAYS)
 
 
-def build_prompt(profile_data: dict, target: int, note: str | None = None) -> str:
+def _tracking_block(tracking: dict | None, target: int) -> str:
+    """Dữ liệu Nhật ký thực tế cho LLM (UAT ISS-01). Mục tiêu calo giữ nguyên, chỉ đổi cách lên thực đơn."""
+    if not tracking:
+        return ""
+    days, logged = tracking["days"], tracking.get("logged_days") or 0
+    intake, burned = tracking["avg_intake"], tracking["avg_burned"]
+    gap = intake - target
+    caution = (f"\nDữ liệu mới có {logged} ngày (dưới {MIN_TRACKED_DAYS} ngày) nên chỉ dùng để tham khảo."
+               if logged < MIN_TRACKED_DAYS else "")
+    return (
+        f"\nDỮ LIỆU NHẬT KÝ THỰC TẾ (có ghi bữa ăn {logged}/{days} ngày):\n"
+        f"Trong {days} ngày qua, người dùng thực tế nạp trung bình {intake:.0f} kcal/ngày và tiêu hao "
+        f"{burned:.0f} kcal/ngày (từ vận động đã ghi). Lượng nạp so với mục tiêu: {gap:+.0f} kcal/ngày.\n"
+        "Hãy dựa vào mức độ thâm hụt/thặng dư thực tế này để điều chỉnh thực đơn 7 ngày tới bám sát mục tiêu "
+        f"của người dùng. Không thay đổi mức calo mục tiêu {target} kcal/ngày: nếu đang nạp vượt, ưu tiên món "
+        "no lâu, ít năng lượng và chia khẩu phần rõ ràng; nếu đang nạp thiếu nhiều, chọn món dễ ăn, đủ năng "
+        "lượng; nếu vận động đã ghi còn ít, chọn bài tập vừa sức để tăng dần."
+        f"{caution}\n"
+    )
+
+
+def previous_meal_names(content) -> list[str]:
+    """Tên món của lộ trình trước, không trùng, giữ thứ tự, để LLM tránh lặp lại."""
+    days = content.get("days") if isinstance(content, dict) else None
+    if not isinstance(days, list):
+        return []
+    names, seen = [], set()
+    for day in days:
+        for meal in (day.get("meals") or []) if isinstance(day, dict) else []:
+            name = " ".join(str(meal.get("name") or "").split()) if isinstance(meal, dict) else ""
+            if name and name.casefold() not in seen:
+                seen.add(name.casefold())
+                names.append(name)
+    return names[:MAX_PREVIOUS_MEALS]
+
+
+def _previous_block(previous_meals: list[str] | None) -> str:
+    if not previous_meals:
+        return ""
+    return (
+        "\nTHỰC ĐƠN LỘ TRÌNH TRƯỚC: " + "; ".join(previous_meals) + "\n"
+        "Hãy làm mới thực đơn, thay đổi các món chính so với thực đơn trước để đa dạng khẩu vị.\n"
+    )
+
+
+def build_prompt(profile_data: dict, target: int, note: str | None = None,
+                 tracking: dict | None = None, previous_meals: list[str] | None = None) -> str:
     """Prompt tiếng Việt, ép LLM trả về đúng một chuỗi JSON."""
     conditions = ", ".join(profile_data.get("conditions") or []) or "không có"
     allergens = ", ".join(profile_data.get("allergens") or []) or "không có"
@@ -66,12 +117,15 @@ def build_prompt(profile_data: dict, target: int, note: str | None = None) -> st
 - Lượng calo mục tiêu mỗi ngày: {target} kcal
 - Bệnh nền: {conditions}
 - Dị ứng: {allergens}
-{extra}
+{_tracking_block(tracking, target)}{_previous_block(previous_meals)}{extra}
 YÊU CẦU BẮT BUỘC:
 1. AN TOÀN SỨC KHỎE: TUYỆT ĐỐI không dùng nguyên liệu người dùng dị ứng ({allergens}).
    Món ăn phải phù hợp với bệnh nền ({conditions}) - ví dụ tiểu đường thì hạn chế đường và
    tinh bột hấp thu nhanh, tăng huyết áp thì giảm muối, gout thì tránh nội tạng và hải sản.
 2. ĐA DẠNG MÓN ĂN: Các món Sáng/Trưa/Tối phải cực kỳ phong phú, ưu tiên món ăn Việt Nam thực tế, đổi mới liên tục qua {PLAN_DAYS} ngày (không lặp đi lặp lại).
+   Ưu tiên ẩm thực gia đình Việt Nam dân dã, quen thuộc, dễ chế biến (ví dụ: cơm, canh, cá kho, thịt luộc/kho,
+   trứng chiên, đậu hũ, rau muống/cải luộc...). Nguyên liệu dễ mua ở chợ hoặc siêu thị Việt Nam, phù hợp với
+   sinh viên và người bận rộn. Tránh món cầu kỳ, đắt đỏ hoặc nguyên liệu nhập khẩu khó tìm.
 3. ĐA DẠNG BÀI TẬP: Đề xuất bài tập thể dục thay đổi mỗi ngày (ví dụ: chạy bộ, gym, yoga, HIIT, bơi lội...).
 4. ĐỊNH DẠNG CHUẨN: Trả về KẾT QUẢ ĐẦU RA LÀ ĐÚNG MỘT CHUỖI JSON DUY NHẤT. KHÔNG kèm theo bất kỳ văn bản giải thích nào khác. Đảm bảo cấu trúc JSON như sau:
 {{
@@ -121,9 +175,9 @@ def _llm_days(prompt: str, timeout: float | None = None, user=None) -> list | No
                 ollama_model=settings.OLLAMA_MODEL,
                 timeout=timeout or settings.PLAN_LLM_TIMEOUT_SECONDS,
                 json_schema=schema,
-                # JSON dài cần cửa sổ rộng; temperature 0 giúp model nhỏ ổn định hơn.
+                # JSON dài cần cửa sổ rộng.
                 max_tokens=2048,
-                temperature=0,
+                temperature=PLAN_TEMPERATURE,
                 ollama_options={"num_ctx": 4096},
             )
         except Exception as exc:
@@ -189,7 +243,18 @@ def generate_content(
         ctx = gather_context(db, user)
         profile_data = ctx.get("profile") or {}
 
-    days = _llm_days(build_prompt(profile_data, target, note), user=user)
+    # Router truyền sẵn profile_data nên Nhật ký luôn được đọc riêng ở đây.
+    tracking = tracking_summary(db, user.id)
+    # Lúc này lộ trình mới chưa được tạo, nên bản mới nhất chính là lộ trình trước.
+    latest = (
+        db.query(NutritionPlan)
+        .filter(NutritionPlan.user_id == user.id)  # type: ignore
+        .order_by(NutritionPlan.version.desc())  # type: ignore
+        .first()
+    )
+    previous = previous_meal_names(latest.content) if latest is not None else []
+    prompt = build_prompt(profile_data, target, note, tracking=tracking, previous_meals=previous)
+    days = _llm_days(prompt, user=user)
     if days is None:
         return fallback_content(target)
     return {"days": days}
