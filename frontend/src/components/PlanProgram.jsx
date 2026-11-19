@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints,
-  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sun,
+  HelpCircle, Lightbulb, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sun,
   Sunrise, UserCheck, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
@@ -125,6 +125,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   const [history, setHistory] = useState([]);
   const [activeDate, setActiveDate] = useState(null);
   const [checkedByDate, setCheckedByDate] = useState({});
+  const [diaryByDate, setDiaryByDate] = useState({});
   const [statusByDate, setStatusByDate] = useState({});
   const [progressBusy, setProgressBusy] = useState(false);
   const [missingItems, setMissingItems] = useState(null);
@@ -144,11 +145,14 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
     setPlan(nextPlan);
     const checked = {};
     const statuses = {};
+    const diary = {};
     for (const row of nextPlan.daily_progress || []) {
       checked[row.progress_date] = row.checked_items || [];
       statuses[row.progress_date] = row.status;
+      diary[row.progress_date] = row.diary_items || [];
     }
     setCheckedByDate(checked);
+    setDiaryByDate(diary);
     setStatusByDate(statuses);
     const dates = datesInPeriod(nextPlan.current_checkin);
     setActiveDate((current) => {
@@ -266,6 +270,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
 
   const periodDates = datesInPeriod(plan?.current_checkin);
   const checkedItems = checkedByDate[activeDate] || [];
+  const diaryItems = diaryByDate[activeDate] || [];
   const progressStatus = statusByDate[activeDate] || 'IN_PROGRESS';
   const futureDate = activeDate > todayKey();
   const pastDate = Boolean(activeDate && activeDate < todayKey());
@@ -304,6 +309,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
 
   function applyProgress(result) {
     setCheckedByDate((current) => ({ ...current, [result.progress_date]: result.checked_items }));
+    setDiaryByDate((current) => ({ ...current, [result.progress_date]: result.diary_items || [] }));
     setStatusByDate((current) => ({ ...current, [result.progress_date]: result.status }));
     if (result.status === 'COMPLETED' || (result.checked_items && result.checked_items.length >= totalItems && totalItems > 0)) {
       fireConfetti();
@@ -398,7 +404,8 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   return (
     <div className="max-w-4xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
           <h1 className="font-display text-2xl font-bold tracking-tight">Lộ trình cá nhân hóa</h1>
           <button
             type="button"
@@ -410,6 +417,8 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
             <HelpCircle size={15} />
             <span className="hidden sm:inline">Hướng dẫn</span>
           </button>
+          </div>
+          <p className="mt-1 text-sm font-medium text-ink-2">Kế hoạch dinh dưỡng & tập luyện 7 ngày tới (Mục tiêu chiến lược)</p>
         </div>
 
         <GenerateButton loading={isGenerating || generatorBusy} onClick={openGenerator}>
@@ -619,12 +628,21 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     </div>
                   )}
 
+                  <p className="mb-3 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-sm text-ink-2">
+                    <Lightbulb size={16} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+                    <span>
+                      <span className="font-semibold text-ink">Mẹo:</span> Khi bạn ghi món ăn trong{' '}
+                      <Link to="/diary" className="font-semibold text-accent-strong hover:underline">Nhật ký</Link>{' '}
+                      hàng ngày, tiến độ bữa ăn và calo sẽ được tự động đồng bộ sang Lộ trình tại đây.
+                    </span>
+                  </p>
                   <ol className="relative space-y-1 border-l-2 border-rule-2 pl-5 marker:content-none">
                     {(day.meals || []).map((meal, index) => (
                       <ProgressItem
                         key={`meal:${index}`}
                         icon={mealIcon(meal.type)}
                         checked={checkedItems.includes(`meal:${index}`)}
+                        fromDiary={checkedItems.includes(`meal:${index}`) && diaryItems.includes(`meal:${index}`)}
                         disabled={progressLocked}
                         onToggle={() => toggleItem(`meal:${index}`)}
                         title={meal.name}
@@ -890,7 +908,7 @@ function SummaryMetric({ label, value }) {
   );
 }
 
-function ProgressItem({ icon: Icon, checked, disabled, onToggle, title, tag, trailing, exercise }) {
+function ProgressItem({ icon: Icon, checked, disabled, onToggle, title, tag, trailing, exercise, fromDiary }) {
   return (
     <li className="relative py-1">
       <span className="absolute -left-[1.72rem] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-paper-2 bg-rule" />
@@ -913,6 +931,11 @@ function ProgressItem({ icon: Icon, checked, disabled, onToggle, title, tag, tra
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold uppercase tracking-wide text-ink-2">{tag}</span>
           <span className={`block text-sm ${checked ? 'font-medium text-muted line-through' : 'font-semibold text-ink'}`}>{title}</span>
+          {fromDiary && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-strong">
+              <CheckCircle2 size={12} aria-hidden="true" /> Đã đồng bộ từ Nhật ký
+            </span>
+          )}
         </span>
         {trailing && <span className="shrink-0 text-sm font-medium text-ink-2">{trailing}</span>}
       </label>

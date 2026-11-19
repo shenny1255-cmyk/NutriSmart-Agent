@@ -49,7 +49,9 @@ def seed_demo(db: Session = Depends(get_db)):
         # Các bảng FK → users.id không có ON DELETE CASCADE → xóa thủ công
         uid = str(old.id)
         db.execute(text("DELETE FROM audit_logs WHERE actor_id = :uid"), {"uid": uid})
-        db.execute(text("DELETE FROM documents WHERE uploaded_by = :uid OR approved_by = :uid"), {"uid": uid})
+        # Giữ lại tài liệu (kho bài viết và RAG), chỉ gỡ liên kết tới tài khoản demo sắp bị xóa.
+        db.execute(text("UPDATE documents SET uploaded_by = NULL WHERE uploaded_by = :uid"), {"uid": uid})
+        db.execute(text("UPDATE documents SET approved_by = NULL WHERE approved_by = :uid"), {"uid": uid})
         db.delete(old)
     db.flush()
 
@@ -219,31 +221,7 @@ def seed_demo(db: Session = Depends(get_db)):
     db.flush()
     plan_checkin.start_new_series(db, user, plan, today=date.today() - timedelta(days=14))
 
-    # Vài tài liệu chờ duyệt để demo màn Expert (kèm raw_text để test luồng Chunking & Embedding)
-    sample_docs = [
-        (
-            "Hướng dẫn dinh dưỡng cho người tiểu đường típ 2",
-            "https://moh.gov.vn",
-            "Người mắc bệnh đái tháo đường típ 2 cần kiểm soát nghiêm ngặt chỉ số đường huyết. Ưu tiên thực phẩm có chỉ số đường huyết GI thấp như rau xanh, ngũ cốc nguyên hạt, đậu đỗ. Hạn chế tối đa đường tinh chế, nước ngọt có ga, bánh kẹo. Chia nhỏ khẩu phần thành 3 bữa chính và 1-2 bữa phụ để tránh tăng đường huyết đột ngột sau ăn."
-        ),
-        (
-            "Khuyến nghị lượng đạm theo cân nặng - WHO",
-            "https://who.int",
-            "Theo khuyến nghị của Tổ chức Y tế Thế giới (WHO), lượng đạm tối thiểu cho người trưởng thành là 0.8g/kg trọng lượng cơ thể mỗi ngày. Với người tham gia tập luyện thể thao hoặc vận động nặng, nhu cầu đạm tăng lên 1.2g - 2.0g/kg/ngày. Nguồn đạm chất lượng cao bao gồm thịt ức gà, cá biển, trứng, sữa tươi và các loại đậu."
-        ),
-        (
-            "Thành phần dinh dưỡng thực phẩm Việt Nam",
-            "https://fdc.nal.usda.gov",
-            "Việc nắm rõ hàm lượng calo và dinh dưỡng đa lượng trong các món ăn Việt Nam giúp kiểm soát cân nặng tốt hơn. Một tô phở bò trung bình cung cấp 430 kcal cùng 25g protein. Một dĩa cơm tấm sườn nướng cung cấp 620 kcal. Việc kết hợp rau xanh và tập luyện giúp đốt cháy năng lượng dư thừa."
-        ),
-    ]
-
-    for title, src, raw_content in sample_docs:
-        db.execute(text("""
-            INSERT INTO documents (id, title, source_url, source_name, raw_text, status, uploaded_by)
-            VALUES (gen_random_uuid(), :t, :u, :s, :raw, 'PENDING', :uid)
-        """), {"t": title, "u": src, "s": src, "raw": raw_content, "uid": str(user.id)})
-
+    # Không tạo tài liệu mẫu ở đây: bài viết thật (cào từ trang gốc) nạp bằng scripts/seed_knowledge_demo.py.
     db.commit()
 
     return {

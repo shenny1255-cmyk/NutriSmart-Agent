@@ -23,7 +23,7 @@ def _valid_plan_json() -> str:
     }, ensure_ascii=False)
 
 
-def test_llm_days_ep_json_schema_va_nhiet_do_thap(monkeypatch):
+def test_llm_days_ep_json_schema_va_dung_nhiet_do_cau_hinh(monkeypatch):
     captured = {}
 
     def fake_chat(messages, **kwargs):
@@ -37,7 +37,8 @@ def test_llm_days_ep_json_schema_va_nhiet_do_thap(monkeypatch):
 
     assert days is not None
     assert len(days) == 7
-    assert captured["kwargs"]["options"]["temperature"] == 0
+    # Không còn temperature 0: hồ sơ không đổi thì thực đơn các lần tạo vẫn phải khác nhau.
+    assert captured["kwargs"]["options"]["temperature"] == plan_generator.PLAN_TEMPERATURE
     schema = captured["kwargs"]["response_format"]
     assert schema["type"] == "object"
     assert schema["properties"]["days"]["minItems"] == 7

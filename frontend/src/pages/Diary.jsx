@@ -90,7 +90,10 @@ export default function Diary() {
   return (
     <div className="max-w-4xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold tracking-tight">Nhật ký hằng ngày</h1>
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-bold tracking-tight">Nhật ký hằng ngày</h1>
+          <p className="mt-1 text-sm font-medium text-ink-2">Nhật ký dinh dưỡng hàng ngày (Ghi nhận thực tế nạp & tiêu hao trong ngày)</p>
+        </div>
         <label className="flex items-center gap-2 text-sm text-muted">
           Ngày
           <Field type="date" value={ngay} max={homNay()} onChange={(e) => setNgay(e.target.value || homNay())} />
@@ -336,7 +339,10 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
       };
       const res = await api.addMeal(payload);
       setTenMoi(''); setKcal(''); setPhan('1');
-      onSaved(`Đã ghi ${res.food_name} (+${Math.round(res.calories_kcal)} kcal).`);
+      // Chỉ báo đã cập nhật Lộ trình khi backend xác nhận thật sự đồng bộ (bữa phụ hoặc chưa có lộ trình thì không).
+      onSaved(res.plan_synced
+        ? 'Đã lưu vào Nhật ký & tự động cập nhật tiến độ bên Lộ trình!'
+        : `Đã ghi ${res.food_name} (+${Math.round(res.calories_kcal)} kcal) vào Nhật ký.`);
     } catch (e) {
       if (e.status === 422) onError('Thông tin món ăn chưa hợp lệ. Vui lòng kiểm tra tên món, kcal và số phần.');
       else onError(typeof e.detail === 'string' ? e.detail : 'Không ghi được bữa ăn. Vui lòng thử lại.');

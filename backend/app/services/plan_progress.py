@@ -5,7 +5,7 @@ import re
 from typing import Any, cast
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.config import settings
 from app.models import (
@@ -329,6 +329,19 @@ def sync_mobile_exercise(
     )
 
 
+def _diary_items(progress: PlanDailyProgress) -> list[str]:
+    """Ô bữa ăn được tick nhờ món người dùng tự ghi trong Nhật ký (không phải bản ghi tạo từ Lộ trình)."""
+    session = object_session(progress)
+    if session is None or progress.id is None:
+        return []
+    keys = session.query(MealLog.source_item_key).filter(
+        MealLog.source_progress_id == progress.id,  # type: ignore[arg-type]
+        MealLog.source_type != "PLAN",  # type: ignore[arg-type]
+        MealLog.source_item_key.isnot(None),  # type: ignore[union-attr]
+    ).distinct().all()
+    return sorted(k for (k,) in keys)
+
+
 def _to_dict(
     progress: PlanDailyProgress,
     *,
@@ -342,6 +355,7 @@ def _to_dict(
         "progress_date": progress.progress_date,
         "template_day_index": progress.template_day_index,
         "checked_items": progress.checked_items or [],
+        "diary_items": _diary_items(progress),
         "status": progress.status,
         "kcal_intake_delta": round(kcal_intake_delta, 2),
         "kcal_burned_delta": round(kcal_burned_delta, 2),
@@ -599,6 +613,7 @@ def get_progress(
         "progress_date": progress_date,
         "template_day_index": template_index,
         "checked_items": [],
+        "diary_items": [],
         "status": "IN_PROGRESS",
         "kcal_intake_delta": 0,
         "kcal_burned_delta": 0,

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, File, Fo
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, require_role
-from app.models import User, Document, ChatMessage, DocChunk, CrawlSource, VisionFeedback, FewShotExample
+from app.models import User, Document, DocChunk, CrawlSource, VisionFeedback, FewShotExample
 from app.schemas import (
     DocumentOut, DocumentReviewIn, DocumentCategoryUpdateIn, CrawlIn, CrawlOut, CrawlPresetIn,
     DocPreviewOut, CrawlSourceOut, CrawlSourceCreateIn,
@@ -319,12 +319,16 @@ async def upload_document(
 @router.post("/documents/reset")
 def reset_demo_documents(
     db: Session = Depends(get_db),
-    actor: User = expert_or_admin,
+    actor: User = Depends(require_role("ADMIN")),
 ):
-    """Xóa trắng tài liệu và các vector chunks trong DB để phục vụ demo từ đầu."""
-    db.query(ChatMessage).delete()
-    db.query(DocChunk).delete()
-    db.query(Document).delete()
+    """Xóa vĩnh viễn toàn bộ tài liệu và vector chunks để demo cào và duyệt lại từ đầu.
+
+    Chỉ Admin được dùng. Không đụng tới lịch sử chat của người dùng: tin nhắn không tham chiếu tài liệu.
+    """
+    chunks = db.query(DocChunk).delete()
+    documents = db.query(Document).delete()
+    # Ghi nhật ký trước khi commit để audit nằm cùng transaction với thao tác xóa.
+    write_audit(db, actor.id, "DELETE", "documents", "ALL_RESET",
+                after={"documents_deleted": documents, "chunks_deleted": chunks})
     db.commit()
-    write_audit(db, actor.id, "DELETE", "documents", "ALL_RESET")
-    return {"message": "Đã reset toàn bộ tài liệu và vector index thành công!"}
+    return {"message": f"Đã xóa {documents} tài liệu và {chunks} đoạn vector."}
