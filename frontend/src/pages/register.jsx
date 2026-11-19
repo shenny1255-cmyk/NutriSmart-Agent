@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Check, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE } from '../lib/date.js';
-import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName } from '../lib/validation.js';
+import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE, calculateAge, getBirthDateValidationError } from '../lib/date.js';
+import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
 import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
@@ -78,7 +78,19 @@ export default function Register() {
   const heightValid = form.height_cm !== '' && Number.isFinite(heightNumber) && heightNumber > 50 && heightNumber < 250;
   const weightValid = form.weight_kg !== '' && Number.isFinite(weightNumber) && weightNumber >= 20 && weightNumber <= 300;
   const metricsValid = heightValid && weightValid && areBodyMetricsPlausible(heightNumber, weightNumber);
-  const step2Valid = isValidBirthDate(form.birth_date) && metricsValid;
+  const age = calculateAge(form.birth_date);
+  const birthDateValid = isValidBirthDate(form.birth_date);
+  const birthDateError = form.birth_date !== '' ? getBirthDateValidationError(form.birth_date) : '';
+  const liveTdee = birthDateValid && metricsValid
+    ? calculateTdee({
+        gender: form.gender,
+        age,
+        height_cm: heightNumber,
+        weight_kg: weightNumber,
+        activity_level: Number(form.activity_level) || 3,
+      })
+    : null;
+  const step2Valid = birthDateValid && metricsValid;
   const step3Valid = form.consent_terms && form.consent_health;
   const stepValid = [step1Valid, step2Valid, step3Valid][step - 1];
 
@@ -125,7 +137,9 @@ export default function Register() {
   }
 
   function profileError() {
-    if (!isValidBirthDate(form.birth_date)) return 'Ngày sinh không hợp lệ. Vui lòng chọn ngày từ lịch và không vượt quá hôm nay.';
+    if (!birthDateValid) {
+      return birthDateError || `Ngày sinh không hợp lệ. Độ tuổi hợp lệ từ 15 đến 100 tuổi (từ ${MIN_BIRTH_DATE} đến ${MAX_BIRTH_DATE}).`;
+    }
     if (!metricsValid) return 'Chiều cao hoặc cân nặng chưa hợp lệ. Vui lòng kiểm tra lại.';
     return null;
   }
@@ -308,12 +322,12 @@ export default function Register() {
                   max={MAX_BIRTH_DATE}
                   value={form.birth_date}
                   onChange={(e) => set('birth_date', e.target.value)}
-                  aria-invalid={form.birth_date !== '' && !isValidBirthDate(form.birth_date)}
-                  className={`w-full ${form.birth_date !== '' && !isValidBirthDate(form.birth_date) ? 'outline outline-2 outline-danger' : ''}`}
+                  aria-invalid={form.birth_date !== '' && !birthDateValid}
+                  className={`w-full ${form.birth_date !== '' && !birthDateValid ? 'outline outline-2 outline-danger' : ''}`}
                 />
-                {form.birth_date !== '' && !isValidBirthDate(form.birth_date) && (
+                {form.birth_date !== '' && !birthDateValid && (
                   <p className="mt-1 text-xs font-medium text-danger">
-                    Ngày sinh phải từ {MIN_BIRTH_DATE} đến {MAX_BIRTH_DATE}.
+                    {birthDateError || `Ngày sinh phải từ ${MIN_BIRTH_DATE} đến ${MAX_BIRTH_DATE} (từ 15 đến 100 tuổi).`}
                   </p>
                 )}
               </FieldGroup>
@@ -343,11 +357,19 @@ export default function Register() {
             <Alert tone="danger">Tổ hợp chiều cao và cân nặng không hợp lý. BMI cần nằm trong khoảng 10-80.</Alert>
           )}
 
-          {bmi && (
-              <p className="rounded-sm bg-accent-soft px-3 py-2 text-sm text-accent-strong">
-                BMI dự kiến: <b className="[font-variant-numeric:tabular-nums]">{bmi}</b>
-              </p>
-            )}
+          {metricsValid && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {bmi && (
+                <span className="rounded-sm bg-accent-soft px-3 py-2 text-sm text-accent-strong">
+                  BMI dự kiến: <b className="[font-variant-numeric:tabular-nums]">{bmi}</b>
+                </span>
+              )}
+              <span className={`rounded-sm px-3 py-2 text-sm ${liveTdee ? 'bg-accent-soft text-accent-strong' : 'bg-paper-3 text-muted'}`}>
+                ⚡ TDEE ước tính live:{' '}
+                <b className="[font-variant-numeric:tabular-nums]">{liveTdee ? `${liveTdee} kcal` : '-- kcal'}</b>
+              </span>
+            </div>
+          )}
 
             <FieldGroup label="Mức độ vận động">
               <Select value={form.activity_level} onChange={(e) => set('activity_level', e.target.value)} className="w-full">

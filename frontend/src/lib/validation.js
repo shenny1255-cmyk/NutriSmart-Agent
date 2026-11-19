@@ -23,6 +23,36 @@ export function areBodyMetricsPlausible(heightCm, weightKg) {
   return bmi !== null && bmi >= 10 && bmi <= 80;
 }
 
+const ACTIVITY_MULTIPLIERS = {
+  1: 1.200,
+  2: 1.375,
+  3: 1.550,
+  4: 1.725,
+  5: 1.900,
+};
+
+export function calculateTdee({ gender, age, height_cm, weight_kg, activity_level = 3 }) {
+  const height = Number(height_cm);
+  const weight = Number(weight_kg);
+  const ageNumber = Number(age);
+  if (!Number.isFinite(height) || !Number.isFinite(weight) || !Number.isFinite(ageNumber)) {
+    return null;
+  }
+  if (height <= 0 || weight <= 0 || ageNumber <= 0) return null;
+
+  // Công thức Mifflin-St Jeor
+  let bmr = 10 * weight + 6.25 * height - 5 * ageNumber;
+  if (gender === 'MALE') {
+    bmr += 5;
+  } else if (gender === 'FEMALE') {
+    bmr -= 161;
+  } else {
+    bmr -= 78;
+  }
+  const mult = ACTIVITY_MULTIPLIERS[Number(activity_level)] || 1.550;
+  return Math.round(bmr * mult);
+}
+
 const HEALTH_TERM_PATTERN = /^[\p{L}\p{N}\s\-'’()/&.,]+$/u;
 
 export function customHealthTermError(value) {
