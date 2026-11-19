@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  RefreshCw, Sparkles, Footprints, Sunrise, Sun, Moon, Cookie, UtensilsCrossed, Check,
+  RefreshCw, Footprints, Sunrise, Sun, Moon, Cookie, UtensilsCrossed, Check,
   ClipboardCheck, History, CalendarClock, ShieldAlert, CheckCircle2,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
@@ -119,10 +119,10 @@ function LegacyPlan() {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 rounded-md bg-paper-2 p-8 text-center shadow-hairline">
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-          <Sparkles size={26} strokeWidth={2} />
+          <UtensilsCrossed size={26} strokeWidth={2} />
         </span>
         <h2 className="font-display text-xl font-bold">Chưa có lộ trình nào</h2>
-        <p className="text-sm text-muted">Hệ thống chưa tạo lộ trình dinh dưỡng cho bạn.</p>
+        <p className="text-base font-medium text-ink-2">Hệ thống chưa tạo lộ trình dinh dưỡng cho bạn.</p>
         {needsProfile ? (
           <Link
             to="/profile"
@@ -439,7 +439,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display font-semibold">Check-in Đợt {checkin.period_number} · 14 ngày</h2>
-          <p className="text-sm text-muted">{checkin.start_date} → {checkin.period_end}</p>
+          <p className="text-sm font-medium text-ink-2">{checkin.start_date} → {checkin.period_end}</p>
         </div>
         <span className="rounded-full bg-paper-3 px-3 py-1 text-xs font-semibold text-ink-2">
           {checkin.display_status === 'UPCOMING' ? `Còn ${daysLeft} ngày` :
@@ -457,7 +457,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
 
       {checkin.display_status === 'UPCOMING' && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
+          <p className="text-sm font-medium text-ink-2">
             Form sẽ mở vào ngày {checkin.due_date}. Hãy ghi nhật ký hằng ngày để kết quả đủ tin cậy.
           </p>
           {canSimulate && (
@@ -516,7 +516,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
             Ghi chú · không bắt buộc
             <textarea value={form.notes} maxLength={1000} rows={3} onChange={(e) => set('notes', e.target.value)}
               className="mt-1 w-full rounded-sm bg-paper-2 px-3 py-2 text-sm text-ink shadow-hairline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus" />
-            <span className="mt-1 block text-right text-xs text-muted">{form.notes.length}/1000</span>
+            <span className="mt-1 block text-right text-xs font-medium text-ink-2">{form.notes.length}/1000</span>
           </label>
 
           <button type="submit" disabled={!canSubmit || busy}
@@ -529,7 +529,7 @@ function CheckinPanel({ checkin, onChanged, onError }) {
 
       {checkin.status === 'COMPLETED' && <CheckinResult checkin={checkin} busy={busy} onDecide={decide} onReopen={reopen} />}
       {checkin.status === 'MISSED' && <p className="text-sm text-danger">Đợt này đã quá thời gian check-in.</p>}
-      {checkin.status === 'CANCELLED' && <p className="text-sm text-muted">Đợt này đã bị hủy do lộ trình thay đổi.</p>}
+      {checkin.status === 'CANCELLED' && <p className="text-sm font-medium text-ink-2">Đợt này đã bị hủy do lộ trình thay đổi.</p>}
     </section>
   );
 }
@@ -612,13 +612,13 @@ function CheckinResult({ checkin, busy, onDecide, onReopen }) {
 }
 
 function ResultMetric({ label, value }) {
-  return <div className="rounded-md bg-paper-3 p-3"><p className="text-xs text-muted">{label}</p><p className="font-semibold text-ink">{value}</p></div>;
+  return <div className="rounded-md bg-paper-3 p-3"><p className="text-sm font-semibold uppercase tracking-wide text-ink-2">{label}</p><p className="font-semibold text-ink">{value}</p></div>;
 }
 
 function CheckinHistory({ items }) {
   return (
     <section className="rounded-md bg-paper-2 p-5 shadow-hairline">
-      <h2 className="mb-3 flex items-center gap-2 font-display font-semibold"><History size={17} className="text-muted" />Lịch sử check-in</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-display font-semibold"><History size={17} className="text-ink-2" />Lịch sử check-in</h2>
       <div className="space-y-2">
         {items.map((item) => (
           <div key={item.id} className="space-y-2 rounded-md bg-paper-3 p-3 text-sm">
@@ -628,7 +628,7 @@ function CheckinHistory({ items }) {
             </div>
             {item.status === 'COMPLETED' && (
               <>
-                <p className="text-xs text-muted">
+                <p className="text-sm font-medium text-ink-2">
                   {item.baseline_weight_kg} kg → {item.actual_weight_kg} kg · {adherenceLabel(item.adherence_pct)} · {item.meal_log_days} ngày nhật ký
                 </p>
                 {item.ai_feedback && <p className="text-sm leading-relaxed text-ink-2">{item.ai_feedback}</p>}

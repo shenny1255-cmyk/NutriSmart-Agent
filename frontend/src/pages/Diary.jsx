@@ -139,10 +139,10 @@ function TongKet({ icon: Icon, label, value, tone }) {
         <Icon size={18} strokeWidth={2.2} />
       </span>
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-ink-2">{label}</p>
         <p className="font-display text-2xl font-bold [font-variant-numeric:tabular-nums]">
           {Math.round(value || 0)}
-          <span className="ml-1 font-body text-sm font-medium text-muted">kcal</span>
+          <span className="ml-1 font-body text-sm font-medium text-ink-2">kcal</span>
         </p>
       </div>
     </div>
@@ -158,7 +158,7 @@ function KhungThe({ icon: Icon, title, subtitle, children }) {
         </span>
         <div>
           <h2 className="font-display font-semibold">{title}</h2>
-          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+          {subtitle && <p className="text-sm font-medium text-ink-2">{subtitle}</p>}
         </div>
       </div>
       {children}
@@ -185,7 +185,7 @@ function DongNhatKy({ chinh, phu, tri, nguon, onOpenDetail, onDelete, dangXoa })
       ) : null}
       <span className={`min-w-0 flex-1 ${onOpenDetail ? 'cursor-pointer' : ''}`} onClick={onOpenDetail}>
         <span className="block truncate text-sm font-semibold text-ink hover:text-accent-strong">{chinh}</span>
-        <span className="flex flex-wrap items-center gap-1 text-xs text-muted">
+        <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-2">
           {phu}
           {nguon && (
             <span className="rounded-full bg-paper-3 px-2 py-0.5 font-medium text-ink-2">
@@ -350,7 +350,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
   return (
     <KhungThe icon={UtensilsCrossed} title="Bữa ăn" subtitle="Chọn món có sẵn hoặc tự nhập món mới (bấm vào món để phóng to ảnh chi tiết)">
       <div className="flex flex-wrap items-start gap-2">
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Món ăn
           <Select value={foodId} onChange={(e) => setFoodId(e.target.value)} className="w-52">
             <option value="">- Chọn món -</option>
@@ -363,7 +363,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
 
         {monMoi && (
           <>
-            <label className="flex flex-col gap-1 text-xs text-muted">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
               Tên món
               <Field
                 value={tenMoi}
@@ -377,7 +377,7 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
                 <span className="max-w-44 text-danger">Tên món từ 2-100 ký tự, không chứa emoji hoặc ký tự đặc biệt</span>
               )}
             </label>
-            <label className="flex flex-col gap-1 text-xs text-muted">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
               Kcal / phần
               <Field
                 type="number" min="1" max="5000" step="1" value={kcal}
@@ -392,14 +392,14 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
           </>
         )}
 
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Bữa
           <Select value={loai} onChange={(e) => setLoai(e.target.value)} className="w-32">
             {MEAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </Select>
         </label>
 
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Số phần
           <Field
             type="number" min="0.5" max="20" step="0.5" value={phan}
@@ -417,15 +417,15 @@ function BuaAn({ ngay, meals, foods, onSaved, onError }) {
       </div>
 
       {monDaChon && !monMoi && (
-        <p className="text-xs text-muted">
+        <p className="text-sm font-medium text-ink-2">
           {monDaChon.serving_desc ? `${monDaChon.serving_desc} · ` : ''}
           {Math.round(monDaChon.calories_kcal)} kcal/phần → tổng{' '}
-          <b className="text-ink-2">{Math.round(monDaChon.calories_kcal * (Number(phan) || 1))} kcal</b>
+          <b className="text-ink">{Math.round(monDaChon.calories_kcal * (Number(phan) || 1))} kcal</b>
         </p>
       )}
 
       {(!meals || meals.length === 0) ? (
-        <p className="text-sm text-muted">Chưa ghi bữa nào trong ngày này.</p>
+        <p className="text-sm font-medium text-ink-2">Chưa ghi bữa nào trong ngày này.</p>
       ) : (
         <ul className="divide-y divide-rule-2">
           {meals.map((m) => (
@@ -497,7 +497,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
   return (
     <KhungThe icon={Dumbbell} title="Vận động & Thể thao" subtitle="Chọn bài tập để tự tính calo tiêu hao">
       <div className="flex flex-wrap items-start gap-2">
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Bài tập
           <Select value={exId} onChange={(e) => setExId(e.target.value)} className="w-56">
             <option value="">- Chọn bài tập -</option>
@@ -507,7 +507,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
           </Select>
         </label>
 
-        <label className="flex flex-col gap-1 text-xs text-muted">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Thời lượng (phút)
           <Field
             type="number" min="1" max="600" step="5" value={phut}
@@ -518,7 +518,7 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
           {!phutHopLe && <span className="max-w-36 text-danger">Từ 1-600 phút</span>}
         </label>
 
-        <div className="flex flex-col gap-1 text-xs text-muted">
+        <div className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           <label className="flex items-center gap-1.5 pt-5">
             <input
               type="checkbox"
@@ -549,13 +549,13 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
       </div>
 
       {exChon && !dungKcalThietBi && (
-        <p className="text-xs text-muted">
-          Hệ số MET: <b className="text-ink-2">{exChon.met_value}</b> · Ước tính tiêu hao theo cân nặng hiện tại
+        <p className="text-sm font-medium text-ink-2">
+          Hệ số MET: <b className="text-ink">{exChon.met_value}</b> · Ước tính tiêu hao theo cân nặng hiện tại
         </p>
       )}
 
       {(!acts || acts.length === 0) ? (
-        <p className="text-sm text-muted">Chưa ghi vận động nào trong ngày này.</p>
+        <p className="text-sm font-medium text-ink-2">Chưa ghi vận động nào trong ngày này.</p>
       ) : (
         <ul className="divide-y divide-rule-2">
           {acts.map((a) => (
@@ -614,7 +614,7 @@ function CanNang({ weights, onSaved, onError }) {
   return (
     <KhungThe icon={Scale} title="Cân nặng" subtitle="Theo dõi xu hướng cân nặng qua thời gian">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-2">
           Cân nặng hôm nay
           <Field
             type="number" min="20" max="300" step="0.1" value={kg}
@@ -635,7 +635,7 @@ function CanNang({ weights, onSaved, onError }) {
 
         {ganNhat && (
           <div className="ml-auto flex items-center gap-2 text-sm">
-            <span className="text-muted">Gần nhất:</span>
+            <span className="font-medium text-ink-2">Gần nhất:</span>
             <span className="font-display font-bold text-ink">{ganNhat} kg</span>
             {chenh && (
               <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -677,7 +677,7 @@ function CanNang({ weights, onSaved, onError }) {
           </ResponsiveContainer>
         </div>
       ) : (
-        <p className="text-xs text-muted">Cần ít nhất 2 lần ghi nhận để hiển thị biểu đồ xu hướng.</p>
+        <p className="text-sm font-medium text-ink-2">Cần ít nhất 2 lần ghi nhận để hiển thị biểu đồ xu hướng.</p>
       )}
     </KhungThe>
   );

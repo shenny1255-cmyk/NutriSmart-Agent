@@ -152,9 +152,9 @@ export default function Dashboard() {
           </button>
           {showBell && (
             <div className="absolute right-0 top-12 z-dropdown w-72 glass-card rounded-xl p-4 shadow-card">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Thông báo</p>
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-2">Thông báo</p>
               {notifications.length === 0 ? (
-                <p className="text-sm text-muted">Chưa có thông báo mới.</p>
+                <p className="text-sm font-medium text-ink-2">Chưa có thông báo mới.</p>
               ) : (
                 <div className="max-h-72 space-y-1 overflow-y-auto">
                   {notifications.map((item) => (
@@ -219,7 +219,7 @@ export default function Dashboard() {
         <section className="glass-card rounded-xl p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-base font-semibold">
-              Calo nạp vào / tiêu hao <span className="font-body font-normal text-muted">· 7 ngày</span>
+              Calo nạp vào / tiêu hao <span className="font-body font-medium text-ink-2">· 7 ngày</span>
             </h2>
           </div>
           <ResponsiveContainer width="100%" height={260}>
@@ -307,7 +307,7 @@ export default function Dashboard() {
 
         {/* Widget gợi ý bữa ăn tiếp theo - nổi góc phải trên biểu đồ */}
         <div className="absolute right-4 top-4 hidden w-56 glass-card rounded-xl p-3 shadow-card sm:block">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-2">
             Gợi ý bữa ăn tiếp theo
           </p>
           <div className="flex items-center gap-2">
@@ -315,7 +315,7 @@ export default function Dashboard() {
               {nextMeal.emoji}
             </span>
             <div className="min-w-0">
-              <p className="text-xs text-muted">{nextMeal.meal}</p>
+              <p className="text-xs font-medium text-ink-2">{nextMeal.meal}</p>
               <p className="truncate text-sm font-semibold text-ink">{nextMeal.suggestion}</p>
             </div>
           </div>
@@ -352,7 +352,7 @@ function Stat({ icon: Icon, label, value, unit, tone = 'neutral', hint, progress
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className={`text-xs font-medium uppercase tracking-wide ${warn ? 'text-warning-strong' : burn ? 'text-orange-400' : 'text-muted'}`}>
+        <p className={`text-sm font-semibold uppercase tracking-wide ${warn ? 'text-warning-strong' : burn ? 'text-orange-500' : 'text-ink-2'}`}>
           {label}
         </p>
         <span
@@ -371,9 +371,9 @@ function Stat({ icon: Icon, label, value, unit, tone = 'neutral', hint, progress
         }`}
       >
         {value}
-        <span className="ml-1 font-body text-base font-medium text-muted">{unit}</span>
+        <span className="ml-1 font-body text-base font-semibold text-ink-2">{unit}</span>
       </p>
-      {hint && <p className={`mt-1 text-xs ${warn ? 'text-warning-strong' : burn ? 'text-orange-400' : 'text-muted'}`}>{hint}</p>}
+      {hint && <p className={`mt-1 text-sm font-medium ${warn ? 'text-warning-strong' : burn ? 'text-orange-500' : 'text-ink-2'}`}>{hint}</p>}
 
       {/* Thanh tiến trình calo */}
       {progress !== undefined && (

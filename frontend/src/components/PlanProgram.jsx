@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints,
-  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun,
+  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sun,
   Sunrise, UserCheck, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
@@ -536,7 +536,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                   <div className="flex flex-wrap items-center gap-3">
                     <div>
                       <h2 className="font-display font-semibold">Theo dõi Đợt {plan.current_checkin.period_number}</h2>
-                      <p className="text-sm text-muted">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
+                      <p className="text-sm font-medium text-ink-2">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
                     </div>
                     {completedStreak > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-xs font-bold text-warning-strong shadow-xs">
@@ -568,10 +568,10 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                         ].join(' ')}
                       >
                         <span className="font-semibold">Ngày {index + 1}</span>
-                        <span className={`text-xs ${active ? 'text-accent-ink/80' : 'text-muted'}`}>
+                        <span className={`text-xs ${active ? 'text-accent-ink/90' : 'text-ink-2'}`}>
                           {dateLabel(value)}
                         </span>
-                        <span className={`text-xs ${active ? 'text-accent-ink/80' : 'text-muted'}`}>
+                        <span className={`text-xs ${active ? 'text-accent-ink/90' : 'text-ink-2'}`}>
                           {progressLabel(complete ? 'COMPLETED' : 'IN_PROGRESS', count, totalItems)}
                         </span>
                       </button>
@@ -593,7 +593,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     </p>
                   )}
                   {periodLocked && (
-                    <p className="mb-3 flex items-center gap-2 rounded-sm bg-paper-3 px-3 py-2 text-sm text-muted">
+                    <p className="mb-3 flex items-center gap-2 rounded-sm bg-paper-3 px-3 py-2 text-sm font-medium text-ink-2">
                       <LockKeyhole size={15} /> Đợt này đã khóa nên không còn nhận thay đổi.
                     </p>
                   )}
@@ -606,7 +606,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                         </span>
                         <div>
                           <p className="font-display font-bold text-accent-strong">Xuất sắc! Đã hoàn thành 100% mục tiêu ngày</p>
-                          <p className="text-xs text-muted">Bạn đã hoàn thành đủ các bữa ăn và bài tập thể dục theo lộ trình hôm nay.</p>
+                          <p className="text-sm font-medium text-ink-2">Bạn đã hoàn thành đủ các bữa ăn và bài tập thể dục theo lộ trình hôm nay.</p>
                         </div>
                       </div>
                       <button
@@ -728,7 +728,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                 <option key={month} value={month}>{month} tháng · {month * 28} ngày · {month * 2} Đợt</option>
               ))}
             </Select>
-            <span className="text-xs text-muted">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
+            <span className="text-sm font-medium text-ink-2">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
           </label>
         </div>
       </Modal>
@@ -884,7 +884,7 @@ function ProgramCompletion({ plan, extendMonths, setExtendMonths, extending, onE
 function SummaryMetric({ label, value }) {
   return (
     <div className="rounded-sm bg-paper-2/80 p-3">
-      <span className="block text-xs uppercase tracking-wide text-muted">{label}</span>
+      <span className="block text-sm font-semibold uppercase tracking-wide text-ink-2">{label}</span>
       <strong className="mt-1 block text-ink">{value}</strong>
     </div>
   );
@@ -911,10 +911,10 @@ function ProgressItem({ icon: Icon, checked, disabled, onToggle, title, tag, tra
           <Icon size={17} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium uppercase tracking-wide text-muted">{tag}</span>
-          <span className={`block text-sm font-medium ${checked ? 'text-muted line-through' : 'text-ink'}`}>{title}</span>
+          <span className="block text-sm font-semibold uppercase tracking-wide text-ink-2">{tag}</span>
+          <span className={`block text-sm ${checked ? 'font-medium text-muted line-through' : 'font-semibold text-ink'}`}>{title}</span>
         </span>
-        {trailing && <span className="shrink-0 text-sm text-ink-2">{trailing}</span>}
+        {trailing && <span className="shrink-0 text-sm font-medium text-ink-2">{trailing}</span>}
       </label>
     </li>
   );

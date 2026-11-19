@@ -264,7 +264,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-muted">Đang tải thông tin…</p>
+        <p className="text-base font-medium text-ink-2">Đang tải thông tin…</p>
       </div>
     );
   }
@@ -393,7 +393,7 @@ export default function Profile() {
                   BMI dự kiến: <b className="[font-variant-numeric:tabular-nums]">{bmi}</b>
                 </span>
               )}
-              <span className={`rounded-sm px-3 py-2 text-sm ${liveTdee ? 'bg-accent-soft text-accent-strong' : 'bg-paper-3 text-muted'}`}>
+              <span className={`rounded-sm px-3 py-2 text-sm font-medium ${liveTdee ? 'bg-accent-soft text-accent-strong' : 'bg-paper-3 text-ink-2'}`}>
                 ⚡ TDEE ước tính live:{' '}
                 <b className="[font-variant-numeric:tabular-nums]">{liveTdee ? `${liveTdee} kcal` : '-- kcal'}</b>
               </span>
@@ -462,17 +462,17 @@ export default function Profile() {
                 Khi bật, hồ sơ sức khỏe và tin nhắn của bạn chỉ được xử lý trên máy chủ của NutriSmart,
                 không gửi tới nhà cung cấp AI bên ngoài. Câu trả lời có thể chậm hơn.
               </span>
-              <span className="mt-1 block text-xs text-muted">
+              <span className="mt-1 block text-sm font-medium text-ink-2">
                 Khi dùng AI bên ngoài, hệ thống luôn ẩn họ tên, email, số điện thoại và chỉ gửi khoảng tuổi.
                 Phân tích ảnh món ăn cần gửi ảnh tới AI bên ngoài nên sẽ tạm khóa khi bật mục này.
               </span>
             </span>
           </label>
-          <p className="mt-4 border-t border-rule-2 pt-3 text-xs text-muted">
+          <p className="mt-4 border-t border-rule-2 pt-3 text-sm font-medium text-ink-2">
             {termsConsent
               ? `Bạn đã đồng ý Chính sách quyền riêng tư phiên bản ${termsConsent.version} ngày ${new Date(termsConsent.created_at).toLocaleDateString('vi-VN')}. `
               : 'Chưa có bản ghi đồng ý (tài khoản tạo trước khi có bước đồng ý). '}
-            <Link to="/privacy" className="font-medium text-accent-strong underline underline-offset-2">Xem chính sách</Link>
+            <Link to="/privacy" className="font-semibold text-accent-strong underline underline-offset-2">Xem chính sách</Link>
           </p>
         </section>
 
@@ -511,9 +511,9 @@ export default function Profile() {
 function FieldGroup({ label, hint, children }) {
   return (
     <div>
-      <label className="mb-1 block text-base font-medium text-ink-2">{label}</label>
+      <label className="mb-1 block text-base font-semibold text-ink">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+      {hint && <p className="mt-1 text-sm font-medium text-ink-2">{hint}</p>}
     </div>
   );
 }

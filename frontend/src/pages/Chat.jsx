@@ -110,7 +110,7 @@ export default function Chat() {
       <header className="mb-3 flex shrink-0 items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Trợ lý AI</h1>
-          <p className="text-sm text-muted">
+          <p className="text-sm font-medium text-ink-2">
             Tư vấn dinh dưỡng cá nhân hóa dựa trên hồ sơ và lộ trình của bạn.
           </p>
         </div>
@@ -135,7 +135,7 @@ export default function Chat() {
                 <Bot size={32} />
               </span>
               <h2 className="font-display text-lg font-bold text-ink">Xin chào! Tôi có thể giúp gì cho dinh dưỡng của bạn?</h2>
-              <p className="mt-1 max-w-md text-xs text-muted">
+              <p className="mt-1 max-w-md text-sm font-medium text-ink-2">
                 Bấm chọn nhanh câu hỏi gợi ý bên dưới hoặc tự nhập thắc mắc của bạn để bắt đầu.
               </p>
 
@@ -325,7 +325,7 @@ function Citations({ items }) {
                     </a>
                   )}
                 </div>
-                {snippet && <p className="mt-1 text-xs leading-relaxed text-muted">{snippet}</p>}
+                {snippet && <p className="mt-1 text-xs leading-relaxed text-ink-2">{snippet}</p>}
               </li>
             );
           })}
