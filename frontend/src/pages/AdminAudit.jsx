@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, Filter, Search, X } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { MAX_BIRTH_DATE as TODAY } from '../lib/date.js';
+import { TODAY } from '../lib/date.js';
 import { Alert, Btn, EmptyRow, Field, Modal, Select, TableShell, Td, THead, Tr } from '../components/ui.jsx';
 
 const ACTIONS = {

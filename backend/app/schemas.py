@@ -17,15 +17,17 @@ NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
 
 
 def _validate_birth_date(value: date) -> date:
-    """Ngày sinh phải ở trong khoảng tuổi hợp lý từ 0 đến 120."""
+    """Ngày sinh phải từ 15 đến 100 tuổi và không ở trong tương lai hoặc trước năm 1920."""
     today = date.today()
     if value > today:
         raise ValueError("Ngày sinh không được ở trong tương lai")
     age = today.year - value.year - (
         (today.month, today.day) < (value.month, value.day)
     )
-    if age > 120:
-        raise ValueError("Tuổi không được vượt quá 120")
+    if age < 15:
+        raise ValueError("Người dùng phải từ 15 tuổi trở lên")
+    if age > 100 or value < date(1920, 1, 1):
+        raise ValueError("Tuổi không được vượt quá 100 hoặc sinh trước năm 1920")
     return value
 
 
