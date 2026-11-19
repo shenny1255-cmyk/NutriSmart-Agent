@@ -67,7 +67,7 @@
   --color-ink: oklch(20% 0.02 155);
   --color-ink-2: oklch(27% 0.018 155);
   /* secondary text */
-  --color-muted: oklch(46% 0.02 155);
+  --color-muted: oklch(38% 0.02 155);
   /* de-emphasised text */
   --color-neutral: oklch(40% 0.018 155);
   /* mid-grey equivalent */

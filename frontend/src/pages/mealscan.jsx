@@ -225,7 +225,7 @@ export default function MealScan() {
               ảnh món ăn của bạn
             </p>
 
-            <p className="mt-2 text-xs text-muted">
+            <p className="mt-2 text-sm font-medium text-ink-2">
               Hỗ trợ định dạng <b>PNG, JPG</b>. Tải ảnh từ thư viện hoặc chụp trực tiếp.
             </p>
 
@@ -340,7 +340,7 @@ export default function MealScan() {
           </span>
           <div>
             <p className="font-semibold text-ink">Gemini AI đang phân tích đĩa thức ăn…</p>
-            <p className="text-xs text-muted">Nhận diện tên món, lượng calo và thành phần dinh dưỡng</p>
+            <p className="text-sm font-medium text-ink-2">Nhận diện tên món, lượng calo và thành phần dinh dưỡng</p>
           </div>
         </div>
       )}
@@ -353,7 +353,7 @@ export default function MealScan() {
               <h2 className="font-display text-xl font-bold text-ink">{result.food_name ?? 'Kết quả'}</h2>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted">Độ tin cậy</span>
+              <span className="text-sm font-semibold text-ink-2">Độ tin cậy</span>
               <span
                 className="h-2 w-20 overflow-hidden rounded-full bg-black/10"
                 role="img"
@@ -605,7 +605,7 @@ export default function MealScan() {
             {result?.food_name && (
               <div className="p-3 text-center">
                 <p className="font-display text-lg font-bold text-ink">{result.food_name}</p>
-                <p className="text-xs text-muted">
+                <p className="text-sm font-medium text-ink-2">
                   {kcalVal} kcal · {proteinVal ?? 0}g protein · {carbVal ?? 0}g carb · {fatVal ?? 0}g fat
                 </p>
               </div>
@@ -627,7 +627,7 @@ function Macro({ label, value, unit, primary }) {
           : 'border border-black/5 bg-black/5',
       ].join(' ')}
     >
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dt className="text-sm font-semibold uppercase tracking-wide text-ink-2">{label}</dt>
       <dd
         className={[
           'mt-1 font-display font-bold [font-variant-numeric:tabular-nums]',
@@ -635,7 +635,7 @@ function Macro({ label, value, unit, primary }) {
         ].join(' ')}
       >
         {value != null ? value : '-'}
-        {value != null && <span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>}
+        {value != null && <span className="ml-0.5 text-xs font-semibold text-ink-2">{unit}</span>}
       </dd>
     </div>
   );

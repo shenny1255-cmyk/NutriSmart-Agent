@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints,
-  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun,
+  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sun,
   Sunrise, UserCheck, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
@@ -430,17 +430,11 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
 
       {!plan ? (
         <section className="space-y-6 rounded-md bg-paper-2 p-6 sm:p-8 shadow-hairline">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-rule pb-5">
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-strong mb-2">
-                <Sparkles size={13} />
-                Bắt đầu cùng NutriSmart
-              </div>
-              <h2 className="font-display text-xl font-bold">3 bước để nhận lộ trình dinh dưỡng cá nhân</h2>
-              <p className="mt-1 text-sm text-muted">
-                Hệ thống AI sẽ thiết kế thực đơn khoa học phù hợp với thể trạng và mục tiêu sức khỏe của bạn.
-              </p>
-            </div>
+          <div className="border-b border-rule pb-4">
+            <h2 className="font-body text-xl font-bold text-ink">3 bước để nhận lộ trình dinh dưỡng cá nhân</h2>
+            <p className="mt-1 font-body text-sm text-ink-2">
+              Hệ thống sẽ thiết kế thực đơn khoa học phù hợp với thể trạng và mục tiêu sức khỏe của bạn.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -455,14 +449,14 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     <UserCheck size={18} />
                   </span>
                 </div>
-                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Cập nhật Hồ sơ sức khỏe</h3>
-                <p className="text-xs leading-relaxed text-muted">
-                  Cập nhật mục tiêu, dị ứng và bệnh lý nền để AI tính toán calo và loại trừ món gây kích ứng.
+                <h3 className="font-body font-bold text-base mb-2 text-ink">Cập nhật hồ sơ sức khỏe</h3>
+                <p className="font-body text-sm leading-relaxed text-ink-2">
+                  Khai báo mục tiêu, dị ứng và bệnh lý nền để hệ thống tính calo và loại trừ món không an toàn.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-rule/50">
-                <Link to="/profile" className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline">
-                  Kiểm tra hồ sơ <ArrowRight size={12} />
+                <Link to="/profile" className="inline-flex items-center gap-1 font-body text-sm font-semibold text-accent-strong hover:underline">
+                  Kiểm tra hồ sơ <ArrowRight size={14} />
                 </Link>
               </div>
             </div>
@@ -475,16 +469,16 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     2
                   </span>
                   <span className="rounded-md bg-accent-soft p-2 text-accent-strong">
-                    <Sparkles size={18} />
+                    <UtensilsCrossed size={18} />
                   </span>
                 </div>
-                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Tạo lộ trình AI</h3>
-                <p className="text-xs leading-relaxed text-muted">
-                  Bấm &apos;Tạo lộ trình AI&apos; để nhận thực đơn 7 ngày cá nhân hóa kèm bài tập rèn luyện.
+                <h3 className="font-body font-bold text-base mb-2 text-ink">Tạo lộ trình thực đơn</h3>
+                <p className="font-body text-sm leading-relaxed text-ink-2">
+                  Bấm nút tạo lộ trình để nhận thực đơn 7 ngày cá nhân hóa kèm gợi ý vận động phù hợp.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-rule/50">
-                <span className="text-xs text-muted">Thiết kế chuẩn cá nhân</span>
+                <span className="font-body text-sm text-ink-2 font-medium">Thiết kế theo thể trạng</span>
               </div>
             </div>
 
@@ -499,14 +493,14 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     <Camera size={18} />
                   </span>
                 </div>
-                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Ghi nhận nhật ký</h3>
-                <p className="text-xs leading-relaxed text-muted">
-                  Chụp/dán ảnh món ăn bên tab Nhật ký — hệ thống sẽ tự động cộng calo và đánh dấu hoàn thành bữa tương ứng tại đây.
+                <h3 className="font-body font-bold text-base mb-2 text-ink">Ghi nhận nhật ký bữa ăn</h3>
+                <p className="font-body text-sm leading-relaxed text-ink-2">
+                  Chụp hoặc tải ảnh món ăn ở tab Nhật ký. Hệ thống sẽ tự động tính calo và đánh dấu hoàn thành bữa ăn tương ứng.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-rule/50">
-                <Link to="/diary" className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline">
-                  Đến trang Nhật ký <ArrowRight size={12} />
+                <Link to="/diary" className="inline-flex items-center gap-1 font-body text-sm font-semibold text-accent-strong hover:underline">
+                  Đến trang Nhật ký <ArrowRight size={14} />
                 </Link>
               </div>
             </div>
@@ -514,7 +508,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <GenerateButton primary loading={isGenerating || generatorBusy} onClick={openGenerator}>
-              ✨ Tạo lộ trình AI ngay
+              Tạo lộ trình AI ngay
             </GenerateButton>
           </div>
         </section>
@@ -542,7 +536,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                   <div className="flex flex-wrap items-center gap-3">
                     <div>
                       <h2 className="font-display font-semibold">Theo dõi Đợt {plan.current_checkin.period_number}</h2>
-                      <p className="text-sm text-muted">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
+                      <p className="text-sm font-medium text-ink-2">Mẫu 7 ngày được lặp lại trong từng Đợt 14 ngày.</p>
                     </div>
                     {completedStreak > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-xs font-bold text-warning-strong shadow-xs">
@@ -574,10 +568,10 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                         ].join(' ')}
                       >
                         <span className="font-semibold">Ngày {index + 1}</span>
-                        <span className={`text-xs ${active ? 'text-accent-ink/80' : 'text-muted'}`}>
+                        <span className={`text-xs ${active ? 'text-accent-ink/90' : 'text-ink-2'}`}>
                           {dateLabel(value)}
                         </span>
-                        <span className={`text-xs ${active ? 'text-accent-ink/80' : 'text-muted'}`}>
+                        <span className={`text-xs ${active ? 'text-accent-ink/90' : 'text-ink-2'}`}>
                           {progressLabel(complete ? 'COMPLETED' : 'IN_PROGRESS', count, totalItems)}
                         </span>
                       </button>
@@ -599,7 +593,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     </p>
                   )}
                   {periodLocked && (
-                    <p className="mb-3 flex items-center gap-2 rounded-sm bg-paper-3 px-3 py-2 text-sm text-muted">
+                    <p className="mb-3 flex items-center gap-2 rounded-sm bg-paper-3 px-3 py-2 text-sm font-medium text-ink-2">
                       <LockKeyhole size={15} /> Đợt này đã khóa nên không còn nhận thay đổi.
                     </p>
                   )}
@@ -612,7 +606,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                         </span>
                         <div>
                           <p className="font-display font-bold text-accent-strong">Xuất sắc! Đã hoàn thành 100% mục tiêu ngày</p>
-                          <p className="text-xs text-muted">Bạn đã hoàn thành đủ các bữa ăn và bài tập thể dục theo lộ trình hôm nay.</p>
+                          <p className="text-sm font-medium text-ink-2">Bạn đã hoàn thành đủ các bữa ăn và bài tập thể dục theo lộ trình hôm nay.</p>
                         </div>
                       </div>
                       <button
@@ -697,7 +691,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
           <>
             <Btn variant="ghost" disabled={generatorBusy} onClick={() => setGeneratorOpen(false)}>Hủy</Btn>
             <Btn variant="primary" disabled={generatorBusy || !generatorValid} onClick={submitGenerator}>
-              {generatorBusy ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+              {generatorBusy ? <RefreshCw size={15} className="animate-spin" /> : <CalendarClock size={15} />}
               Xác nhận tạo
             </Btn>
           </>
@@ -734,7 +728,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                 <option key={month} value={month}>{month} tháng · {month * 28} ngày · {month * 2} Đợt</option>
               ))}
             </Select>
-            <span className="text-xs text-muted">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
+            <span className="text-sm font-medium text-ink-2">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
           </label>
         </div>
       </Modal>
@@ -770,51 +764,51 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
           </Btn>
         )}
       >
-        <div className="space-y-4 pt-1">
-          <p className="text-xs text-muted">
-            Lộ trình NutriSmart được thiết kế thông minh và kết nối trực tiếp với Nhật ký ăn uống của bạn qua 3 bước:
+        <div className="space-y-4 pt-1 font-body">
+          <p className="text-sm text-ink-2 leading-relaxed">
+            Lộ trình NutriSmart kết nối trực tiếp với Nhật ký ăn uống của bạn qua 3 bước vận hành:
           </p>
 
-          <ol className="space-y-3.5">
+          <ol className="space-y-4">
             <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-accent-strong">
                 1
               </span>
               <div>
-                <h4 className="font-semibold text-ink text-sm">Cập nhật Hồ sơ sức khỏe</h4>
-                <p className="text-xs text-muted mt-0.5">
-                  Khai báo mục tiêu, dị ứng và bệnh lý nền để AI có cơ sở tính toán calo và loại trừ món gây kích ứng.
+                <h4 className="font-bold text-ink text-sm">Cập nhật hồ sơ sức khỏe</h4>
+                <p className="text-sm text-ink-2 mt-0.5 leading-relaxed">
+                  Khai báo mục tiêu, dị ứng và bệnh lý nền để hệ thống tính calo và loại trừ món không an toàn.
                 </p>
               </div>
             </li>
 
             <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-accent-strong">
                 2
               </span>
               <div>
-                <h4 className="font-semibold text-ink text-sm">Bấm &apos;Tạo lộ trình AI&apos;</h4>
-                <p className="text-xs text-muted mt-0.5">
-                  Nhận thực đơn 7 ngày cá nhân hóa (được lặp lại linh hoạt trong từng Đợt 14 ngày) kèm bài tập rèn luyện.
+                <h4 className="font-bold text-ink text-sm">Bấm &apos;Tạo lộ trình AI&apos;</h4>
+                <p className="text-sm text-ink-2 mt-0.5 leading-relaxed">
+                  Nhận thực đơn 7 ngày cá nhân hóa (lặp lại linh hoạt trong từng đợt 14 ngày) kèm bài tập rèn luyện.
                 </p>
               </div>
             </li>
 
             <li className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-accent-strong">
                 3
               </span>
               <div>
-                <h4 className="font-semibold text-ink text-sm">Ghi nhận bữa bên tab Nhật ký</h4>
-                <p className="text-xs text-muted mt-0.5">
-                  Chụp hoặc tải ảnh món ăn bên tab Nhật ký — hệ thống sẽ tự động cộng calo và đánh dấu hoàn thành bữa tương ứng tại đây.
+                <h4 className="font-bold text-ink text-sm">Ghi nhận bữa ăn bên tab Nhật ký</h4>
+                <p className="text-sm text-ink-2 mt-0.5 leading-relaxed">
+                  Chụp hoặc tải ảnh món ăn ở tab Nhật ký. Hệ thống sẽ tự động tính calo và đánh dấu hoàn thành bữa ăn tương ứng ngay trên lộ trình.
                 </p>
               </div>
             </li>
           </ol>
 
-          <div className="rounded-md bg-accent-soft/60 p-3 text-xs text-accent-strong">
-            💡 <b>Mẹo:</b> Mỗi 14 ngày, bạn sẽ có một đợt <b>Check-in tiến độ</b> để AI đánh giá kết quả và tự động điều chỉnh calo nếu cần!
+          <div className="rounded-md bg-accent-soft p-3.5 text-sm font-medium text-accent-strong leading-relaxed">
+            Mẹo: Mỗi 14 ngày, bạn sẽ có một đợt <b>Check-in tiến độ</b> để AI đánh giá kết quả và tự động điều chỉnh mức calo nếu cần.
           </div>
         </div>
       </Modal>
@@ -890,7 +884,7 @@ function ProgramCompletion({ plan, extendMonths, setExtendMonths, extending, onE
 function SummaryMetric({ label, value }) {
   return (
     <div className="rounded-sm bg-paper-2/80 p-3">
-      <span className="block text-xs uppercase tracking-wide text-muted">{label}</span>
+      <span className="block text-sm font-semibold uppercase tracking-wide text-ink-2">{label}</span>
       <strong className="mt-1 block text-ink">{value}</strong>
     </div>
   );
@@ -917,10 +911,10 @@ function ProgressItem({ icon: Icon, checked, disabled, onToggle, title, tag, tra
           <Icon size={17} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium uppercase tracking-wide text-muted">{tag}</span>
-          <span className={`block text-sm font-medium ${checked ? 'text-muted line-through' : 'text-ink'}`}>{title}</span>
+          <span className="block text-sm font-semibold uppercase tracking-wide text-ink-2">{tag}</span>
+          <span className={`block text-sm ${checked ? 'font-medium text-muted line-through' : 'font-semibold text-ink'}`}>{title}</span>
         </span>
-        {trailing && <span className="shrink-0 text-sm text-ink-2">{trailing}</span>}
+        {trailing && <span className="shrink-0 text-sm font-medium text-ink-2">{trailing}</span>}
       </label>
     </li>
   );
