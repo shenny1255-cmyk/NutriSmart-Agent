@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
-  CalendarClock, Check, CheckCircle2, Cookie, Footprints, LockKeyhole,
-  Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun, Sunrise, UtensilsCrossed,
+  ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints,
+  HelpCircle, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sparkles, Sun,
+  Sunrise, UserCheck, UtensilsCrossed,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import WarningList from './WarningList.jsx';
@@ -129,6 +130,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   const [missingItems, setMissingItems] = useState(null);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [generatorBusy, setGeneratorBusy] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [extendMonths, setExtendMonths] = useState(1);
   const [extending, setExtending] = useState(false);
   const [baseWeight, setBaseWeight] = useState(null);
@@ -396,7 +398,20 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   return (
     <div className="max-w-4xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold tracking-tight">Lộ trình cá nhân hóa</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-2xl font-bold tracking-tight">Lộ trình cá nhân hóa</h1>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="flex h-8 items-center gap-1.5 rounded-full bg-paper-3 px-2.5 text-xs font-semibold text-ink-2 shadow-xs transition-colors hover:bg-accent-soft hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+            aria-label="Xem hướng dẫn vận hành lộ trình"
+            title="Cách hoạt động của lộ trình"
+          >
+            <HelpCircle size={15} />
+            <span className="hidden sm:inline">Hướng dẫn</span>
+          </button>
+        </div>
+
         <GenerateButton loading={isGenerating || generatorBusy} onClick={openGenerator}>
           {plan ? 'Bắt đầu chương trình mới' : 'Tạo lộ trình cá nhân hóa'}
         </GenerateButton>
@@ -414,17 +429,94 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
       )}
 
       {!plan ? (
-        <section className="flex flex-col items-center gap-4 rounded-md bg-paper-2 p-8 text-center shadow-hairline">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
-            <Sparkles size={26} />
-          </span>
-          <div>
-            <h2 className="font-display text-xl font-bold">Chưa có chương trình nào</h2>
-            <p className="mt-1 text-sm text-muted">Chọn thời lượng từ 1 đến 12 tháng để bắt đầu.</p>
+        <section className="space-y-6 rounded-md bg-paper-2 p-6 sm:p-8 shadow-hairline">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-rule pb-5">
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-strong mb-2">
+                <Sparkles size={13} />
+                Bắt đầu cùng NutriSmart
+              </div>
+              <h2 className="font-display text-xl font-bold">3 bước để nhận lộ trình dinh dưỡng cá nhân</h2>
+              <p className="mt-1 text-sm text-muted">
+                Hệ thống AI sẽ thiết kế thực đơn khoa học phù hợp với thể trạng và mục tiêu sức khỏe của bạn.
+              </p>
+            </div>
           </div>
-          <GenerateButton primary loading={isGenerating || generatorBusy} onClick={openGenerator}>
-            Tạo lộ trình cá nhân hóa
-          </GenerateButton>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Bước 1 */}
+            <div className="rounded-lg bg-paper-3 p-5 shadow-hairline flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-strong text-accent-ink font-bold text-sm">
+                    1
+                  </span>
+                  <span className="rounded-md bg-accent-soft p-2 text-accent-strong">
+                    <UserCheck size={18} />
+                  </span>
+                </div>
+                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Cập nhật Hồ sơ sức khỏe</h3>
+                <p className="text-xs leading-relaxed text-muted">
+                  Cập nhật mục tiêu, dị ứng và bệnh lý nền để AI tính toán calo và loại trừ món gây kích ứng.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-rule/50">
+                <Link to="/profile" className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline">
+                  Kiểm tra hồ sơ <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+
+            {/* Bước 2 */}
+            <div className="rounded-lg bg-paper-3 p-5 shadow-hairline flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-strong text-accent-ink font-bold text-sm">
+                    2
+                  </span>
+                  <span className="rounded-md bg-accent-soft p-2 text-accent-strong">
+                    <Sparkles size={18} />
+                  </span>
+                </div>
+                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Tạo lộ trình AI</h3>
+                <p className="text-xs leading-relaxed text-muted">
+                  Bấm &apos;Tạo lộ trình AI&apos; để nhận thực đơn 7 ngày cá nhân hóa kèm bài tập rèn luyện.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-rule/50">
+                <span className="text-xs text-muted">Thiết kế chuẩn cá nhân</span>
+              </div>
+            </div>
+
+            {/* Bước 3 */}
+            <div className="rounded-lg bg-paper-3 p-5 shadow-hairline flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-strong text-accent-ink font-bold text-sm">
+                    3
+                  </span>
+                  <span className="rounded-md bg-accent-soft p-2 text-accent-strong">
+                    <Camera size={18} />
+                  </span>
+                </div>
+                <h3 className="font-display font-semibold text-base mb-1.5 text-ink">Ghi nhận nhật ký</h3>
+                <p className="text-xs leading-relaxed text-muted">
+                  Chụp/dán ảnh món ăn bên tab Nhật ký — hệ thống sẽ tự động cộng calo và đánh dấu hoàn thành bữa tương ứng tại đây.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-rule/50">
+                <Link to="/diary" className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline">
+                  Đến trang Nhật ký <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <GenerateButton primary loading={isGenerating || generatorBusy} onClick={openGenerator}>
+              ✨ Tạo lộ trình AI ngay
+            </GenerateButton>
+          </div>
         </section>
       ) : (
         <>
@@ -666,6 +758,67 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
           {(missingItems || []).map((item) => <li key={item}>{item}</li>)}
         </ul>
       </Modal>
+
+      <Modal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        icon={<HelpCircle size={20} />}
+        title="Cách hoạt động của lộ trình"
+        footer={(
+          <Btn variant="primary" onClick={() => setHelpOpen(false)}>
+            Đã hiểu
+          </Btn>
+        )}
+      >
+        <div className="space-y-4 pt-1">
+          <p className="text-xs text-muted">
+            Lộ trình NutriSmart được thiết kế thông minh và kết nối trực tiếp với Nhật ký ăn uống của bạn qua 3 bước:
+          </p>
+
+          <ol className="space-y-3.5">
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+                1
+              </span>
+              <div>
+                <h4 className="font-semibold text-ink text-sm">Cập nhật Hồ sơ sức khỏe</h4>
+                <p className="text-xs text-muted mt-0.5">
+                  Khai báo mục tiêu, dị ứng và bệnh lý nền để AI có cơ sở tính toán calo và loại trừ món gây kích ứng.
+                </p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+                2
+              </span>
+              <div>
+                <h4 className="font-semibold text-ink text-sm">Bấm &apos;Tạo lộ trình AI&apos;</h4>
+                <p className="text-xs text-muted mt-0.5">
+                  Nhận thực đơn 7 ngày cá nhân hóa (được lặp lại linh hoạt trong từng Đợt 14 ngày) kèm bài tập rèn luyện.
+                </p>
+              </div>
+            </li>
+
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-strong">
+                3
+              </span>
+              <div>
+                <h4 className="font-semibold text-ink text-sm">Ghi nhận bữa bên tab Nhật ký</h4>
+                <p className="text-xs text-muted mt-0.5">
+                  Chụp hoặc tải ảnh món ăn bên tab Nhật ký — hệ thống sẽ tự động cộng calo và đánh dấu hoàn thành bữa tương ứng tại đây.
+                </p>
+              </div>
+            </li>
+          </ol>
+
+          <div className="rounded-md bg-accent-soft/60 p-3 text-xs text-accent-strong">
+            💡 <b>Mẹo:</b> Mỗi 14 ngày, bạn sẽ có một đợt <b>Check-in tiến độ</b> để AI đánh giá kết quả và tự động điều chỉnh calo nếu cần!
+          </div>
+        </div>
+      </Modal>
+
       <Toast toast={toast} />
     </div>
   );
