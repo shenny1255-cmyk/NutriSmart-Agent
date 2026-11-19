@@ -24,6 +24,10 @@ export default function ExpertReview() {
   const [presetCategoryId, setPresetCategoryId] = useState('');
   const [crawling, setCrawling] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  // Tài liệu đang chờ xác nhận từ chối: { ids: [...], label }
+  const [rejectTarget, setRejectTarget] = useState(null);
+  // Chỉ Admin được reset (backend cũng chặn); Expert không thấy nút này.
+  const isAdmin = (() => { try { return localStorage.getItem('role') === 'ADMIN'; } catch { return false; } })();
 
   // Document preview modal state
   const [previewData, setPreviewData] = useState(null);
@@ -63,13 +67,23 @@ export default function ExpertReview() {
     loadSources();
   }, []);
 
+  function titleOf(id) {
+    return docs.find((d) => d.id === id)?.title || (previewData?.id === id ? previewData.title : 'tài liệu');
+  }
+
   async function reviewSingle(id, status, catOverride = null) {
+    const title = titleOf(id);
+    setErr(null);
+    setMsg(null);
     try {
       const catId = catOverride !== null ? catOverride : (docCategoryMap[id] || null);
       await api.reviewDoc(id, status, catId ? Number(catId) : null);
       if (previewData && previewData.id === id) {
         setPreviewData(null);
       }
+      setMsg(status === 'APPROVED'
+        ? `Đã duyệt "${title}". Bài đã có trong Kho bài viết; Trợ lý AI dùng được sau khi hệ thống tạo xong vector RAG (có thể mất vài phút).`
+        : `Đã từ chối "${title}".`);
       loadDocs();
       loadCats();
     } catch (e) {
@@ -202,6 +216,14 @@ export default function ExpertReview() {
     }
   }
 
+  function confirmReject() {
+    const target = rejectTarget;
+    setRejectTarget(null);
+    if (!target) return;
+    if (target.ids.length === 1) reviewSingle(target.ids[0], 'REJECTED');
+    else handleBatchReview('REJECTED');
+  }
+
   async function confirmResetDocs() {
     setShowResetModal(false);
     setErr(null);
@@ -225,10 +247,12 @@ export default function ExpertReview() {
             Thu thập bài viết y tế uy tín, bóc tách văn bản, xem trước Semantic Chunks và duyệt vào kho RAG.
           </p>
         </div>
-        <Btn variant="danger-subtle" size="md" onClick={() => setShowResetModal(true)} className="text-sm font-medium">
-          <RotateCcw size={15} />
-          Reset danh sách để Demo
-        </Btn>
+        {isAdmin && (
+          <Btn variant="danger-subtle" size="md" onClick={() => setShowResetModal(true)} className="text-sm font-medium">
+            <RotateCcw size={15} />
+            Reset danh sách để Demo
+          </Btn>
+        )}
       </header>
 
       {/* Tabs navigation */}
@@ -434,7 +458,7 @@ export default function ExpertReview() {
               variant="danger-subtle"
               size="md"
               disabled={batchActioning}
-              onClick={() => handleBatchReview('REJECTED')}
+              onClick={() => setRejectTarget({ ids: selectedIds, label: `${selectedIds.length} tài liệu đã chọn` })}
               className="text-sm font-semibold"
             >
               <X size={16} />
@@ -539,7 +563,7 @@ export default function ExpertReview() {
                 <Btn
                   variant="danger-subtle"
                   size="md"
-                  onClick={() => reviewSingle(d.id, 'REJECTED')}
+                  onClick={() => setRejectTarget({ ids: [d.id], label: `"${d.title}"` })}
                   className="text-sm font-semibold"
                 >
                   <X size={15} />
@@ -567,7 +591,7 @@ export default function ExpertReview() {
                 <Btn
                   variant="danger-subtle"
                   size="md"
-                  onClick={() => reviewSingle(previewData.id, 'REJECTED')}
+                  onClick={() => setRejectTarget({ ids: [previewData.id], label: `"${previewData.title}"` })}
                   className="text-sm font-semibold"
                 >
                   <X size={15} />
@@ -643,19 +667,49 @@ export default function ExpertReview() {
         onClose={() => setShowResetModal(false)}
         icon={<AlertTriangle size={22} />}
         tone="danger"
-        title="Xác nhận Reset Dữ liệu Demo"
+        title="Xóa vĩnh viễn toàn bộ tài liệu?"
         footer={
           <>
             <Btn variant="ghost" size="md" onClick={() => setShowResetModal(false)} className="text-sm font-medium">
               Hủy bỏ
             </Btn>
             <Btn variant="danger" size="md" onClick={confirmResetDocs} className="text-sm font-semibold">
-              Xác nhận Reset
+              Xóa vĩnh viễn
             </Btn>
           </>
         }
       >
-        Hành động này sẽ xóa toàn bộ bài viết và các đoạn vector đã lưu trong cơ sở dữ liệu để bạn sẵn sàng demo cào & duyệt lại từ đầu.
+        <div className="space-y-2 text-sm text-ink-2">
+          <p>
+            <span className="font-semibold text-danger">Thao tác này không hoàn tác được.</span>{' '}
+            Toàn bộ tài liệu sẽ bị xóa, gồm cả bài đã duyệt đang hiện trong Kho bài viết, bài chờ duyệt, bài đã
+            từ chối và mọi đoạn vector RAG. Trợ lý AI sẽ không còn tri thức để trích dẫn cho tới khi bạn cào và duyệt lại.
+          </p>
+          <p>Lịch sử chat của người dùng và kho few-shot được giữ nguyên.</p>
+        </div>
+      </Modal>
+
+      <Modal
+        open={rejectTarget !== null}
+        onClose={() => setRejectTarget(null)}
+        icon={<X size={22} />}
+        tone="danger"
+        title="Từ chối tài liệu?"
+        footer={
+          <>
+            <Btn variant="ghost" size="md" onClick={() => setRejectTarget(null)} className="text-sm font-medium">
+              Quay lại
+            </Btn>
+            <Btn variant="danger" size="md" disabled={batchActioning} onClick={confirmReject} className="text-sm font-semibold">
+              Từ chối
+            </Btn>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-2">
+          {rejectTarget?.label} sẽ không được đưa vào Kho bài viết và RAG. Trang này chưa có mục xem lại bài đã từ
+          chối, và đường dẫn đã từ chối sẽ không cào lại được.
+        </p>
       </Modal>
     </div>
   );
