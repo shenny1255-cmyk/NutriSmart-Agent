@@ -579,3 +579,101 @@ def test_ghi_mon_thu_cong_bao_da_dong_bo_va_lo_trinh_biet_bua_tu_nhat_ky():
         db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
         db.commit()
         db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_buoc_chan_nho_khong_lam_tut_kcal_bai_tap_tick_tay():
+    """Kịch bản E: Tick tay bài tập 300 kcal, sau đó app gửi 1.000 bước (40 kcal) không bị ghi đè làm tụt kcal."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Tick tay trên Web
+        save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+        db.commit()
+
+        # Kiểm tra có 1 log PLAN 300 kcal
+        plan_log = db.query(ActivityLog).filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "PLAN",
+        ).one()
+        assert float(plan_log.calories_burned or 0) == 300.0
+
+        # App gửi 1.000 bước (~46.7 kcal < 300 kcal)
+        synced = upsert_daily_activity(
+            ActivityIn(steps=1000, log_date=date.today()), db, user
+        )
+        assert synced.plan_exercise is not None
+        assert synced.plan_exercise.checked is True
+
+        # Log PLAN 300 kcal vẫn được BẢO TOÀN, không bị xóa tụt xuống 40 kcal
+        plan_logs = db.query(ActivityLog).filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "PLAN",
+        ).all()
+        assert len(plan_logs) == 1
+        assert float(plan_logs[0].calories_burned or 0) == 300.0
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_buoc_chan_co_replace_cho_phep_sua_xuong():
+    """Gửi 6.000 bước rồi gửi lại 2.000 bước với replace=True để sửa nhầm."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+
+    db = SessionLocal()
+    user, _, _ = _create_program(db)
+    try:
+        # Lần 1: gửi 6.000 bước
+        r1 = upsert_daily_activity(ActivityIn(steps=6000, log_date=date.today()), db, user)
+        assert r1.steps == 6000
+
+        # Lần 2: sửa nhầm xuống 2.000 bước với replace=True
+        r2 = upsert_daily_activity(ActivityIn(steps=2000, replace=True, log_date=date.today()), db, user)
+        assert r2.steps == 2000
+
+        log = db.query(ActivityLog).filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "MOBILE",
+        ).one()
+        assert log.steps == 2000
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+def test_resolve_exercise_data_khong_bi_attribute_error_khi_thieu_metric():
+    """Bug c: User không có metric trong body_metrics_history không bị crash AttributeError."""
+    from app.models import User, UserProfile
+    from app.services.plan_progress import _resolve_exercise_data
+
+    db = SessionLocal()
+    user = User(email=f"test_nometric_{date.today()}@nutrismart.vn", password_hash="pw", role="USER")
+    db.add(user)
+    db.flush()
+    profile = UserProfile(user_id=user.id, full_name="Test No Metric")
+    db.add(profile)
+    db.commit()
+    try:
+        # user.profile không có weight_kg, hàm phải tự fallback về 60.0 kg an toàn
+        name, duration, kcal = _resolve_exercise_data(db, user, {"exercise": {"name": "Đi bộ vừa", "duration_min": 30, "calories_kcal": 0}})
+        assert name == "Đi bộ vừa"
+        assert duration == 30
+        assert kcal > 0  # tính được kcal dựa trên 60kg fallback
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()

@@ -110,13 +110,11 @@ def _resolve_exercise_data(
 
     # Lấy cân nặng người dùng
     metric = latest_body_metric(db, user.id)
-    weight_kg: float | None = None
-    if metric and metric.weight_kg is not None:
-        weight_kg = float(metric.weight_kg)
-    elif user.profile and user.profile.weight_kg is not None:
-        weight_kg = float(user.profile.weight_kg)
-    else:
-        weight_kg = 60.0
+    weight_kg = (
+        float(metric.weight_kg)
+        if metric and metric.weight_kg is not None
+        else 60.0
+    )
 
     computed_kcal = calories_burned(met, weight_kg, duration)
     return name, duration, computed_kcal
@@ -464,7 +462,8 @@ def save_progress(
         started_at = datetime.combine(progress_date, time(hour=12), tzinfo=LOCAL_TIMEZONE)
         existing_activity = activity_by_key.get("exercise")
         mobile_activity = _mobile_activity_for_date(db, user, progress_date)
-        if mobile_activity is not None and float(mobile_activity.calories_burned or 0) > 0:
+        mobile_kcal = float(mobile_activity.calories_burned or 0) if mobile_activity is not None else 0.0
+        if mobile_activity is not None and mobile_kcal >= calories and calories > 0:
             if existing_activity is not None:
                 db.delete(existing_activity)
             setattr(mobile_activity, "source_progress_id", progress.id)

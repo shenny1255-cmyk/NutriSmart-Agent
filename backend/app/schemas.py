@@ -420,6 +420,7 @@ class ActivityIn(BaseModel):
     calories_burned: float = Field(ge=0, le=10_000, default=0.0)
     distance_km: float = Field(ge=0, le=200, default=0.0)
     log_date: date | None = None  # None = hôm nay
+    replace: bool = False  # True: ghi đè chính xác số bước (Web khi sửa); False: dùng max(cũ, mới) (Mobile)
 
 
 class PlanExerciseSyncOut(BaseModel):

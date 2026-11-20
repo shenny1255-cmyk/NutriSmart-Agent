@@ -96,7 +96,7 @@ def summary(
         ORDER BY day
     """)
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
-    today = date.today()
+    today = datetime.now(LOCAL_TIMEZONE).date()
     if not any(r["day"] == today for r in rows):
         target = (user.profile.daily_calorie_target if user.profile else None) or 2000
         kcal_intake = float(db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0)).filter(
@@ -125,8 +125,9 @@ def upsert_daily_activity(
     user: User = Depends(get_current_user),
 ):
     """Mobile gửi bước chân; backend tính kcal và tự tick vận động khi đủ ngưỡng."""
-    log_date = payload.log_date or date.today()
-    if log_date != date.today():
+    today_vn = datetime.now(LOCAL_TIMEZONE).date()
+    log_date = payload.log_date or today_vn
+    if log_date != today_vn:
         raise HTTPException(422, "Ứng dụng chỉ được đồng bộ hoạt động của ngày hôm nay")
     try:
         from sqlalchemy import func
@@ -150,7 +151,10 @@ def upsert_daily_activity(
         )
 
         if existing:
-            effective_steps = max(int(existing.steps or 0), payload.steps)
+            effective_steps = (
+                payload.steps if payload.replace
+                else max(int(existing.steps or 0), payload.steps)
+            )
             existing.steps = effective_steps  # type: ignore
             existing.source_type = "MOBILE"
             if existing.started_at is None:
@@ -210,7 +214,7 @@ def get_today_activity(
 ):
     """Web Dashboard gọi để lấy số bước + calo tiêu hao hôm nay từ Mobile."""
     from sqlalchemy import func
-    today = date.today()
+    today = datetime.now(LOCAL_TIMEZONE).date()
     log = (
         db.query(ActivityLog)
         .filter(
