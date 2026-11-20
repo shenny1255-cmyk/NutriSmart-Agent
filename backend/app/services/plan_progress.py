@@ -30,11 +30,6 @@ MEAL_TYPES = {
     "phụ": "SNACK",
 }
 LOCAL_TIMEZONE = timezone(timedelta(hours=7))
-
-
-def today_vn() -> date:
-    """Trả về ngày hôm nay theo giờ Việt Nam (Asia/Bangkok / UTC+7)."""
-    return datetime.now(LOCAL_TIMEZONE).date()
 LEGACY_DURATION_PATTERN = re.compile(
     r"(?P<value>\d+(?:[.,]\d+)?)\s*(?:phút|phut|minutes?|mins?)",
     re.IGNORECASE,
@@ -43,6 +38,11 @@ LEGACY_CALORIES_PATTERN = re.compile(
     r"(?P<value>\d+(?:[.,]\d+)?)\s*kcal",
     re.IGNORECASE,
 )
+
+
+def today_vn() -> date:
+    """Trả về ngày hôm nay theo giờ Việt Nam (Asia/Bangkok / UTC+7)."""
+    return datetime.now(LOCAL_TIMEZONE).date()
 
 
 def _ordered_items(values: list[str]) -> list[str]:
