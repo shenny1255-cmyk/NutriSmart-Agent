@@ -120,6 +120,9 @@ export default function Dashboard() {
       } else if (ex?.reason === 'BELOW_TARGET') {
         setStepFeedback(`Đã lưu ${Math.round(res.calories_burned)} kcal. Còn thiếu ${Math.ceil(ex.remaining_kcal)} kcal để tự hoàn thành mục vận động.`);
         setStepFeedbackType('info');
+      } else if (ex?.reason === 'CHECKIN_CLOSED' || ex?.reason === 'PROGRAM_INACTIVE') {
+        setStepFeedback(`Đã lưu ${Math.round(res.calories_burned)} kcal; đợt lộ trình hiện không nhận thay đổi.`);
+        setStepFeedbackType('info');
       } else {
         setStepFeedback(`Đã cập nhật ${val.toLocaleString()} bước (${Math.round(res.calories_burned)} kcal tiêu hao).`);
         setStepFeedbackType('success');
@@ -285,14 +288,14 @@ export default function Dashboard() {
                 value={stepInput}
                 onChange={(e) => setStepInput(e.target.value)}
                 placeholder="Số bước (VD: 7500)"
-                className="min-h-10 w-44 rounded-md border border-rule-2 bg-paper-1 px-3 py-1.5 text-sm font-medium text-ink placeholder:text-muted focus:border-accent-strong focus:outline-none focus:ring-1 focus:ring-accent-strong"
+                className="min-h-10 w-44 rounded-md border border-rule-2 bg-paper-2 px-3 py-1.5 text-sm font-medium text-ink placeholder:text-muted focus:border-accent-strong focus:outline-none focus:ring-1 focus:ring-accent-strong"
               />
               <span className="pointer-events-none absolute right-3 top-2.5 text-xs text-muted">bước</span>
             </div>
             <button
               type="submit"
               disabled={stepSaving}
-              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-accent-strong px-4 py-1.5 text-sm font-semibold text-accent-ink shadow-xs transition hover:opacity-90 disabled:opacity-50"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-accent-strong px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
             >
               {stepSaving ? (
                 <>

@@ -294,7 +294,12 @@ def sync_mobile_exercise(
         not initial["checked"]
         and initial["actual_kcal"] >= initial["required_kcal"]
     )
-    if initial["checked"] or should_auto_check:
+    should_uncheck_mobile = (
+        initial["checked"]
+        and initial.get("source") == "MOBILE"
+        and initial["actual_kcal"] < initial["required_kcal"]
+    )
+    if initial["checked"] or should_auto_check or should_uncheck_mobile:
         context = _mobile_plan_context(db, user, progress_date)
         if context is None:
             return initial
@@ -307,8 +312,10 @@ def sync_mobile_exercise(
             list(cast(list[str], progress.checked_items))
             if progress is not None else []
         )
-        if should_auto_check:
+        if should_auto_check and "exercise" not in checked_items:
             checked_items.append("exercise")
+        elif should_uncheck_mobile and "exercise" in checked_items:
+            checked_items = [k for k in checked_items if k != "exercise"]
         save_progress(
             db,
             user,
@@ -468,27 +475,36 @@ def save_progress(
                 db.delete(existing_activity)
             setattr(mobile_activity, "source_progress_id", progress.id)
             mobile_activity.source_item_key = "exercise"
-        elif existing_activity is not None:
-            existing_activity.duration_min = duration
-            existing_activity.calories_burned = calories
-            existing_activity.item_name_snapshot = name
-            setattr(
-                existing_activity,
-                "ended_at",
-                started_at + timedelta(minutes=duration) if duration else None,
-            )
         else:
-            db.add(ActivityLog(
-                user_id=user.id,
-                duration_min=duration,
-                calories_burned=calories,
-                started_at=started_at,
-                ended_at=started_at + timedelta(minutes=duration) if duration else None,
-                source_type="PLAN",
-                source_progress_id=progress.id,
-                source_item_key="exercise",
-                item_name_snapshot=name,
-            ))
+            if mobile_activity is not None and getattr(mobile_activity, "source_progress_id", None) == progress.id:
+                setattr(mobile_activity, "source_progress_id", None)
+                mobile_activity.source_item_key = None
+
+            top_up_kcal = max(round(calories - mobile_kcal, 1), 0.0)
+            if top_up_kcal > 0:
+                if existing_activity is not None:
+                    existing_activity.duration_min = duration
+                    existing_activity.calories_burned = top_up_kcal
+                    existing_activity.item_name_snapshot = name
+                    setattr(
+                        existing_activity,
+                        "ended_at",
+                        started_at + timedelta(minutes=duration) if duration else None,
+                    )
+                else:
+                    db.add(ActivityLog(
+                        user_id=user.id,
+                        duration_min=duration,
+                        calories_burned=top_up_kcal,
+                        started_at=started_at,
+                        ended_at=started_at + timedelta(minutes=duration) if duration else None,
+                        source_type="PLAN",
+                        source_progress_id=progress.id,
+                        source_item_key="exercise",
+                        item_name_snapshot=name,
+                    ))
+            elif existing_activity is not None:
+                db.delete(existing_activity)
 
     progress.checked_items = desired  # type: ignore
     progress.updated_at = datetime.now(timezone.utc)  # type: ignore

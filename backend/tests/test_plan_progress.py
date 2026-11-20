@@ -613,13 +613,46 @@ def test_dong_bo_buoc_chan_nho_khong_lam_tut_kcal_bai_tap_tick_tay():
         assert synced.plan_exercise is not None
         assert synced.plan_exercise.checked is True
 
-        # Log PLAN 300 kcal vẫn được BẢO TOÀN, không bị xóa tụt xuống 40 kcal
-        plan_logs = db.query(ActivityLog).filter(
-            ActivityLog.user_id == user.id,
-            ActivityLog.source_type == "PLAN",
-        ).all()
-        assert len(plan_logs) == 1
-        assert float(plan_logs[0].calories_burned or 0) == 300.0
+        # Tổng kcal tiêu hao trong ngày được BẢO TOÀN đúng 300 kcal (top-up: plan + mobile = 300 kcal)
+        all_logs = db.query(ActivityLog).filter(ActivityLog.user_id == user.id).all()
+        total_kcal = sum(float(log.calories_burned or 0) for log in all_logs)
+        assert round(total_kcal, 1) == 300.0
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_sua_buoc_chan_xuong_duoi_nguong_bo_tick_va_khong_cong_trung():
+    """Kịch bản I: Gõ nhầm 50.000 bước (auto-check), rồi sửa lại 5.000 bước (< 350 kcal) thì bỏ tick và không cộng trùng."""
+    from app.models import ActivityLog, PlanDailyProgress
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Đi bộ", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Lần 1: gõ nhầm 50.000 bước -> auto-checked
+        r1 = upsert_daily_activity(ActivityIn(steps=50000, log_date=date.today()), db, user)
+        assert r1.plan_exercise is not None
+        assert r1.plan_exercise.checked is True
+
+        # Lần 2: sửa xuống 5.000 bước với replace=True
+        r2 = upsert_daily_activity(ActivityIn(steps=5000, replace=True, log_date=date.today()), db, user)
+        assert r2.steps == 5000
+        assert r2.plan_exercise is not None
+        assert r2.plan_exercise.checked is False
+        assert r2.plan_exercise.reason == "BELOW_TARGET"
+
+        # CSDL chỉ còn 1 log MOBILE duy nhất, KHÔNG sinh log PLAN cộng trùng
+        all_activities = db.query(ActivityLog).filter(ActivityLog.user_id == user.id).all()
+        assert len(all_activities) == 1
+        assert all_activities[0].source_type == "MOBILE"
+        assert all_activities[0].source_item_key is None
     finally:
         db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
         db.commit()
