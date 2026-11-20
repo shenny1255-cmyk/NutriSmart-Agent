@@ -49,6 +49,11 @@ def _ngay_viet_nam(column):
     return func.date(func.timezone("Asia/Bangkok", column))
 
 
+def _today_vn() -> date:
+    """Trả về ngày theo múi giờ Việt Nam (Asia/Bangkok)."""
+    return datetime.now(LOCAL_TIMEZONE).date()
+
+
 def _device_estimates(db: Session, user: User, steps: int) -> tuple[float, float]:
     """Tính lại kcal và quãng đường bằng số đo đã lưu, không tin số client tự khai."""
     metric = latest_body_metric(db, user.id)
@@ -66,7 +71,7 @@ def summary(
     user: User = Depends(get_current_user),
 ):
     from sqlalchemy import func
-    since = date.today() - timedelta(days=days - 1)
+    since = _today_vn() - timedelta(days=days - 1)
     zero_plan_logs = (
         db.query(ActivityLog)
         .filter(
@@ -96,7 +101,7 @@ def summary(
         ORDER BY day
     """)
     rows = [dict(r) for r in db.execute(sql, {"uid": str(user.id), "since": since}).mappings().all()]
-    today = date.today()
+    today = datetime.now(LOCAL_TIMEZONE).date()
     if not any(r["day"] == today for r in rows):
         target = (user.profile.daily_calorie_target if user.profile else None) or 2000
         kcal_intake = float(db.query(func.coalesce(func.sum(MealLog.calories_kcal), 0)).filter(
@@ -125,8 +130,9 @@ def upsert_daily_activity(
     user: User = Depends(get_current_user),
 ):
     """Mobile gửi bước chân; backend tính kcal và tự tick vận động khi đủ ngưỡng."""
-    log_date = payload.log_date or date.today()
-    if log_date != date.today():
+    today_vn = datetime.now(LOCAL_TIMEZONE).date()
+    log_date = payload.log_date or today_vn
+    if log_date != today_vn:
         raise HTTPException(422, "Ứng dụng chỉ được đồng bộ hoạt động của ngày hôm nay")
     try:
         from sqlalchemy import func
@@ -150,7 +156,10 @@ def upsert_daily_activity(
         )
 
         if existing:
-            effective_steps = max(int(existing.steps or 0), payload.steps)
+            effective_steps = (
+                payload.steps if payload.replace
+                else max(int(existing.steps or 0), payload.steps)
+            )
             existing.steps = effective_steps  # type: ignore
             existing.source_type = "MOBILE"
             if existing.started_at is None:
@@ -178,7 +187,7 @@ def upsert_daily_activity(
         existing.calories_burned = trusted_calories
         db.flush()
         exercise_status = plan_progress.sync_mobile_exercise(
-            db, user, existing, log_date
+            db, user, existing, log_date, allow_uncheck=payload.replace
         )
 
         db.commit()
@@ -210,7 +219,7 @@ def get_today_activity(
 ):
     """Web Dashboard gọi để lấy số bước + calo tiêu hao hôm nay từ Mobile."""
     from sqlalchemy import func
-    today = date.today()
+    today = datetime.now(LOCAL_TIMEZONE).date()
     log = (
         db.query(ActivityLog)
         .filter(
@@ -247,7 +256,7 @@ def get_today_activity(
 
 def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
     """Ghi một bữa ăn. Chọn món có sẵn hoặc gõ tên món mới (món mới được thêm vào danh mục)."""
-    log_date = payload.log_date or date.today()
+    log_date = payload.log_date or _today_vn()
 
     food = None
     if payload.food_id:
@@ -365,7 +374,7 @@ def api_danh_sach_bua_an(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return danh_sach_bua_an(db, user, d or date.today())
+    return danh_sach_bua_an(db, user, d or _today_vn())
 
 
 @router.delete("/meals/{log_id}", status_code=204)
@@ -506,7 +515,7 @@ def api_danh_sach_van_dong(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return danh_sach_van_dong(db, user, d or date.today())
+    return danh_sach_van_dong(db, user, d or _today_vn())
 
 
 @router.delete("/activities/{log_id}", status_code=204)
@@ -529,7 +538,7 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
     if not user.profile:
         raise HTTPException(400, "Chưa có hồ sơ sức khỏe")
 
-    ngay = payload.recorded_at or date.today()
+    ngay = payload.recorded_at or _today_vn()
 
     row = upsert_body_metric(
         db,
@@ -548,7 +557,7 @@ def cap_nhat_can_nang(db: Session, user: User, payload: WeightIn) -> WeightOut:
 
 
 def lich_su_can_nang(db: Session, user: User, days: int = 90) -> list[WeightOut]:
-    tu_ngay = date.today() - timedelta(days=days)
+    tu_ngay = _today_vn() - timedelta(days=days)
     rows = (
         db.query(BodyMetricHistory)
         .filter(BodyMetricHistory.user_id == user.id, BodyMetricHistory.recorded_at >= tu_ngay)  # type: ignore

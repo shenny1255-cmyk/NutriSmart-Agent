@@ -40,6 +40,11 @@ LEGACY_CALORIES_PATTERN = re.compile(
 )
 
 
+def today_vn() -> date:
+    """Trả về ngày hôm nay theo giờ Việt Nam (Asia/Bangkok / UTC+7)."""
+    return datetime.now(LOCAL_TIMEZONE).date()
+
+
 def _ordered_items(values: list[str]) -> list[str]:
     selected = set(values)
     unknown = selected.difference(ITEM_KEYS)
@@ -110,13 +115,11 @@ def _resolve_exercise_data(
 
     # Lấy cân nặng người dùng
     metric = latest_body_metric(db, user.id)
-    weight_kg: float | None = None
-    if metric and metric.weight_kg is not None:
-        weight_kg = float(metric.weight_kg)
-    elif user.profile and user.profile.weight_kg is not None:
-        weight_kg = float(user.profile.weight_kg)
-    else:
-        weight_kg = 60.0
+    weight_kg = (
+        float(metric.weight_kg)
+        if metric and metric.weight_kg is not None
+        else 60.0
+    )
 
     computed_kcal = calories_burned(met, weight_kg, duration)
     return name, duration, computed_kcal
@@ -268,6 +271,7 @@ def mobile_exercise_status(
     return {
         "exercise_name": exercise_name,
         "required_kcal": round(required_kcal, 1),
+        "plan_kcal": round(plan_kcal, 1),
         "actual_kcal": round(actual_kcal, 1),
         "remaining_kcal": round(max(required_kcal - actual_kcal, 0), 1),
         "progress_date": progress_date,
@@ -284,6 +288,8 @@ def sync_mobile_exercise(
     user: User,
     mobile_log: ActivityLog,
     progress_date: date,
+    *,
+    allow_uncheck: bool = False,
 ) -> dict | None:
     """Dùng kcal App làm bằng chứng và tự tick khi đạt ngưỡng, trong transaction caller."""
     initial = mobile_exercise_status(
@@ -296,7 +302,14 @@ def sync_mobile_exercise(
         not initial["checked"]
         and initial["actual_kcal"] >= initial["required_kcal"]
     )
-    if initial["checked"] or should_auto_check:
+    threshold_kcal = float(initial.get("plan_kcal") or initial["required_kcal"])
+    should_uncheck_mobile = (
+        allow_uncheck
+        and initial["checked"]
+        and initial.get("source") == "MOBILE"
+        and initial["actual_kcal"] < threshold_kcal
+    )
+    if initial["checked"] or should_auto_check or should_uncheck_mobile:
         context = _mobile_plan_context(db, user, progress_date)
         if context is None:
             return initial
@@ -309,8 +322,10 @@ def sync_mobile_exercise(
             list(cast(list[str], progress.checked_items))
             if progress is not None else []
         )
-        if should_auto_check:
+        if should_auto_check and "exercise" not in checked_items:
             checked_items.append("exercise")
+        elif should_uncheck_mobile and "exercise" in checked_items:
+            checked_items = [k for k in checked_items if k != "exercise"]
         save_progress(
             db,
             user,
@@ -372,7 +387,7 @@ def save_progress(
     today: date | None = None,
 ) -> dict:
     """Upsert tiến độ và biến đổi log tương ứng trong transaction của caller."""
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, series, day, template_index = _context(
         db, user, plan_id, progress_date, today
     )
@@ -464,32 +479,42 @@ def save_progress(
         started_at = datetime.combine(progress_date, time(hour=12), tzinfo=LOCAL_TIMEZONE)
         existing_activity = activity_by_key.get("exercise")
         mobile_activity = _mobile_activity_for_date(db, user, progress_date)
-        if mobile_activity is not None and float(mobile_activity.calories_burned or 0) > 0:
+        mobile_kcal = float(mobile_activity.calories_burned or 0) if mobile_activity is not None else 0.0
+        if mobile_activity is not None and mobile_kcal >= calories and calories > 0:
             if existing_activity is not None:
                 db.delete(existing_activity)
             setattr(mobile_activity, "source_progress_id", progress.id)
             mobile_activity.source_item_key = "exercise"
-        elif existing_activity is not None:
-            existing_activity.duration_min = duration
-            existing_activity.calories_burned = calories
-            existing_activity.item_name_snapshot = name
-            setattr(
-                existing_activity,
-                "ended_at",
-                started_at + timedelta(minutes=duration) if duration else None,
-            )
         else:
-            db.add(ActivityLog(
-                user_id=user.id,
-                duration_min=duration,
-                calories_burned=calories,
-                started_at=started_at,
-                ended_at=started_at + timedelta(minutes=duration) if duration else None,
-                source_type="PLAN",
-                source_progress_id=progress.id,
-                source_item_key="exercise",
-                item_name_snapshot=name,
-            ))
+            if mobile_activity is not None and getattr(mobile_activity, "source_progress_id", None) == progress.id:
+                setattr(mobile_activity, "source_progress_id", None)
+                mobile_activity.source_item_key = None
+
+            top_up_kcal = max(round(calories - mobile_kcal, 1), 0.0)
+            if top_up_kcal > 0:
+                if existing_activity is not None:
+                    existing_activity.duration_min = duration
+                    existing_activity.calories_burned = top_up_kcal
+                    existing_activity.item_name_snapshot = name
+                    setattr(
+                        existing_activity,
+                        "ended_at",
+                        started_at + timedelta(minutes=duration) if duration else None,
+                    )
+                else:
+                    db.add(ActivityLog(
+                        user_id=user.id,
+                        duration_min=duration,
+                        calories_burned=top_up_kcal,
+                        started_at=started_at,
+                        ended_at=started_at + timedelta(minutes=duration) if duration else None,
+                        source_type="PLAN",
+                        source_progress_id=progress.id,
+                        source_item_key="exercise",
+                        item_name_snapshot=name,
+                    ))
+            elif existing_activity is not None:
+                db.delete(existing_activity)
 
     progress.checked_items = desired  # type: ignore
     progress.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -535,7 +560,7 @@ def reset_progress(
     *,
     today: date | None = None,
 ) -> dict:
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, series, _, template_index = _context(db, user, plan_id, progress_date, today)
     progress = db.query(PlanDailyProgress).filter(
         PlanDailyProgress.checkin_id == checkin.id,
@@ -596,7 +621,7 @@ def get_progress(
     *,
     today: date | None = None,
 ) -> dict:
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, _, _, template_index = _context(db, user, plan_id, progress_date, today)
     row = db.query(PlanDailyProgress).filter(
         PlanDailyProgress.user_id == user.id,
@@ -627,7 +652,7 @@ def sync_meal_log_with_plan(
     progress_date: date | None = None,
 ) -> dict | None:
     """Tự động tick mục bữa ăn tương ứng trong Lộ trình khi người dùng lưu món ăn."""
-    pdate = progress_date or meal_log.log_date or date.today()
+    pdate = progress_date or meal_log.log_date or today_vn()
     mtype = str(meal_log.meal_type or "").upper()
     type_to_key = {
         "BREAKFAST": "meal:0",

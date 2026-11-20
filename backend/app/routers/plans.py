@@ -114,7 +114,7 @@ def active_plan(
     plan = _visible_plan_or_404(db, user)
 
     res = plan_generator.plan_to_dict(db, plan, user)
-    res["days_elapsed"] = (date.today() - plan.start_date).days  # type: ignore
+    res["days_elapsed"] = (plan_progress.today_vn() - plan.start_date).days  # type: ignore
     try:
         current = (
             plan_checkin.get_current_checkin(db, user)

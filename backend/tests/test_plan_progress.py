@@ -579,3 +579,167 @@ def test_ghi_mon_thu_cong_bao_da_dong_bo_va_lo_trinh_biet_bua_tu_nhat_ky():
         db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
         db.commit()
         db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_buoc_chan_nho_khong_lam_tut_kcal_bai_tap_tick_tay():
+    """Kịch bản E: Tick tay bài tập 300 kcal, sau đó app gửi 1.000 bước (40 kcal) không bị ghi đè làm tụt kcal."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Tick tay trên Web
+        save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+        db.commit()
+
+        # Kiểm tra có 1 log PLAN 300 kcal
+        plan_log = db.query(ActivityLog).filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "PLAN",
+        ).one()
+        assert float(plan_log.calories_burned or 0) == 300.0
+
+        # App gửi 1.000 bước (~46.7 kcal < 300 kcal)
+        synced = upsert_daily_activity(
+            ActivityIn(steps=1000, log_date=date.today()), db, user
+        )
+        assert synced.plan_exercise is not None
+        assert synced.plan_exercise.checked is True
+
+        # Tổng kcal tiêu hao trong ngày được BẢO TOÀN đúng 300 kcal (top-up: plan + mobile = 300 kcal)
+        all_logs = db.query(ActivityLog).filter(ActivityLog.user_id == user.id).all()
+        total_kcal = sum(float(log.calories_burned or 0) for log in all_logs)
+        assert round(total_kcal, 1) == 300.0
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_sua_buoc_chan_xuong_duoi_nguong_bo_tick_va_khong_cong_trung():
+    """Kịch bản I: Gõ nhầm 50.000 bước (auto-check), rồi sửa lại 5.000 bước (< 350 kcal) thì bỏ tick và không cộng trùng."""
+    from app.models import ActivityLog, PlanDailyProgress
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Đi bộ", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Lần 1: gõ nhầm 50.000 bước -> auto-checked
+        r1 = upsert_daily_activity(ActivityIn(steps=50000, log_date=date.today()), db, user)
+        assert r1.plan_exercise is not None
+        assert r1.plan_exercise.checked is True
+
+        # Lần 2: sửa xuống 5.000 bước với replace=True
+        r2 = upsert_daily_activity(ActivityIn(steps=5000, replace=True, log_date=date.today()), db, user)
+        assert r2.steps == 5000
+        assert r2.plan_exercise is not None
+        assert r2.plan_exercise.checked is False
+        assert r2.plan_exercise.reason == "BELOW_TARGET"
+
+        # CSDL chỉ còn 1 log MOBILE duy nhất, KHÔNG sinh log PLAN cộng trùng
+        all_activities = db.query(ActivityLog).filter(ActivityLog.user_id == user.id).all()
+        assert len(all_activities) == 1
+        assert all_activities[0].source_type == "MOBILE"
+        assert all_activities[0].source_item_key is None
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_lap_khong_lam_mat_tick_tay_cua_bai_tap():
+    """Kịch bản L: Bài tập 300 kcal (ngưỡng 350). Tick tay rồi app gửi 8.000 bước (320 kcal) 2 lần liên tiếp không bị mất tick."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Tick tay trên Web
+        save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+        db.commit()
+
+        # Lần 1: app gửi 8.000 bước
+        r1 = upsert_daily_activity(ActivityIn(steps=8000, log_date=date.today()), db, user)
+        assert r1.plan_exercise is not None
+        assert r1.plan_exercise.checked is True
+
+        # Lần 2: app gửi lại 8.000 bước (đồng bộ bình thường, replace=False) -> KHÔNG ĐƯỢC GỠ TICK
+        r2 = upsert_daily_activity(ActivityIn(steps=8000, log_date=date.today()), db, user)
+        assert r2.plan_exercise is not None
+        assert r2.plan_exercise.checked is True
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_buoc_chan_co_replace_cho_phep_sua_xuong():
+    """Gửi 6.000 bước rồi gửi lại 2.000 bước với replace=True để sửa nhầm."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+
+    db = SessionLocal()
+    user, _, _ = _create_program(db)
+    try:
+        # Lần 1: gửi 6.000 bước
+        r1 = upsert_daily_activity(ActivityIn(steps=6000, log_date=date.today()), db, user)
+        assert r1.steps == 6000
+
+        # Lần 2: sửa nhầm xuống 2.000 bước với replace=True
+        r2 = upsert_daily_activity(ActivityIn(steps=2000, replace=True, log_date=date.today()), db, user)
+        assert r2.steps == 2000
+
+        log = db.query(ActivityLog).filter(
+            ActivityLog.user_id == user.id,
+            ActivityLog.source_type == "MOBILE",
+        ).one()
+        assert log.steps == 2000
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+def test_resolve_exercise_data_khong_bi_attribute_error_khi_thieu_metric():
+    """Bug c: User không có metric trong body_metrics_history không bị crash AttributeError."""
+    from app.models import User, UserProfile
+    from app.services.plan_progress import _resolve_exercise_data
+
+    db = SessionLocal()
+    user = User(email=f"test_nometric_{date.today()}@nutrismart.vn", password_hash="pw", role="USER")
+    db.add(user)
+    db.flush()
+    profile = UserProfile(user_id=user.id, full_name="Test No Metric")
+    db.add(profile)
+    db.commit()
+    try:
+        # user.profile không có weight_kg, hàm phải tự fallback về 60.0 kg an toàn
+        name, duration, kcal = _resolve_exercise_data(db, user, {"exercise": {"name": "Đi bộ vừa", "duration_min": 30, "calories_kcal": 0}})
+        assert name == "Đi bộ vừa"
+        assert duration == 30
+        assert kcal > 0  # tính được kcal dựa trên 60kg fallback
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()

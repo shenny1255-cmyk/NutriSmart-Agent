@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ReferenceLine, Area, AreaChart } from 'recharts';
-import { Target, Flame, Scale, Footprints, Bell, ChevronRight, Utensils } from 'lucide-react';
+import { Target, Flame, Scale, Footprints, Bell, ChevronRight, Utensils, CheckCircle2, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
@@ -44,6 +44,10 @@ export default function Dashboard() {
   const [showBell, setShowBell] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [currentDate, setCurrentDate] = useState(getLocalDateString());
+  const [stepInput, setStepInput] = useState('');
+  const [stepSaving, setStepSaving] = useState(false);
+  const [stepFeedback, setStepFeedback] = useState(null);
+  const [stepFeedbackType, setStepFeedbackType] = useState(null);
 
   const nextMeal = getNextMealSuggestion();
 
@@ -79,12 +83,57 @@ export default function Dashboard() {
     };
   }, [currentDate]);
 
-  // Lấy dữ liệu vận động hôm nay từ Mobile (đã sync lên backend)
+  // Lấy dữ liệu vận động hôm nay từ Mobile/Web (đã sync lên backend)
   useEffect(() => {
     api.todayActivity()
-      .then((res) => setActivity(res))
-      .catch(() => {}); // Không ảnh hưởng nếu chưa có data Mobile
-  }, [syncStatus]); // re-fetch mỗi khi sync thành công
+      .then((res) => {
+        setActivity(res);
+        if (res?.steps) {
+          setStepInput((prev) => (prev === '' ? String(res.steps) : prev));
+        }
+      })
+      .catch(() => {});
+  }, [syncStatus]);
+
+  const handleUpdateSteps = async (e) => {
+    e.preventDefault();
+    const val = Number(stepInput);
+    if (!Number.isFinite(val) || val < 0 || val > 100000) {
+      setStepFeedback('Vui lòng nhập số bước hợp lệ từ 0 đến 100.000.');
+      setStepFeedbackType('error');
+      return;
+    }
+    setStepSaving(true);
+    setStepFeedback(null);
+    try {
+      const res = await api.syncActivity({ steps: val, replace: true });
+      setActivity(res);
+      fetchSummary();
+      setSyncStatus('ok');
+      const ex = res?.plan_exercise;
+      if (ex?.reason === 'AUTO_CHECKED') {
+        setStepFeedback(`Đã đạt ${Math.round(ex.actual_kcal)} kcal và tự hoàn thành mục vận động trong Lộ trình.`);
+        setStepFeedbackType('success');
+      } else if (ex?.checked) {
+        setStepFeedback(`Đã lưu ${Math.round(res.calories_burned)} kcal. Mục vận động trong Lộ trình đã hoàn thành.`);
+        setStepFeedbackType('success');
+      } else if (ex?.reason === 'BELOW_TARGET') {
+        setStepFeedback(`Đã lưu ${Math.round(res.calories_burned)} kcal. Còn thiếu ${Math.ceil(ex.remaining_kcal)} kcal để tự hoàn thành mục vận động.`);
+        setStepFeedbackType('info');
+      } else if (ex?.reason === 'CHECKIN_CLOSED' || ex?.reason === 'PROGRAM_INACTIVE') {
+        setStepFeedback(`Đã lưu ${Math.round(res.calories_burned)} kcal; đợt lộ trình hiện không nhận thay đổi.`);
+        setStepFeedbackType('info');
+      } else {
+        setStepFeedback(`Đã cập nhật ${val.toLocaleString()} bước (${Math.round(res.calories_burned)} kcal tiêu hao).`);
+        setStepFeedbackType('success');
+      }
+    } catch (err) {
+      setStepFeedback(typeof err.detail === 'string' ? err.detail : 'Không thể cập nhật bước chân. Vui lòng thử lại.');
+      setStepFeedbackType('error');
+    } finally {
+      setStepSaving(false);
+    }
+  };
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
@@ -213,6 +262,75 @@ export default function Dashboard() {
           progressColor={over ? 'warn' : 'accent'}
         />
       </div>
+
+      {/* Widget Ghi nhận bước chân hôm nay */}
+      <section className="glass-card rounded-xl p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
+              <Footprints size={20} />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-semibold text-ink">Ghi nhận bước chân hôm nay</h2>
+              <p className="text-xs text-ink-2 mt-0.5">
+                Xem số bước trên điện thoại (Apple Health, Samsung Health, Google Fit) rồi nhập vào đây để tự tính calo tiêu hao và cập nhật Lộ trình.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleUpdateSteps} className="flex flex-wrap items-center gap-2 sm:shrink-0">
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100000"
+                inputMode="numeric"
+                value={stepInput}
+                onChange={(e) => setStepInput(e.target.value)}
+                placeholder="Số bước (VD: 7500)"
+                className="min-h-10 w-44 rounded-md border border-rule-2 bg-paper-2 px-3 py-1.5 text-sm font-medium text-ink placeholder:text-muted focus:border-accent-strong focus:outline-none focus:ring-1 focus:ring-accent-strong"
+              />
+              <span className="pointer-events-none absolute right-3 top-2.5 text-xs text-muted">bước</span>
+            </div>
+            <button
+              type="submit"
+              disabled={stepSaving}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-accent-strong px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+            >
+              {stepSaving ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={15} />
+                  <span>Cập nhật</span>
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {stepFeedback && (
+          <div
+            className={`mt-3 flex items-start gap-2 rounded-md px-3 py-2 text-xs font-medium ${
+              stepFeedbackType === 'success'
+                ? 'bg-accent-soft text-accent-strong'
+                : stepFeedbackType === 'info'
+                ? 'bg-info-soft text-info'
+                : 'bg-danger-soft text-danger'
+            }`}
+          >
+            {stepFeedbackType === 'success' ? (
+              <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            )}
+            <span>{stepFeedback}</span>
+          </div>
+        )}
+      </section>
 
       {/* Biểu đồ + Widget gợi ý bữa ăn */}
       <div className="relative">
