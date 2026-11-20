@@ -660,6 +660,39 @@ def test_sua_buoc_chan_xuong_duoi_nguong_bo_tick_va_khong_cong_trung():
 
 
 @pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
+def test_dong_bo_lap_khong_lam_mat_tick_tay_cua_bai_tap():
+    """Kịch bản L: Bài tập 300 kcal (ngưỡng 350). Tick tay rồi app gửi 8.000 bước (320 kcal) 2 lần liên tiếp không bị mất tick."""
+    from app.models import ActivityLog
+    from app.routers.tracking import upsert_daily_activity
+    from app.schemas import ActivityIn
+    from app.services.plan_progress import save_progress
+
+    db = SessionLocal()
+    user, plan, _ = _create_program(
+        db,
+        exercise_data={"name": "Yoga", "duration_min": 30, "calories_kcal": 300},
+    )
+    try:
+        # Tick tay trên Web
+        save_progress(db, user, plan.id, date.today(), ["exercise"], today=date.today())
+        db.commit()
+
+        # Lần 1: app gửi 8.000 bước
+        r1 = upsert_daily_activity(ActivityIn(steps=8000, log_date=date.today()), db, user)
+        assert r1.plan_exercise is not None
+        assert r1.plan_exercise.checked is True
+
+        # Lần 2: app gửi lại 8.000 bước (đồng bộ bình thường, replace=False) -> KHÔNG ĐƯỢC GỠ TICK
+        r2 = upsert_daily_activity(ActivityIn(steps=8000, log_date=date.today()), db, user)
+        assert r2.plan_exercise is not None
+        assert r2.plan_exercise.checked is True
+    finally:
+        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": str(user.id)})
+        db.commit()
+        db.close()
+
+
+@pytest.mark.skipif(not _progress_schema_up(), reason="Cần PostgreSQL đã áp dụng migration 27")
 def test_dong_bo_buoc_chan_co_replace_cho_phep_sua_xuong():
     """Gửi 6.000 bước rồi gửi lại 2.000 bước với replace=True để sửa nhầm."""
     from app.models import ActivityLog

@@ -187,7 +187,7 @@ def upsert_daily_activity(
         existing.calories_burned = trusted_calories
         db.flush()
         exercise_status = plan_progress.sync_mobile_exercise(
-            db, user, existing, log_date
+            db, user, existing, log_date, allow_uncheck=payload.replace
         )
 
         db.commit()

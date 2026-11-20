@@ -30,6 +30,11 @@ MEAL_TYPES = {
     "phụ": "SNACK",
 }
 LOCAL_TIMEZONE = timezone(timedelta(hours=7))
+
+
+def today_vn() -> date:
+    """Trả về ngày hôm nay theo giờ Việt Nam (Asia/Bangkok / UTC+7)."""
+    return datetime.now(LOCAL_TIMEZONE).date()
 LEGACY_DURATION_PATTERN = re.compile(
     r"(?P<value>\d+(?:[.,]\d+)?)\s*(?:phút|phut|minutes?|mins?)",
     re.IGNORECASE,
@@ -266,6 +271,7 @@ def mobile_exercise_status(
     return {
         "exercise_name": exercise_name,
         "required_kcal": round(required_kcal, 1),
+        "plan_kcal": round(plan_kcal, 1),
         "actual_kcal": round(actual_kcal, 1),
         "remaining_kcal": round(max(required_kcal - actual_kcal, 0), 1),
         "progress_date": progress_date,
@@ -282,6 +288,8 @@ def sync_mobile_exercise(
     user: User,
     mobile_log: ActivityLog,
     progress_date: date,
+    *,
+    allow_uncheck: bool = False,
 ) -> dict | None:
     """Dùng kcal App làm bằng chứng và tự tick khi đạt ngưỡng, trong transaction caller."""
     initial = mobile_exercise_status(
@@ -294,10 +302,12 @@ def sync_mobile_exercise(
         not initial["checked"]
         and initial["actual_kcal"] >= initial["required_kcal"]
     )
+    threshold_kcal = float(initial.get("plan_kcal") or initial["required_kcal"])
     should_uncheck_mobile = (
-        initial["checked"]
+        allow_uncheck
+        and initial["checked"]
         and initial.get("source") == "MOBILE"
-        and initial["actual_kcal"] < initial["required_kcal"]
+        and initial["actual_kcal"] < threshold_kcal
     )
     if initial["checked"] or should_auto_check or should_uncheck_mobile:
         context = _mobile_plan_context(db, user, progress_date)
@@ -377,7 +387,7 @@ def save_progress(
     today: date | None = None,
 ) -> dict:
     """Upsert tiến độ và biến đổi log tương ứng trong transaction của caller."""
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, series, day, template_index = _context(
         db, user, plan_id, progress_date, today
     )
@@ -550,7 +560,7 @@ def reset_progress(
     *,
     today: date | None = None,
 ) -> dict:
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, series, _, template_index = _context(db, user, plan_id, progress_date, today)
     progress = db.query(PlanDailyProgress).filter(
         PlanDailyProgress.checkin_id == checkin.id,
@@ -611,7 +621,7 @@ def get_progress(
     *,
     today: date | None = None,
 ) -> dict:
-    today = today or date.today()
+    today = today or today_vn()
     plan, checkin, _, _, template_index = _context(db, user, plan_id, progress_date, today)
     row = db.query(PlanDailyProgress).filter(
         PlanDailyProgress.user_id == user.id,
@@ -642,7 +652,7 @@ def sync_meal_log_with_plan(
     progress_date: date | None = None,
 ) -> dict | None:
     """Tự động tick mục bữa ăn tương ứng trong Lộ trình khi người dùng lưu món ăn."""
-    pdate = progress_date or meal_log.log_date or date.today()
+    pdate = progress_date or meal_log.log_date or today_vn()
     mtype = str(meal_log.meal_type or "").upper()
     type_to_key = {
         "BREAKFAST": "meal:0",
