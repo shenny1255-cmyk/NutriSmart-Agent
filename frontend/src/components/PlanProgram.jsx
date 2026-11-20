@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
-  ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints,
+  ArrowRight, CalendarClock, Camera, Check, CheckCircle2, Cookie, Footprints, MessageSquare, Target,
   HelpCircle, Lightbulb, LockKeyhole, Moon, RefreshCw, RotateCcw, Save, Sun,
   Sunrise, UserCheck, UtensilsCrossed,
 } from 'lucide-react';
@@ -667,6 +667,16 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
                     )}
                   </ol>
 
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-rule-2 bg-paper-2 px-4 py-3 text-sm text-ink-2">
+                    <span className="flex items-center gap-2">
+                      <MessageSquare size={16} className="shrink-0 text-accent-strong" aria-hidden="true" />
+                      Bạn muốn đổi món hoặc cần tư vấn thêm về thực đơn hôm nay?
+                    </span>
+                    <Link to="/chat" className="inline-flex min-h-11 items-center gap-1 font-semibold text-accent-strong hover:underline">
+                      Hỏi Trợ lý AI ngay <ArrowRight size={14} />
+                    </Link>
+                  </div>
+
                   <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-rule-2 pt-4">
                     <Btn variant="ghost" disabled={progressBusy || progressLocked || checkedItems.length === 0} onClick={() => runProgress('reset')}>
                       <RotateCcw size={15} /> Đặt lại
@@ -836,8 +846,17 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   );
 }
 
+// Nhãn và cách giải thích ngân sách kcal phải khớp GOAL_ADJUST trong backend/app/services/calorie.py.
+const GOAL_INFO = {
+  LOSE_WEIGHT: { label: 'Giảm cân', note: 'thấp hơn nhu cầu năng lượng của bạn để tạo thâm hụt vừa phải, không xuống dưới ngưỡng an toàn' },
+  GAIN_MUSCLE: { label: 'Tăng cơ', note: 'cao hơn nhu cầu năng lượng của bạn để tạo thặng dư vừa phải cho tăng cơ' },
+  MAINTAIN: { label: 'Duy trì cân nặng', note: 'cân bằng với nhu cầu năng lượng của bạn để giữ cân' },
+  MEDICAL: { label: 'Theo chỉ định y tế', note: 'cân bằng với nhu cầu năng lượng của bạn; nên điều chỉnh theo chỉ định của bác sĩ' },
+};
+
 function ProgramSummary({ plan }) {
   const program = plan.program;
+  const goal = GOAL_INFO[plan.goal] || { label: plan.goal, note: 'tính theo thể trạng của bạn' };
   return (
     <section className="rounded-md bg-paper-2 p-5 shadow-hairline">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -853,8 +872,21 @@ function ProgramSummary({ plan }) {
           </span>
         )}
       </div>
+      <div className="mt-4 flex items-start gap-3 rounded-md bg-accent-soft px-4 py-3">
+        <Target size={20} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+        <div className="min-w-0 text-sm text-ink-2">
+          <p className="text-base font-semibold text-ink">
+            Mục tiêu: {goal.label} · Ngân sách năng lượng:{' '}
+            <span className="text-accent-strong">{plan.daily_kcal_target} kcal/ngày</span>
+          </p>
+          <p className="mt-1">
+            Mức này {goal.note}, được tính từ chiều cao, cân nặng, tuổi và mức vận động. Thực đơn 7 ngày bên dưới
+            được xây dựng để bám sát con số này.
+          </p>
+        </div>
+      </div>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
-        <span className="rounded-full bg-accent-soft px-3 py-1 font-medium text-accent-strong">{plan.goal}</span>
+        <span className="rounded-full bg-accent-soft px-3 py-1 font-medium text-accent-strong">{goal.label}</span>
         <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2">{plan.daily_kcal_target} kcal/ngày</span>
         {plan.bmi && <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2">BMI {plan.bmi}</span>}
       </div>

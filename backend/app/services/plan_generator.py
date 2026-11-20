@@ -132,9 +132,9 @@ YÊU CẦU BẮT BUỘC:
   "days": [
     {{
       "meals": [
-        {{"type": "Sáng", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}},
-        {{"type": "Trưa", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}},
-        {{"type": "Tối", "name": "Tên món ăn chi tiết", "kcal": số_nguyên}}
+        {{"type": "Sáng", "name": "Tên món ăn kèm khối lượng cụ thể (VD: Phở bò [150g bánh phở, 80g thịt bò], Cơm tấm [150g cơm, 100g sườn])", "kcal": số_nguyên}},
+        {{"type": "Trưa", "name": "Tên món ăn kèm khối lượng cụ thể (VD: Phở bò [150g bánh phở, 80g thịt bò], Cơm tấm [150g cơm, 100g sườn])", "kcal": số_nguyên}},
+        {{"type": "Tối", "name": "Tên món ăn kèm khối lượng cụ thể (VD: Phở bò [150g bánh phở, 80g thịt bò], Cơm tấm [150g cơm, 100g sườn])", "kcal": số_nguyên}}
       ],
       "exercise": {{
         "name": "Tên bài tập",
@@ -144,6 +144,8 @@ YÊU CẦU BẮT BUỘC:
     }}
   ]
 }}
+Mọi món ăn trong thực đơn BẮT BUỘC phải có khối lượng ước tính (gam hoặc ml), TUYỆT ĐỐI KHÔNG ghi chung chung là '1 phần'.
+Món trong ngoặc VD chỉ minh họa cách ghi khối lượng, không chép lại đúng các món ví dụ đó.
 Lưu ý: Mảng "days" phải có đúng {PLAN_DAYS} phần tử ({PLAN_DAYS} ngày). Tổng kcal mỗi ngày phải xấp xỉ {target} kcal. Tuyệt đối KHÔNG có markdown, KHÔNG có text bên ngoài JSON.
 """
 

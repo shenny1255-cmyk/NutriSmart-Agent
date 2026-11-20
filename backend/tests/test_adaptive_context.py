@@ -131,3 +131,14 @@ def test_sinh_lo_trinh_khong_con_co_dinh_temperature_0(monkeypatch):
     assert plan_generator._llm_days("prompt") is None
     assert seen["temperature"] == plan_generator.PLAN_TEMPERATURE
     assert 0.5 <= plan_generator.PLAN_TEMPERATURE <= 0.6
+
+
+# ---------- UAT ISS-10: món trong lộ trình phải có gram/ml, không ghi "1 phần" ----------
+
+def test_prompt_bat_buoc_moi_mon_co_khoi_luong_gram_hoac_ml():
+    prompt = build_prompt(PROFILE, 1700)
+    assert "Tên món ăn kèm khối lượng cụ thể" in prompt
+    assert "Phở bò [150g bánh phở, 80g thịt bò]" in prompt
+    assert "BẮT BUỘC phải có khối lượng ước tính (gam hoặc ml)" in prompt
+    assert "TUYỆT ĐỐI KHÔNG ghi chung chung là '1 phần'" in prompt
+    assert "Tên món ăn chi tiết" not in prompt
