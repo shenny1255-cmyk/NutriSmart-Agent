@@ -29,7 +29,7 @@ const baseNav = [
   { to: '/plan', label: 'Lộ trình', icon: CalendarCheck, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/diary', label: 'Nhật ký', icon: NotebookPen, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/scan', label: 'Phân tích món ăn', icon: Camera, roles: ['USER', 'EXPERT', 'ADMIN'] },
-  { to: '/chat', label: 'Trợ lý AI', icon: MessageSquare, roles: ['USER', 'EXPERT', 'ADMIN'] },
+  { to: '/chat', label: 'Hỏi Trợ lý AI', icon: MessageSquare, roles: ['USER', 'EXPERT', 'ADMIN'], badge: 'AI' },
   { to: '/articles', label: 'Kho bài viết', icon: BookOpen, roles: ['USER', 'EXPERT', 'ADMIN'] },
   { to: '/expert/review', label: 'Duyệt tài liệu', icon: FileCheck, roles: ['EXPERT', 'ADMIN'] },
   { to: '/expert/corrections', label: 'Duyệt ca sửa', icon: ClipboardCheck, roles: ['EXPERT', 'ADMIN'] },
@@ -55,7 +55,7 @@ function RedirectIfAuthed() {
 function NavList({ nav, onNavigate }) {
   return (
     <nav className="flex-1 space-y-1">
-      {nav.map(({ to, label, icon: Icon }) => (
+      {nav.map(({ to, label, icon: Icon, badge }) => (
         <NavLink
           key={to}
           to={to}
@@ -80,6 +80,13 @@ function NavList({ nav, onNavigate }) {
                 className="shrink-0 transition-transform duration-short ease-out group-hover:scale-110"
               />
               <span className="truncate">{label}</span>
+              {badge && (
+                <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide ${
+                  isActive ? 'bg-white text-accent-strong' : 'bg-accent-strong text-white'
+                }`}>
+                  {badge}
+                </span>
+              )}
             </>
           )}
         </NavLink>

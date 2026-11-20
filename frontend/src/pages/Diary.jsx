@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
 } from 'recharts';
 import {
-  Plus, Trash2, UtensilsCrossed, Dumbbell, Scale, TrendingDown, TrendingUp, Maximize2, Eye, X,
+  Plus, Trash2, UtensilsCrossed, Dumbbell, Scale, TrendingDown, TrendingUp, Maximize2, Eye, X, Lightbulb,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidFoodName } from '../lib/validation.js';
@@ -502,6 +502,13 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
 
   return (
     <KhungThe icon={Dumbbell} title="Vận động & Thể thao" subtitle="Chọn bài tập để tự tính calo tiêu hao">
+      <p className="flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-sm text-ink-2">
+        <Lightbulb size={16} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+        <span>
+          <span className="font-semibold text-ink">Mẹo:</span> Bạn chỉ cần chọn bài tập và số phút, hệ thống sẽ tự động
+          tính lượng calo tiêu hao dựa trên hệ số MET và cân nặng hiện tại của bạn.
+        </span>
+      </p>
       <div className="flex flex-wrap items-start gap-2">
         <label className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
           Bài tập
@@ -524,16 +531,19 @@ function VanDong({ ngay, acts, exercises, onSaved, onError }) {
           {!phutHopLe && <span className="max-w-36 text-danger">Từ 1-600 phút</span>}
         </label>
 
-        <div className="flex flex-col gap-1 text-sm font-semibold text-ink-2">
-          <label className="flex items-center gap-1.5 pt-5">
+        <div className="flex flex-col gap-1 text-sm text-ink-2">
+          <label className="flex items-center gap-1.5 pt-5 font-medium">
             <input
               type="checkbox"
               checked={dungKcalThietBi}
               onChange={(e) => setDungKcalThietBi(e.target.checked)}
               className="accent-accent-strong"
             />
-            Nhập kcal từ đồng hồ
+            Tùy chọn: dùng kcal từ đồng hồ
           </label>
+          {!dungKcalThietBi && (
+            <span className="max-w-44 text-xs text-muted">Không bắt buộc, chỉ dùng khi có số đo từ thiết bị đeo.</span>
+          )}
           {dungKcalThietBi && (
             <Field
               type="number" min="1" max="5000" step="1" value={kcal}
