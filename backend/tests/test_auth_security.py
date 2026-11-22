@@ -181,28 +181,31 @@ def test_khong_dang_ky_trung_email_khac_hoa_thuong(user_test):
     assert r2.status_code == 409
 
 
-# ---------- Test 5: email dùng một lần ----------
+# ---------- Test 5: email dùng một lần / nhà cung cấp không chính thống ----------
 
 @pytest.mark.parametrize("email", [
     "test@tempmail.com", "test@mailinator.com", "abc@YOPMAIL.com", "x@sub.guerrillamail.com",
 ])
 def test_email_tam_thoi_bi_tu_choi(email):
-    assert is_disposable_email(email)
     with pytest.raises(ValidationError) as exc:
         RegisterIn.model_validate(_payload(email))
-    assert "email chính thức" in str(exc.value)
+    assert ("nhà cung cấp chính thống" in str(exc.value)
+            or "email chính thức" in str(exc.value))
 
 
 def test_email_binh_thuong_khong_bi_chan():
-    for email in ("a@gmail.com", "b@hcmut.edu.vn", "c@mailinator.com.vn.example.org"):
-        assert not is_disposable_email(email), email
+    for email in ("a@gmail.com", "b@hcmut.edu.vn", "c@outlook.com"):
+        payload = _payload(email)
+        m = RegisterIn.model_validate(payload)
+        assert m.email == email
 
 
 @needs_db
 def test_email_tam_thoi_qua_api_tra_422(user_test):
     r, _ = _register(user_test, email=f"bot_{uuid.uuid4().hex[:6]}@mailinator.com")
     assert r.status_code == 422
-    assert "email chính thức" in r.text
+    assert ("nhà cung cấp chính thống" in r.text
+            or "email chính thức" in r.text)
 
 
 @needs_db
@@ -234,4 +237,26 @@ def test_honeypot_rong_van_dang_ky_binh_thuong(user_test):
 @needs_db
 def test_check_email_bao_som_email_tam_thoi():
     r = client.post("/api/v1/auth/check-email", json={"email": "a@yopmail.com"})
-    assert r.json() == {"available": False, "reason": "disposable"}
+    res = r.json()
+    assert res["available"] is False
+    assert res["reason"] in ("not_allowed", "disposable")
+
+
+@needs_db
+def test_chan_email_alias_dau_cong():
+    """Chặn user+tag@gmail.com tạo clone."""
+    with pytest.raises(ValidationError) as exc:
+        RegisterIn.model_validate(_payload("user+alias@gmail.com"))
+    assert "dấu '+'" in str(exc.value)
+
+
+@needs_db
+def test_chan_trung_gmail_dau_cham(user_test):
+    """n.guyen.an@gmail.com và nguyenan@gmail.com coi là cùng một người."""
+    r1, _ = _register(user_test, email="nguyen.an.nutri@gmail.com")
+    assert r1.status_code == 201, r1.text
+
+    # Đăng ký lại bỏ dấu chấm -> phải bị từ chối 409
+    r2, _ = _register(user_test, email="nguyenannutri@gmail.com")
+    assert r2.status_code == 409
+    assert "Email đã được sử dụng" in r2.text
