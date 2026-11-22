@@ -14,6 +14,8 @@ def _normalize_email(v: str) -> str:
 
 # Chấp nhận MỌI nhà cung cấp (EmailStr không chặn theo domain), luôn lưu ở dạng chuẩn hoá.
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
+
+
 def _enforce_email_policy(value: str) -> str:
     """Đăng ký chỉ nhận nhà cung cấp chính thống, không nhận bí danh + và chặn email rác."""
     from app.services import email_policy

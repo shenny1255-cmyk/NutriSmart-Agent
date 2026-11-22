@@ -260,3 +260,22 @@ def test_chan_trung_gmail_dau_cham(user_test):
     r2, _ = _register(user_test, email="nguyenannutri@gmail.com")
     assert r2.status_code == 409
     assert "Email đã được sử dụng" in r2.text
+
+
+@needs_db
+def test_tai_khoan_demo_duoc_phep_dang_nhap_da_thiet_bi():
+    """Tài khoản demo@nutrismart.vn không bị đá khi nhiều người cùng đăng nhập (bảo vệ đồ án)."""
+    r_seed = client.post("/api/v1/demo/seed")
+    assert r_seed.status_code == 200
+    token1 = r_seed.json()["access_token"]
+
+    # Đăng nhập lần 2 (máy khác)
+    r_login2 = client.post("/api/v1/auth/login", json={"email": "demo@nutrismart.vn", "password": "demo1234"})
+    assert r_login2.status_code == 200
+    token2 = r_login2.json()["access_token"]
+
+    # Cả token 1 và token 2 đều gọi được API /me bình thường
+    r_me1 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token1}"})
+    assert r_me1.status_code == 200
+    r_me2 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token2}"})
+    assert r_me2.status_code == 200

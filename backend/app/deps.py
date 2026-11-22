@@ -38,7 +38,9 @@ def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
 
     # Đăng nhập đơn thiết bị: lần đăng nhập mới tăng token_version nên token cũ lệch "tv".
-    if payload.get("tv") != user.token_version:
+    # Miễn trừ cho các tài khoản demo để phục vụ trình diễn và chấm điểm đồ án nhiều người cùng lúc.
+    demo_emails = {"demo@nutrismart.vn", "user1@nutrismart.vn", "user2@nutrismart.vn", "expert1@nutrismart.vn"}
+    if str(user.email).lower() not in demo_emails and payload.get("tv") != user.token_version:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Phiên đăng nhập đã hết hạn hoặc tài khoản đã được đăng nhập trên thiết bị khác",

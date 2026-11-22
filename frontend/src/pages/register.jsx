@@ -145,7 +145,7 @@ export default function Register() {
       const checked = await checkEmail();
       if (checked !== 'available') {
         if (checked === 'taken') setErr('Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.');
-        if (checked === 'disposable') setErr(DISPOSABLE_MSG);
+        if (checked === 'blocked' || checked === 'disposable') setErr(emailBlockedMsg || DISPOSABLE_MSG);
         return;
       }
     }
@@ -299,8 +299,8 @@ export default function Register() {
               <TextInput type="email" required name="registration-email" autoComplete="off"
                 value={form.email} onChange={(e) => set('email', e.target.value)}
                 onBlur={() => { touch('email'); if (emailValid) checkEmail(); }}
-                aria-invalid={(touched.email && !emailValid) || emailStatus === 'taken'}
-                className={`w-full ${(touched.email && !emailValid) || emailStatus === 'taken' ? 'outline outline-2 outline-danger' : ''}`} />
+                aria-invalid={(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked'}
+                className={`w-full ${(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
               {touched.email && !emailValid && (
                 <p className="mt-1 text-xs font-medium text-danger">Email chưa đúng định dạng.</p>
               )}
