@@ -21,7 +21,7 @@ def test_login_email_trimmed_and_lowercased():
 
 def test_register_email_normalized():
     m = RegisterIn(
-        email="Foo.Bar+Tag@Example.COM", password="password123",
+        email="Foo.Bar+Tag@Example.COM", password="Nutri#Smart2026",
         full_name="Nguyễn An", country_code="VN", profile=_profile(), # type: ignore
         consents={"terms": True, "health_data": True},
     )

@@ -24,14 +24,25 @@ def get_current_user(
     if cred is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Thiếu token")
 
-    user_id = decode_token(cred.credentials)
-    if user_id is None:
+    payload = decode_token(cred.credentials)
+    if payload is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token không hợp lệ")
 
     import uuid
-    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()  # type: ignore
+    try:
+        user_id = uuid.UUID(str(payload["sub"]))
+    except ValueError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token không hợp lệ")
+    user = db.query(User).filter(User.id == user_id).first()  # type: ignore
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
+
+    # Đăng nhập đơn thiết bị: lần đăng nhập mới tăng token_version nên token cũ lệch "tv".
+    if payload.get("tv") != user.token_version:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Phiên đăng nhập đã hết hạn hoặc tài khoản đã được đăng nhập trên thiết bị khác",
+        )
 
     return user
 def require_role(*allowed_roles: str):

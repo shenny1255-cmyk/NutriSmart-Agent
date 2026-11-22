@@ -16,6 +16,55 @@ def _normalize_email(v: str) -> str:
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
 
 
+def _reject_disposable_email(value: str) -> str:
+    from app.services.disposable_emails import is_disposable_email
+    if is_disposable_email(str(value)):
+        raise ValueError(
+            "Vui lòng sử dụng địa chỉ email chính thức (không sử dụng email tạm thời/dùng một lần)."
+        )
+    return value
+
+
+# Chỉ dùng khi tạo tài khoản; đăng nhập vẫn nhận NormalizedEmail để tài khoản cũ không bị khóa ngoài.
+RegistrationEmail = Annotated[NormalizedEmail, AfterValidator(_reject_disposable_email)]
+
+PASSWORD_SPECIALS = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+COMMON_PASSWORDS = frozenset({
+    "12345678", "123456789", "1234567890", "87654321", "11111111", "00000000", "12341234",
+    "password", "password1", "password123", "password@123", "passw0rd", "p@ssw0rd", "p@ssword1",
+    "admin123", "admin1234", "admin@123", "administrator", "qwerty123", "qwertyuiop", "abc12345",
+    "abcd1234", "iloveyou", "letmein1", "welcome1", "welcome123", "matkhau123", "nutrismart",
+    "nutrismart123", "nutrismart@123", "demo1234", "changeme", "test1234",
+})
+
+
+def _validate_strong_password(value: str) -> str:
+    """Mật khẩu 8-64 ký tự, đủ hoa/thường/số/ký tự đặc biệt và không nằm trong danh sách phổ biến."""
+    if len(value) < 8:
+        raise ValueError("Mật khẩu phải có ít nhất 8 ký tự")
+    if len(value) > 64:
+        raise ValueError("Mật khẩu không được dài quá 64 ký tự")
+    if any(char.isspace() for char in value):
+        raise ValueError("Mật khẩu không được chứa khoảng trắng")
+    missing = []
+    if not any(char.isupper() for char in value):
+        missing.append("1 chữ hoa")
+    if not any(char.islower() for char in value):
+        missing.append("1 chữ thường")
+    if not any(char.isdigit() for char in value):
+        missing.append("1 chữ số")
+    if not any(char in PASSWORD_SPECIALS for char in value):
+        missing.append("1 ký tự đặc biệt (!@#$%^&*...)")
+    if missing:
+        raise ValueError("Mật khẩu cần có ít nhất " + ", ".join(missing))
+    if value.lower() in COMMON_PASSWORDS:
+        raise ValueError("Mật khẩu này quá phổ biến, vui lòng chọn mật khẩu khác")
+    return value
+
+
+StrongPassword = Annotated[str, AfterValidator(_validate_strong_password)]
+
+
 def _validate_birth_date(value: date) -> date:
     """Ngày sinh phải từ 15 đến 100 tuổi và không ở trong tương lai hoặc trước năm 1920."""
     today = date.today()
@@ -171,11 +220,12 @@ class ConsentsIn(BaseModel):
 
 
 class RegisterIn(BaseModel):
-    email: NormalizedEmail
-    password: str = Field(min_length=8)
+    email: RegistrationEmail
+    password: StrongPassword
     full_name: FullName
     profile: ProfileIn
     consents: ConsentsIn
+    honeypot: str | None = None  # trường ẩn chống bot: người thật không bao giờ điền
 
 
 class ConsentOut(BaseModel):
@@ -198,6 +248,7 @@ class EmailAvailabilityIn(BaseModel):
 
 class EmailAvailabilityOut(BaseModel):
     available: bool
+    reason: Literal["taken", "disposable"] | None = None
 
 
 class TokenOut(BaseModel):
@@ -579,8 +630,8 @@ class UpdateRoleIn(BaseModel):
 
 class AdminCreateUserIn(BaseModel):
     full_name: FullName
-    email: NormalizedEmail
-    password: str = Field(min_length=8, max_length=128)
+    email: RegistrationEmail
+    password: StrongPassword
     role: Literal["ADMIN", "EXPERT", "USER"]
 
     @field_validator("email")

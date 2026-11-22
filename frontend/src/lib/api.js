@@ -40,6 +40,10 @@ async function request(path, { method = 'GET', body, isForm } = {}) {
     if (res.status === 401 && token) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('role');
+      // Giữ lý do (vd: đã đăng nhập trên thiết bị khác) để trang đăng nhập hiển thị đúng thông báo
+      try {
+        if (typeof detail === 'string') sessionStorage.setItem('auth_notice', detail);
+      } catch { /* sessionStorage có thể bị chặn */ }
       if (!window.location.pathname.startsWith('/login')) {
         window.location.replace('/login?expired=1');
       }

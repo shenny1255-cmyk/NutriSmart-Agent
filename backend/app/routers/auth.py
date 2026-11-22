@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
@@ -36,13 +37,19 @@ def _profile_out(info: UserProfile, metric: BodyMetricHistory | None) -> Profile
 
 @router.post("/check-email", response_model=EmailAvailabilityOut)
 def check_email_availability(payload: EmailAvailabilityIn, db: Session = Depends(get_db)):
-    exists = db.query(User).filter(User.email == payload.email).first()  # type: ignore
-    return EmailAvailabilityOut(available=exists is None)
+    from app.services.disposable_emails import is_disposable_email
+    if is_disposable_email(str(payload.email)):
+        return EmailAvailabilityOut(available=False, reason="disposable")
+    exists = db.query(User).filter(func.lower(User.email) == str(payload.email)).first()  # type: ignore
+    return EmailAvailabilityOut(available=exists is None, reason="taken" if exists else None)
 
 
 @router.post("/register", response_model=TokenOut, status_code=201)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == payload.email).first():  # type: ignore
+    # Honeypot: ô ẩn trên form, chỉ bot tự điền. Trả lỗi chung để không lộ cơ chế.
+    if payload.honeypot:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Yêu cầu không hợp lệ")
+    if db.query(User).filter(func.lower(User.email) == str(payload.email)).first():  # type: ignore
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được sử dụng")
 
     p = payload.profile
@@ -112,7 +119,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     verify_token = create_verification_token(str(user.id))
     send_verification_email(str(user.email), build_verify_link(verify_token))
 
-    return TokenOut(access_token=create_access_token(str(user.id)))
+    return TokenOut(access_token=create_access_token(str(user.id), user.token_version))
 
 
 @router.get("/verify")
@@ -138,13 +145,18 @@ def resend_verification():
 
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()  # type: ignore
+    email = str(payload.email).strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email).first()  # type: ignore
 
     # Thông báo chung cho cả 2 trường hợp - tránh lộ email nào đã đăng ký
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email hoặc mật khẩu không đúng")
 
-    return TokenOut(access_token=create_access_token(str(user.id)))
+    # Đăng nhập đơn thiết bị: tăng phiên bản token (atomic trong DB) để token ở thiết bị cũ hết hiệu lực.
+    user.token_version = User.token_version + 1  # type: ignore[assignment]
+    db.commit()
+    db.refresh(user)
+    return TokenOut(access_token=create_access_token(str(user.id), user.token_version))
 
 
 @router.get("/me", response_model=MeOut)

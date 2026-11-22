@@ -30,6 +30,7 @@ class User(Base):
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)  # type: ignore
     email: str    = Column(String(255), unique=True, nullable=False)  # type: ignore
     password_hash: str = Column(String(255), nullable=False)  # type: ignore
+    token_version: int = Column(Integer, nullable=False, default=1, server_default="1")  # type: ignore
     role: str     = Column(
         user_role,
         ForeignKey("role_permissions.role"),

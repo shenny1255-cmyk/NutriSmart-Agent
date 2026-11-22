@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Check, ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck, Sparkles } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE, calculateAge, getBirthDateValidationError } from '../lib/date.js';
 import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
+import PasswordStrength from '../components/PasswordStrength.jsx';
+import { generateStrongPassword, isStrongPassword } from '../lib/password.js';
 import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
@@ -44,6 +46,8 @@ const INITIAL_FORM = {
 
 const STEP_TITLES = ['Thông tin tài khoản', 'Hồ sơ sức khỏe', 'Quyền riêng tư'];
 
+const DISPOSABLE_MSG = 'Vui lòng sử dụng địa chỉ email chính thức (không sử dụng email tạm thời/dùng một lần).';
+
 export default function Register() {
   const [step, setStep] = useState(1);
   const [err, setErr] = useState(null);
@@ -58,6 +62,10 @@ export default function Register() {
   // Quốc gia đã bỏ (mặc định Việt Nam)
 
   const [form, setForm] = useState(INITIAL_FORM);
+  const [showPassword, setShowPassword] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  // Honeypot: ô ẩn với người dùng, bot điền tự động sẽ bị backend chặn
+  const [website, setWebsite] = useState('');
 
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -70,9 +78,10 @@ export default function Register() {
   const touch = (key) => setTouched((current) => ({ ...current, [key]: true }));
   const fullNameValid = isValidFullName(form.full_name);
   const emailValid = isEmail(form.email);
-  const passwordValid = form.password.length >= 8;
+  const passwordValid = isStrongPassword(form.password);
   const confirmValid = form.confirm !== '' && form.confirm === form.password;
-  const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && emailStatus !== 'taken';
+  const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid
+    && emailStatus !== 'taken' && emailStatus !== 'disposable';
   const heightNumber = Number(form.height_cm);
   const weightNumber = Number(form.weight_kg);
   const heightValid = form.height_cm !== '' && Number.isFinite(heightNumber) && heightNumber > 50 && heightNumber < 250;
@@ -107,8 +116,9 @@ export default function Register() {
     try {
       const result = await api.checkEmail(email);
       if (checkId !== emailCheckId.current) return 'stale';
-      setEmailStatus(result.available ? 'available' : 'taken');
-      return result.available ? 'available' : 'taken';
+      const status = result.available ? 'available' : (result.reason === 'disposable' ? 'disposable' : 'taken');
+      setEmailStatus(status);
+      return status;
     } catch {
       if (checkId === emailCheckId.current) {
         setEmailStatus('error');
@@ -123,12 +133,13 @@ export default function Register() {
     setTouched({ full_name: true, email: true, password: true, confirm: true });
     if (!fullNameValid) return setErr('Họ và tên chưa hợp lệ.');
     if (!emailValid) return setErr('Email chưa đúng định dạng.');
-    if (!passwordValid) return setErr('Mật khẩu tối thiểu 8 ký tự.');
+    if (!passwordValid) return setErr('Mật khẩu chưa đủ mạnh. Vui lòng đáp ứng đủ 4 tiêu chí bên dưới ô mật khẩu.');
     if (!confirmValid) return setErr('Mật khẩu xác nhận không khớp.');
     if (emailStatus !== 'available') {
       const checked = await checkEmail();
       if (checked !== 'available') {
         if (checked === 'taken') setErr('Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.');
+        if (checked === 'disposable') setErr(DISPOSABLE_MSG);
         return;
       }
     }
@@ -184,6 +195,7 @@ export default function Register() {
         health_data: form.consent_health,
         cloud_ai: form.consent_cloud,
       },
+      honeypot: website || null,
     };
 
     try {
@@ -198,7 +210,13 @@ export default function Register() {
       navigate('/');
     } catch (e) {
       if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
-      else if (e.status === 422) setErr('Thông tin chưa hợp lệ - kiểm tra lại email và mật khẩu.');
+      else if (e.status === 422) {
+        // Lấy thông báo tiếng Việt của validator; lỗi email/mật khẩu thì quay về bước 1 để sửa
+        const first = Array.isArray(e.detail) ? e.detail[0] : null;
+        const field = first?.loc?.[1];
+        setErr(first?.msg ? first.msg.replace(/^Value error, /, '') : 'Thông tin chưa hợp lệ - kiểm tra lại email và mật khẩu.');
+        if (field === 'email' || field === 'password') setStep(1);
+      }
       else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
       else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng ký thất bại, thử lại sau.');
     } finally {
@@ -238,6 +256,15 @@ export default function Register() {
           />
         </div>
 
+        {/* Honeypot chống bot: ẩn khỏi người dùng và trình đọc màn hình, không nhận focus bằng Tab */}
+        <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden opacity-0">
+          <label htmlFor="website_url">Website</label>
+          <input
+            id="website_url" name="website_url" type="text" tabIndex={-1} autoComplete="off"
+            value={website} onChange={(e) => setWebsite(e.target.value)}
+          />
+        </div>
+
         {step === 1 && (
           <div className="space-y-4">
             <FieldGroup label="Họ và tên" required>
@@ -272,6 +299,9 @@ export default function Register() {
               {emailValid && emailStatus === 'available' && (
                 <p className="mt-1 flex items-center gap-1 text-xs font-medium text-accent-strong"><Check size={12} strokeWidth={3} />Email có thể sử dụng</p>
               )}
+              {emailValid && emailStatus === 'disposable' && (
+                <p className="mt-1 text-xs font-medium text-danger">{DISPOSABLE_MSG}</p>
+              )}
               {emailValid && emailStatus === 'taken' && (
                 <p className="mt-1 text-xs font-medium text-danger">Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.</p>
               )}
@@ -279,18 +309,38 @@ export default function Register() {
 
             <FieldGroup label="Mật khẩu" required>
               <PasswordInput required name="registration-password" autoComplete="new-password"
-                value={form.password} onChange={(e) => set('password', e.target.value)} onBlur={() => touch('password')}
+                value={form.password}
+                onChange={(e) => { set('password', e.target.value); setGenerated(false); }}
+                onBlur={() => touch('password')}
+                visible={showPassword} onVisibleChange={setShowPassword}
                 aria-invalid={touched.password && !passwordValid}
                 className={`${inputCls} ${touched.password && !passwordValid ? 'outline outline-2 outline-danger' : ''}`} />
-              <p className={`mt-1 flex items-center gap-1 text-xs ${passwordValid ? 'text-accent-strong' : touched.password ? 'text-danger' : 'text-muted'}`}>
-                {passwordValid && <Check size={12} strokeWidth={3} />}
-                Ít nhất 8 ký tự
-              </p>
+              <PasswordStrength password={form.password} />
+              <button
+                type="button"
+                onClick={() => {
+                  const pw = generateStrongPassword(12);
+                  setForm((f) => ({ ...f, password: pw, confirm: pw }));
+                  setTouched((t) => ({ ...t, password: true, confirm: true }));
+                  setShowPassword(true);
+                  setGenerated(true);
+                  setErr(null);
+                }}
+                className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-sm text-sm font-semibold text-accent-strong hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
+              >
+                <Sparkles size={15} aria-hidden="true" /> Tạo mật khẩu mạnh
+              </button>
+              {generated && (
+                <p className="text-xs text-ink-2">
+                  Đã điền vào cả hai ô. Hãy lưu mật khẩu này vào trình quản lý mật khẩu hoặc ghi lại ở nơi an toàn trước khi tiếp tục.
+                </p>
+              )}
             </FieldGroup>
 
             <FieldGroup label="Xác nhận mật khẩu" required>
               <PasswordInput required name="registration-password-confirm" autoComplete="new-password"
                 value={form.confirm} onChange={(e) => set('confirm', e.target.value)} onBlur={() => touch('confirm')}
+                visible={showPassword} onVisibleChange={setShowPassword}
                 aria-invalid={touched.confirm && !confirmValid}
                 className={`${inputCls} ${touched.confirm && !confirmValid ? 'outline outline-2 outline-danger' : ''}`} />
               {(form.confirm || touched.confirm) && (
