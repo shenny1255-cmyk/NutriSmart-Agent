@@ -7,7 +7,7 @@ from app.schemas import RegisterIn, UserProfileUpdateIn
 def _register_data(full_name: str) -> dict:
     return {
         "email": "name@example.com",
-        "password": "password123",
+        "password": "Nutri#Smart2026",
         "full_name": full_name,
         "consents": {"terms": True, "health_data": True},
         "profile": {

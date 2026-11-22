@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 
 import { api } from '../lib/api.js';
@@ -23,6 +23,15 @@ export default function Login() {
   const [params] = useSearchParams();
   // api.js đá về đây kèm ?expired=1 khi token hết hạn giữa chừng
   const expired = params.get('expired') === '1';
+  // Đọc lý do một lần khi khởi tạo (StrictMode chạy effect 2 lần nên không đọc trong effect)
+  const [notice] = useState(() => {
+    try { return sessionStorage.getItem('auth_notice'); } catch { return null; }
+  });
+  const [failCount, setFailCount] = useState(0);
+
+  useEffect(() => {
+    try { sessionStorage.removeItem('auth_notice'); } catch { /* sessionStorage có thể bị chặn */ }
+  }, []);
 
   async function tryDemo() {
     setErr(null);
@@ -48,13 +57,16 @@ export default function Login() {
     setErr(null);
     setLoading(true);
     try {
-      const res = await api.login(email, password);
+      const res = await api.login(email.trim().toLowerCase(), password);
       localStorage.setItem('access_token', res.access_token);
       const me = await api.me();
       localStorage.setItem('role', me.role);
       navigate('/');
     } catch (e) {
-      if (e.status === 401) setErr('Email hoặc mật khẩu không đúng.');
+      if (e.status === 401) {
+        setErr('Email hoặc mật khẩu không đúng.');
+        setFailCount((n) => n + 1);
+      }
       else if (e.status === 422) setErr('Email chưa đúng định dạng.');
       else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
       else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng nhập thất bại, thử lại sau.');
@@ -77,7 +89,13 @@ export default function Login() {
         </div>
 
         {expired && !err && (
-          <div className="mb-4"><Alert tone="warning">Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.</Alert></div>
+          <div className="mb-4">
+            <Alert tone="warning">
+              {notice && notice.includes('thiết bị khác')
+                ? 'Tài khoản của bạn vừa được đăng nhập trên thiết bị khác nên phiên này đã kết thúc. Nếu không phải bạn, hãy đăng nhập lại và đổi mật khẩu.'
+                : 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'}
+            </Alert>
+          </div>
         )}
 
         <label htmlFor="login-email" className="mb-1 block text-sm font-medium text-ink-2">Email</label>
@@ -100,6 +118,13 @@ export default function Login() {
         />
 
         {err && <div className="mb-4"><Alert tone="danger">{err}</Alert></div>}
+        {err && failCount > 0 && (
+          <p className="-mt-2 mb-4 text-xs text-muted">
+            Mẹo: bấm biểu tượng con mắt để xem lại mật khẩu vừa gõ. Nếu đang bật bộ gõ tiếng Việt
+            (Unikey, EVKey), hãy chuyển sang chế độ gõ tiếng Anh vì bộ gõ có thể tự đổi ký tự (vd: "aa" thành "â").
+            Kiểm tra cả phím Caps Lock.
+          </p>
+        )}
 
         <Btn type="submit" variant="primary" disabled={loading} className="w-full">
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}

@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
 // Ô nhập mật khẩu có nút hiện/ẩn. Nhận value/onChange + các prop input khác.
-export default function PasswordInput({ value, onChange, className = '', ...props }) {
-  const [show, setShow] = useState(false);
+// Truyền visible/onVisibleChange để điều khiển hiện/ẩn từ ngoài (vd: sau khi tạo mật khẩu mạnh).
+export default function PasswordInput({ value, onChange, className = '', visible, onVisibleChange, ...props }) {
+  const [localShow, setLocalShow] = useState(false);
+  const show = visible ?? localShow;
+  const setShow = (updater) => {
+    const next = typeof updater === 'function' ? updater(show) : updater;
+    if (onVisibleChange) onVisibleChange(next);
+    else setLocalShow(next);
+  };
   return (
     <div className="relative">
       <input

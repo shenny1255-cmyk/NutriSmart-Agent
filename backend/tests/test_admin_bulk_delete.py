@@ -43,7 +43,7 @@ def test_admin_create_user_chuan_hoa_email_va_validate_du_lieu():
     payload = AdminCreateUserIn(
         full_name="Nguyễn Văn An",
         email="  NEW.USER@GMAIL.COM ",
-        password="temporary123",
+        password="Nutri#Smart2026",
         role="EXPERT",
     )
     assert str(payload.email) == "new.user@gmail.com"
@@ -54,7 +54,7 @@ def test_admin_create_user_chuan_hoa_email_va_validate_du_lieu():
     with pytest.raises(ValidationError):
         AdminCreateUserIn(
             full_name="Nguyễn Văn An", email="user@example.com",
-            password="temporary123", role="USER",
+            password="Nutri#Smart2026", role="USER",
         )
 
 

@@ -22,21 +22,27 @@ def verify_password(raw: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str) -> str:
+def create_access_token(user_id: str, token_version: int = 1) -> str:
+    """Access token mang "tv" = users.token_version lúc phát hành để vô hiệu hóa phiên cũ."""
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    payload = {"sub": str(user_id), "exp": expire}
+    payload = {"sub": str(user_id), "tv": int(token_version), "exp": expire}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> str | None:
-    """Trả về user_id, hoặc None nếu token sai/hết hạn."""
+def decode_token(token: str) -> dict | None:
+    """Trả về payload access token (có "sub", "tv"), hoặc None nếu token sai/hết hạn.
+
+    Token mục đích khác (xác minh email) không được dùng làm access token.
+    """
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload.get("sub")
     except JWTError:
         return None
+    if payload.get("purpose") is not None or not payload.get("sub"):
+        return None
+    return payload
 
 
 def create_verification_token(user_id: str) -> str:

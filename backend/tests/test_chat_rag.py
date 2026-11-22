@@ -36,7 +36,7 @@ def auth_headers(user_test):
     email = f"rag_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email,
-        "password": "password123", "full_name": "RAG Test", "country_code": cc,
+        "password": "Nutri#Smart2026", "full_name": "RAG Test", "country_code": cc,
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "MALE", "birth_date": "1996-01-01", "height_cm": 175,
                     "weight_kg": 72, "activity_level": 3, "goal": "MAINTAIN",

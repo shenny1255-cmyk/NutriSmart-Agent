@@ -36,7 +36,7 @@ def _register(monkeypatch, user_test):
     )
     email = f"verify_{uuid.uuid4().hex[:10]}@example.com"
     payload = {
-        "email": email, "password": "password123", "full_name": "Xác Minh",
+        "email": email, "password": "Nutri#Smart2026", "full_name": "Xác Minh",
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "MALE", "birth_date": "1996-01-01",

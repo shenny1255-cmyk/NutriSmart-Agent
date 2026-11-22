@@ -225,7 +225,7 @@ def seed_demo(db: Session = Depends(get_db)):
     db.commit()
 
     return {
-        "access_token": create_access_token(str(user.id)),
+        "access_token": create_access_token(str(user.id), user.token_version),
         "email": DEMO_EMAIL,
         "message": "Đã tạo tài khoản demo kèm dữ liệu và kỳ check-in 14 ngày đến hạn.",
     }

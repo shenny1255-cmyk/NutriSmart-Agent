@@ -29,7 +29,7 @@ def test_bat_tat_qua_api(user_test):
     client = TestClient(app)
     email = f"local_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
-        "email": email, "password": "password123", "full_name": "Người Dùng Thử", "country_code": "VN",
+        "email": email, "password": "Nutri#Smart2026", "full_name": "Người Dùng Thử", "country_code": "VN",
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "FEMALE", "birth_date": "1998-01-01", "height_cm": 160, "weight_kg": 55,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},

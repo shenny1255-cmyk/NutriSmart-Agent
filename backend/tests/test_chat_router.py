@@ -38,7 +38,7 @@ def _register(user_test) -> str:
     email = f"chat_{uuid.uuid4().hex[:10]}@example.com"
     payload = {
         "email": email,
-        "password": "password123",
+        "password": "Nutri#Smart2026",
         "full_name": "Người Dùng Thử",
         "country_code": country_code,
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
@@ -107,7 +107,7 @@ def test_stream_gui_canh_bao_di_ung_trong_su_kien_done(monkeypatch, user_test):
     monkeypatch.setattr(retrieval, "search_chunks", lambda db, q, k=5: [])
     email = f"chat_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
-        "email": email, "password": "password123", "full_name": "Người Dùng Thử",
+        "email": email, "password": "Nutri#Smart2026", "full_name": "Người Dùng Thử",
         "country_code": "VN",
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
