@@ -49,6 +49,7 @@ export default function Register() {
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const [emailStatus, setEmailStatus] = useState('idle');
+  const [emailBlockedMsg, setEmailBlockedMsg] = useState('');
   const emailCheckId = useRef(0);
   const [touched, setTouched] = useState({ full_name: false, email: false, password: false, confirm: false });
   const navigate = useNavigate();
@@ -72,7 +73,8 @@ export default function Register() {
   const emailValid = isEmail(form.email);
   const passwordValid = form.password.length >= 8;
   const confirmValid = form.confirm !== '' && form.confirm === form.password;
-  const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && emailStatus !== 'taken';
+  const emailRejected = emailStatus === 'taken' || emailStatus === 'blocked';
+  const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && !emailRejected;
   const heightNumber = Number(form.height_cm);
   const weightNumber = Number(form.weight_kg);
   const heightValid = form.height_cm !== '' && Number.isFinite(heightNumber) && heightNumber > 50 && heightNumber < 250;
@@ -107,8 +109,10 @@ export default function Register() {
     try {
       const result = await api.checkEmail(email);
       if (checkId !== emailCheckId.current) return 'stale';
-      setEmailStatus(result.available ? 'available' : 'taken');
-      return result.available ? 'available' : 'taken';
+      const status = result.available ? 'available' : result.reason === 'not_allowed' ? 'blocked' : 'taken';
+      setEmailBlockedMsg(status === 'blocked' ? result.message : '');
+      setEmailStatus(status);
+      return status;
     } catch {
       if (checkId === emailCheckId.current) {
         setEmailStatus('error');
@@ -198,7 +202,12 @@ export default function Register() {
       navigate('/');
     } catch (e) {
       if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
-      else if (e.status === 422) setErr('Thông tin chưa hợp lệ - kiểm tra lại email và mật khẩu.');
+      else if (e.status === 422) {
+        const emailIssue = Array.isArray(e.detail) && e.detail.find((d) => d?.loc?.includes('email'));
+        const reason = emailIssue?.msg?.replace(/^Value error,\s*/, '');
+        if (reason) { setErr(reason); setStep(1); }
+        else setErr('Thông tin chưa hợp lệ - kiểm tra lại email và mật khẩu.');
+      }
       else if (e.status === undefined) setErr('Không kết nối được máy chủ. Backend đã chạy chưa?');
       else setErr(typeof e.detail === 'string' ? e.detail : 'Đăng ký thất bại, thử lại sau.');
     } finally {
@@ -274,6 +283,9 @@ export default function Register() {
               )}
               {emailValid && emailStatus === 'taken' && (
                 <p className="mt-1 text-xs font-medium text-danger">Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.</p>
+              )}
+              {emailValid && emailStatus === 'blocked' && (
+                <p className="mt-1 text-xs font-medium text-danger">{emailBlockedMsg}</p>
               )}
             </FieldGroup>
 

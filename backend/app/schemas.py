@@ -14,6 +14,17 @@ def _normalize_email(v: str) -> str:
 
 # Chấp nhận MỌI nhà cung cấp (EmailStr không chặn theo domain), luôn lưu ở dạng chuẩn hoá.
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
+def _enforce_email_policy(value: str) -> str:
+    """Đăng ký chỉ nhận nhà cung cấp chính thống."""
+    from app.services import email_policy
+    reason = email_policy.rejection_reason(str(value))
+    if reason:
+        raise ValueError(reason)
+    return value
+
+
+# Email dùng khi ĐĂNG KÝ: chuẩn hoá + kiểm tra nhà cung cấp
+RegistrationEmail = Annotated[NormalizedEmail, AfterValidator(_enforce_email_policy)]
 
 
 def _validate_birth_date(value: date) -> date:
@@ -171,7 +182,7 @@ class ConsentsIn(BaseModel):
 
 
 class RegisterIn(BaseModel):
-    email: NormalizedEmail
+    email: RegistrationEmail  
     password: str = Field(min_length=8)
     full_name: FullName
     profile: ProfileIn
@@ -198,6 +209,8 @@ class EmailAvailabilityIn(BaseModel):
 
 class EmailAvailabilityOut(BaseModel):
     available: bool
+    reason: Literal["taken", "not_allowed"] | None = None
+    message: str | None = None
 
 
 class TokenOut(BaseModel):

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # CORS configuration: danh sách domain frontend phân cách bởi dấu phẩy
     # Ví dụ: "https://my-app.vercel.app,http://localhost:5173"
     CORS_ORIGINS: str = ""
+    ALLOWED_EMAIL_DOMAINS: str = ""
 
     # Gemini Flash AI Key
     GEMINI_API_KEY: str = ""
