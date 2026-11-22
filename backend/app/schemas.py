@@ -14,19 +14,17 @@ def _normalize_email(v: str) -> str:
 
 # Chấp nhận MỌI nhà cung cấp (EmailStr không chặn theo domain), luôn lưu ở dạng chuẩn hoá.
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
-
-
-def _reject_disposable_email(value: str) -> str:
-    from app.services.disposable_emails import is_disposable_email
-    if is_disposable_email(str(value)):
-        raise ValueError(
-            "Vui lòng sử dụng địa chỉ email chính thức (không sử dụng email tạm thời/dùng một lần)."
-        )
+def _enforce_email_policy(value: str) -> str:
+    """Đăng ký chỉ nhận nhà cung cấp chính thống, không nhận bí danh + và chặn email rác."""
+    from app.services import email_policy
+    reason = email_policy.rejection_reason(str(value))
+    if reason:
+        raise ValueError(reason)
     return value
 
 
 # Chỉ dùng khi tạo tài khoản; đăng nhập vẫn nhận NormalizedEmail để tài khoản cũ không bị khóa ngoài.
-RegistrationEmail = Annotated[NormalizedEmail, AfterValidator(_reject_disposable_email)]
+RegistrationEmail = Annotated[NormalizedEmail, AfterValidator(_enforce_email_policy)]
 
 PASSWORD_SPECIALS = "!@#$%^&*()_+-=[]{}|;:,.<>?"
 COMMON_PASSWORDS = frozenset({
@@ -248,7 +246,8 @@ class EmailAvailabilityIn(BaseModel):
 
 class EmailAvailabilityOut(BaseModel):
     available: bool
-    reason: Literal["taken", "disposable"] | None = None
+    reason: Literal["taken", "not_allowed", "disposable"] | None = None
+    message: str | None = None
 
 
 class TokenOut(BaseModel):

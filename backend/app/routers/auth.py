@@ -19,9 +19,19 @@ from app.services.calorie import daily_calorie_target
 from app.services.email import build_verify_link, send_verification_email
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services.activity_levels import get_activity_level
-from app.services import consent
+from app.services import consent, email_policy
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _find_existing_user(db: Session, email: str) -> User | None:
+    """Gmail bỏ qua dấu chấm, nên so theo dạng chuẩn để chặn tạo nhiều tài khoản."""
+    normalized_email = str(email).strip().lower()
+    if email_policy.is_gmail(normalized_email):
+        key = email_policy.canonical(normalized_email).replace(".", "").lower()
+        stored = func.lower(func.replace(func.replace(User.email, "@googlemail.com", "@gmail.com"), ".", ""))
+        return db.query(User).filter(stored == key).first()  # type: ignore
+    return db.query(User).filter(func.lower(User.email) == normalized_email).first()  # type: ignore
 
 
 def _profile_out(info: UserProfile, metric: BodyMetricHistory | None) -> ProfileOut:
@@ -37,11 +47,17 @@ def _profile_out(info: UserProfile, metric: BodyMetricHistory | None) -> Profile
 
 @router.post("/check-email", response_model=EmailAvailabilityOut)
 def check_email_availability(payload: EmailAvailabilityIn, db: Session = Depends(get_db)):
-    from app.services.disposable_emails import is_disposable_email
-    if is_disposable_email(str(payload.email)):
-        return EmailAvailabilityOut(available=False, reason="disposable")
-    exists = db.query(User).filter(func.lower(User.email) == str(payload.email)).first()  # type: ignore
-    return EmailAvailabilityOut(available=exists is None, reason="taken" if exists else None)
+    email_str = str(payload.email).strip().lower()
+    reason = email_policy.rejection_reason(email_str)
+    if reason:
+        return EmailAvailabilityOut(available=False, reason="not_allowed", message=reason)
+    if _find_existing_user(db, email_str):
+        return EmailAvailabilityOut(
+            available=False,
+            reason="taken",
+            message="Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.",
+        )
+    return EmailAvailabilityOut(available=True)
 
 
 @router.post("/register", response_model=TokenOut, status_code=201)
@@ -49,7 +65,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # Honeypot: ô ẩn trên form, chỉ bot tự điền. Trả lỗi chung để không lộ cơ chế.
     if payload.honeypot:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Yêu cầu không hợp lệ")
-    if db.query(User).filter(func.lower(User.email) == str(payload.email)).first():  # type: ignore
+    if _find_existing_user(db, str(payload.email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được sử dụng")
 
     p = payload.profile

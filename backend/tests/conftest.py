@@ -10,6 +10,12 @@ import pytest
 from sqlalchemy import text
 
 from app.database import SessionLocal
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def _cho_phep_email_test(monkeypatch):
+    monkeypatch.setattr(settings, "ALLOWED_EMAIL_DOMAINS", "example.com")
 
 
 @pytest.fixture
