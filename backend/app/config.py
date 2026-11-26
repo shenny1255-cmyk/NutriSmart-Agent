@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "NutriSmart <no-reply@nutrismart.local>"
+
+    # Chống lạm dụng mã PIN đăng ký (spam email, dò mã)
+    PIN_SENDS_PER_EMAIL_PER_HOUR: int = 5
+    PIN_SENDS_PER_IP_PER_HOUR: int = 10
+    # Chỉ bật khi backend đứng sau reverse proxy tin cậy; nếu không, X-Forwarded-For có thể bị giả mạo
+    TRUST_PROXY_HEADERS: bool = False
     APP_BASE_URL: str = "http://localhost:5173"   # gốc cho link xác minh
 
     class Config:

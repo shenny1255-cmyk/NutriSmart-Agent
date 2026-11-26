@@ -281,6 +281,13 @@ export default function Register() {
       navigate('/');
     } catch (e) {
       if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
+      else if (e.status === 400 && typeof e.detail === 'string' && e.detail.includes('mã PIN')) {
+        // Xác thực PIN hết hạn (30 phút): bỏ token cũ, quay về bước 1 để gửi mã mới; hồ sơ đã nhập được giữ nguyên
+        setPinToken('');
+        setPin('');
+        setStep(1);
+        setErr('Phiên xác thực email đã hết hạn. Bấm "Tiếp tục" để nhận mã PIN mới, thông tin đã nhập vẫn được giữ.');
+      }
       else if (e.status === 422) {
         // Lấy thông báo tiếng Việt của validator; lỗi email/mật khẩu thì quay về bước 1 để sửa
         const emailIssue = Array.isArray(e.detail) && e.detail.find((d) => d?.loc?.includes('email'));

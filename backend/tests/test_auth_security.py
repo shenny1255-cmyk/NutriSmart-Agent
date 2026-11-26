@@ -1,7 +1,7 @@
 """Bảo mật xác thực: đăng nhập đơn thiết bị, mật khẩu mạnh, email không phân biệt hoa thường,
 chặn email dùng một lần và honeypot chống bot.
 
-Test cần Postgres; send_verification_email được monkeypatch để không gửi mail thật.
+Test cần Postgres; send_pin_email được monkeypatch để không gửi mail thật.
 """
 
 import uuid
@@ -50,7 +50,7 @@ def _payload(email: str, password: str = STRONG, **extra) -> dict:
 
 @pytest.fixture(autouse=True)
 def _khong_gui_mail(monkeypatch):
-    monkeypatch.setattr(auth_module, "send_verification_email", lambda to, link: None)
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: None)
 
 
 def _register(user_test, email: str | None = None, **kw):
@@ -360,3 +360,138 @@ def test_xac_thuc_pin_sai_qua_5_lan_bi_khoa(monkeypatch):
             db.commit()
         finally:
             db.close()
+
+
+# ---------- Test 8: chống lạm dụng mã PIN ----------
+
+def _xoa_pin(*emails):
+    db = SessionLocal()
+    try:
+        for e in emails:
+            db.execute(text("DELETE FROM email_pins WHERE email = :e"), {"e": e})
+            db.execute(text("DELETE FROM pin_send_events WHERE email = :e"), {"e": e})
+        db.commit()
+    finally:
+        db.close()
+
+
+def _lui_cooldown(email):
+    """Giả lập đã qua 60 giây kể từ lần gửi trước."""
+    db = SessionLocal()
+    try:
+        db.execute(text("UPDATE email_pins SET created_at = now() - interval '61 seconds' WHERE email = :e"), {"e": email})
+        db.commit()
+    finally:
+        db.close()
+
+
+@needs_db
+def test_ma_pin_chi_xac_thuc_duoc_mot_lan(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: sent.update(pin=pin))
+    email = f"once_{uuid.uuid4().hex[:8]}@gmail.com"
+    try:
+        assert client.post("/api/v1/auth/send-pin", json={"email": email}).status_code == 200
+        assert client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": sent["pin"]}).status_code == 200
+        lan_2 = client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": sent["pin"]})
+        assert lan_2.status_code == 400
+    finally:
+        _xoa_pin(email)
+
+
+@needs_db
+def test_gioi_han_so_lan_gui_pin_moi_gio_cho_mot_email(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "PIN_SENDS_PER_EMAIL_PER_HOUR", 2)
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: None)
+    email = f"cap_{uuid.uuid4().hex[:8]}@gmail.com"
+    try:
+        assert client.post("/api/v1/auth/send-pin", json={"email": email}).status_code == 200
+        _lui_cooldown(email)
+        assert client.post("/api/v1/auth/send-pin", json={"email": email}).status_code == 200
+        _lui_cooldown(email)
+        r3 = client.post("/api/v1/auth/send-pin", json={"email": email})
+        assert r3.status_code == 429
+        assert "quá nhiều" in r3.json()["detail"]
+    finally:
+        _xoa_pin(email)
+
+
+@needs_db
+def test_gioi_han_so_lan_gui_pin_moi_gio_theo_ip(monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "PIN_SENDS_PER_IP_PER_HOUR", 2)
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", True)
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: None)
+    ip = f"203.0.113.{uuid.uuid4().int % 250 + 1}"
+    emails = [f"ip{i}_{uuid.uuid4().hex[:8]}@gmail.com" for i in range(3)]
+    headers = {"X-Forwarded-For": f"{ip}, 10.0.0.1"}
+    db = SessionLocal()
+    db.execute(text("DELETE FROM pin_send_events WHERE ip = :ip"), {"ip": ip})
+    db.commit()
+    db.close()
+    try:
+        assert client.post("/api/v1/auth/send-pin", json={"email": emails[0]}, headers=headers).status_code == 200
+        assert client.post("/api/v1/auth/send-pin", json={"email": emails[1]}, headers=headers).status_code == 200
+        r3 = client.post("/api/v1/auth/send-pin", json={"email": emails[2]}, headers=headers)
+        assert r3.status_code == 429
+        # IP khác vẫn gửi được
+        other = client.post("/api/v1/auth/send-pin", json={"email": emails[2]}, headers={"X-Forwarded-For": "198.51.100.7"})
+        assert other.status_code == 200
+    finally:
+        _xoa_pin(*emails)
+
+
+def test_bo_qua_x_forwarded_for_khi_khong_tin_proxy(monkeypatch):
+    from app.config import settings
+    from starlette.requests import Request
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", False)
+    req = Request({"type": "http", "headers": [(b"x-forwarded-for", b"1.2.3.4")], "client": ("9.9.9.9", 1)})
+    assert auth_module._client_ip(req) == "9.9.9.9"
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", True)
+    assert auth_module._client_ip(req) == "1.2.3.4"
+
+
+def test_smtp_loi_khong_ghi_ma_pin_vao_log(monkeypatch, caplog):
+    import logging
+    import app.services.email as email_service
+    from app.config import settings
+    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.example.com")
+
+    def _hong(*a, **kw):
+        raise OSError("connection refused")
+    monkeypatch.setattr(email_service.smtplib, "SMTP", _hong)
+    with caplog.at_level(logging.INFO, logger="nutrismart.email"):
+        email_service.send_pin_email("x@gmail.com", "482913")
+    assert "482913" not in caplog.text
+    assert "thất bại" in caplog.text
+
+
+@needs_db
+def test_dang_ky_bang_pin_khong_gui_them_link_xac_minh(monkeypatch, user_test):
+    import app.services.email as email_service
+    goi = []
+    monkeypatch.setattr(email_service, "send_verification_email", lambda to, link: goi.append(to))
+    r, _ = _register(user_test)
+    assert r.status_code == 201, r.text
+    assert goi == []
+
+
+@needs_db
+def test_ma_pin_bo_do_qua_1_gio_duoc_don(monkeypatch):
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: None)
+    cu = f"old_{uuid.uuid4().hex[:8]}@gmail.com"
+    moi = f"new_{uuid.uuid4().hex[:8]}@gmail.com"
+    db = SessionLocal()
+    try:
+        db.execute(text(
+            "INSERT INTO email_pins (email, pin_hash, attempts, expires_at, created_at) "
+            "VALUES (:e, 'x', 0, now() - interval '110 minutes', now() - interval '2 hours')"
+        ), {"e": cu})
+        db.commit()
+        assert client.post("/api/v1/auth/send-pin", json={"email": moi}).status_code == 200
+        con_lai = db.execute(text("SELECT count(*) FROM email_pins WHERE email = :e"), {"e": cu}).scalar()
+        assert con_lai == 0
+    finally:
+        db.close()
+        _xoa_pin(cu, moi)

@@ -1,6 +1,6 @@
-"""Integration: register (gửi link) → chưa xác minh → /auth/verify → đã xác minh.
+"""Xác minh email: email được xác thực bằng mã PIN TRƯỚC khi đăng ký nên đăng ký không gửi thêm link.
 
-Cần Postgres đang chạy. send_verification_email được monkeypatch → không gửi mail thật.
+Endpoint /auth/verify vẫn giữ để link đã gửi cho tài khoản cũ còn bấm được. Cần Postgres đang chạy.
 """
 
 import uuid
@@ -9,9 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+import app.services.email as email_service
 from app.main import app
 from app.database import engine
-import app.routers.auth as auth_module
+from app.security import create_pin_verified_token, create_verification_token, decode_token
 
 
 def _db_up() -> bool:
@@ -29,12 +30,8 @@ client = TestClient(app)
 
 
 def _register(monkeypatch, user_test):
-    from app.security import create_pin_verified_token
-    captured = {}
-    monkeypatch.setattr(
-        auth_module, "send_verification_email",
-        lambda to, link: captured.update(to=to, link=link),
-    )
+    sent = []
+    monkeypatch.setattr(email_service, "send_verification_email", lambda to, link: sent.append((to, link)))
     email = f"verify_{uuid.uuid4().hex[:10]}@example.com"
     payload = {
         "email": email, "password": "Nutri#Smart2026", "full_name": "Xác Minh",
@@ -49,24 +46,20 @@ def _register(monkeypatch, user_test):
     r = client.post("/api/v1/auth/register", json=payload)
     assert r.status_code == 201, r.text
     user_test.append(email)
-    return r.json()["access_token"], captured, email
+    return r.json()["access_token"], sent, email
 
 
-def test_register_sends_link_and_user_starts_unverified(monkeypatch, user_test):
-    token, captured, email = _register(monkeypatch, user_test)
-    headers = {"Authorization": f"Bearer {token}"}
-    me = client.get("/api/v1/auth/me", headers=headers).json()
+def test_register_bang_pin_khong_gui_link_xac_minh(monkeypatch, user_test):
+    token, sent, email = _register(monkeypatch, user_test)
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
     assert me["email"] == email
-    assert "/verify?token=" in captured["link"]
-    assert captured["to"] == email
+    assert sent == []
 
 
-def test_verify_marks_user_verified(monkeypatch, user_test):
-    token, captured, _ = _register(monkeypatch, user_test)
-    headers = {"Authorization": f"Bearer {token}"}
-    verify_token = captured["link"].split("token=")[1]
-
-    r = client.get(f"/api/v1/auth/verify?token={verify_token}")
+def test_link_xac_minh_cu_van_bam_duoc(monkeypatch, user_test):
+    token, _, _ = _register(monkeypatch, user_test)
+    user_id = decode_token(token)["sub"]
+    r = client.get(f"/api/v1/auth/verify?token={create_verification_token(user_id)}")
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "verified"
 
@@ -76,12 +69,8 @@ def test_verify_bad_token_returns_400():
     assert r.status_code == 400
 
 
-def test_resend_when_already_verified(monkeypatch, user_test):
-    token, captured, _ = _register(monkeypatch, user_test)
-    headers = {"Authorization": f"Bearer {token}"}
-    verify_token = captured["link"].split("token=")[1]
-    client.get(f"/api/v1/auth/verify?token={verify_token}")
-
-    r = client.post("/api/v1/auth/resend-verification", headers=headers)
+def test_resend_tra_ve_da_xac_minh(monkeypatch, user_test):
+    token, _, _ = _register(monkeypatch, user_test)
+    r = client.post("/api/v1/auth/resend-verification", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["status"] == "already_verified"

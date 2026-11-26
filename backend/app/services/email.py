@@ -84,4 +84,5 @@ def send_pin_email(to_email: str, pin: str) -> None:
             s.send_message(msg)
         log.info("[email:smtp] đã gửi mã PIN tới %s", to_email)
     except Exception as e:  # noqa: BLE001 - không làm treo API nếu SMTP lỗi
-        log.warning("[email:smtp] gửi mã PIN thất bại (%s) - PIN cho %s: %s", e, to_email, pin)
+        # Không ghi mã PIN vào log: log máy chủ có thể bị người khác đọc được
+        log.warning("[email:smtp] gửi mã PIN tới %s thất bại (%s)", to_email, e)

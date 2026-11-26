@@ -64,6 +64,15 @@ class EmailPin(Base):
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class PinSendEvent(Base):
+    """Mỗi lần gửi mã PIN đăng ký - dùng để giới hạn số lần gửi theo email và IP."""
+    __tablename__ = "pin_send_events"
+    id: int    = Column(BigInteger, primary_key=True, autoincrement=True)  # type: ignore
+    email: str = Column(String(255), nullable=False)  # type: ignore
+    ip: str    = Column(String(64), nullable=False)  # type: ignore
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class UserProfile(Base):
     __tablename__ = "user_profile"
     user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)

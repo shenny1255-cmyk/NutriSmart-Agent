@@ -10,7 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-import app.routers.auth as auth_module
 from app.database import engine
 from app.main import app
 
@@ -30,7 +29,6 @@ client = TestClient(app)
 
 def test_luu_ho_so_khong_xoa_muc_tu_khai_bao(monkeypatch, user_test):
     from app.security import create_pin_verified_token
-    monkeypatch.setattr(auth_module, "send_verification_email", lambda to, link: None)
     email = f"custom_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "Nutri#Smart2026", "full_name": "Tự Khai Báo",
