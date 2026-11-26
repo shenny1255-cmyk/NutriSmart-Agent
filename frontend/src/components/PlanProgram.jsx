@@ -744,11 +744,11 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
           )}
           <div className="rounded-md bg-paper-3 p-3.5 text-sm">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-ink">Chỉ số từ Hồ sơ sức khỏe</span>
+              <span className="min-w-0 font-semibold text-ink">Chỉ số từ Hồ sơ sức khỏe</span>
               <Link
                 to="/profile"
                 onClick={() => setGeneratorOpen(false)}
-                className="text-xs font-semibold text-accent-strong hover:underline"
+                className="shrink-0 whitespace-nowrap text-xs font-semibold text-accent-strong hover:underline"
               >
                 Cập nhật trong Hồ sơ
               </Link>
@@ -785,15 +785,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
             </Select>
             <span className="text-sm font-medium text-ink-2">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
           </label>
-          {modalProjection && (
-            <div className="flex items-start gap-2.5 rounded-md bg-accent-soft px-3.5 py-2.5 text-sm text-ink-2">
-              <Target size={18} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
-              <div>
-                <p className="font-semibold text-accent-strong">{modalProjection.headline}</p>
-                <p className="mt-0.5 text-xs">{modalProjection.detail}</p>
-              </div>
-            </div>
-          )}
+          <GoalProjection projection={modalProjection} />
         </div>
       </Modal>
       <Modal
@@ -882,65 +874,90 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   );
 }
 
-// Nhãn và cách giải thích ngân sách kcal phải khớp GOAL_ADJUST trong backend/app/services/calorie.py.
+// Nhãn mục tiêu phải khớp GOAL_ADJUST trong backend/app/services/calorie.py.
 const GOAL_INFO = {
-  LOSE_WEIGHT: { label: 'Giảm cân', note: 'thấp hơn nhu cầu năng lượng của bạn để tạo thâm hụt vừa phải, không xuống dưới ngưỡng an toàn' },
-  GAIN_MUSCLE: { label: 'Tăng cơ', note: 'cao hơn nhu cầu năng lượng của bạn để tạo thặng dư vừa phải cho tăng cơ' },
-  MAINTAIN: { label: 'Duy trì cân nặng', note: 'cân bằng với nhu cầu năng lượng của bạn để giữ cân' },
-  MEDICAL: { label: 'Theo chỉ định y tế', note: 'cân bằng với nhu cầu năng lượng của bạn; nên điều chỉnh theo chỉ định của bác sĩ' },
+  LOSE_WEIGHT: { label: 'Giảm cân' },
+  GAIN_MUSCLE: { label: 'Tăng cơ' },
+  MAINTAIN: { label: 'Duy trì cân nặng' },
+  MEDICAL: { label: 'Theo chỉ định y tế' },
 };
 
+// Dự kiến kết quả nếu tuân thủ: giảm ~0.45-0.5 kg/tuần (thâm hụt ~500 kcal), tăng ~0.25-0.3 kg/tuần (thặng dư ~300 kcal).
 function buildGoalProjection({ goal, durationMonths, weightKg }) {
   const months = Math.max(1, Number(durationMonths) || 3);
   const weeks = months * 4;
   const hasWeight = Number.isFinite(weightKg) && weightKg > 0;
+  const kg = (value) => value.toFixed(1);
 
   if (goal === 'LOSE_WEIGHT') {
-    const minLoss = Number((weeks * 0.45).toFixed(1));
-    const maxLoss = Number((weeks * 0.5).toFixed(1));
-    const targetText = hasWeight
-      ? `Từ ${weightKg} kg xuống khoảng ${(weightKg - maxLoss).toFixed(1)} – ${(weightKg - minLoss).toFixed(1)} kg (tốc độ ~0.5 kg/tuần, an toàn cho sức khỏe).`
-      : `Tốc độ giảm khoảng 0.45 – 0.5 kg/tuần nếu duy trì thâm hụt ~500 kcal/ngày.`;
+    const minLoss = weeks * 0.45;
+    const maxLoss = weeks * 0.5;
     return {
-      headline: `Dự kiến nếu tuân thủ: Giảm ${minLoss} – ${maxLoss} kg sau ${months} tháng`,
-      detail: targetText,
+      label: 'Dự kiến nếu tuân thủ',
+      headline: `Giảm ${kg(minLoss)} - ${kg(maxLoss)} kg sau ${months} tháng`,
+      detail: hasWeight
+        ? `${weightKg} kg → ${kg(weightKg - maxLoss)} - ${kg(weightKg - minLoss)} kg, khoảng 0.5 kg/tuần.`
+        : 'Khoảng 0.5 kg/tuần, mức giảm an toàn.',
     };
   }
 
   if (goal === 'GAIN_MUSCLE') {
-    const minGain = Number((weeks * 0.25).toFixed(1));
-    const maxGain = Number((weeks * 0.3).toFixed(1));
-    const targetText = hasWeight
-      ? `Từ ${weightKg} kg lên khoảng ${(weightKg + minGain).toFixed(1)} – ${(weightKg + maxGain).toFixed(1)} kg khi ăn đủ đạm và tập luyện đều đặn.`
-      : `Tốc độ tăng khoảng 0.25 – 0.3 kg/tuần nhờ mức thặng dư ~300 kcal/ngày.`;
+    const minGain = weeks * 0.25;
+    const maxGain = weeks * 0.3;
     return {
-      headline: `Dự kiến nếu tuân thủ: Tăng ${minGain} – ${maxGain} kg sau ${months} tháng`,
-      detail: targetText,
+      label: 'Dự kiến nếu tuân thủ',
+      headline: `Tăng ${kg(minGain)} - ${kg(maxGain)} kg sau ${months} tháng`,
+      detail: hasWeight
+        ? `${weightKg} kg → ${kg(weightKg + minGain)} - ${kg(weightKg + maxGain)} kg, khi ăn đủ đạm và tập đều.`
+        : 'Khoảng 0.25 - 0.3 kg/tuần, khi ăn đủ đạm và tập đều.',
     };
   }
 
   if (goal === 'MEDICAL') {
     return {
-      headline: `Mục tiêu nếu tuân thủ: Kiểm soát dinh dưỡng an toàn trong ${months} tháng`,
-      detail: 'Duy trì mức năng lượng ổn định và loại trừ thực phẩm rủi ro cho bệnh lý nền qua từng đợt Check-in 14 ngày.',
+      label: 'Mục tiêu nếu tuân thủ',
+      headline: `Kiểm soát dinh dưỡng an toàn trong ${months} tháng`,
+      detail: 'Năng lượng ổn định, tránh thực phẩm rủi ro cho bệnh nền.',
     };
   }
 
   return {
-    headline: `Dự kiến nếu tuân thủ: Duy trì ổn định ${hasWeight ? `${weightKg} kg` : 'cân nặng hiện tại'} trong ${months} tháng`,
-    detail: 'Cân bằng năng lượng nạp và tiêu hao, giúp cải thiện sức bền và duy trì thói quen ăn uống lành mạnh.',
+    label: 'Dự kiến nếu tuân thủ',
+    headline: `Giữ ổn định ${hasWeight ? `${weightKg} kg` : 'cân nặng'} trong ${months} tháng`,
+    detail: 'Cân bằng năng lượng nạp vào và tiêu hao.',
   };
+}
+
+function GoalProjection({ projection, className = '' }) {
+  return (
+    <div className={`flex items-start gap-2.5 rounded-md bg-accent-soft px-3.5 py-2.5 ${className}`}>
+      <Target size={18} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-ink-2">{projection.label}</p>
+        <p className="font-semibold text-accent-strong">{projection.headline}</p>
+        <p className="mt-0.5 text-xs text-ink-2">{projection.detail}</p>
+      </div>
+    </div>
+  );
 }
 
 function ProgramSummary({ plan, profileWeight }) {
   const program = plan.program;
-  const goal = GOAL_INFO[plan.goal] || { label: plan.goal, note: 'tính theo thể trạng của bạn' };
-  const startWeight = plan.program_summary?.start_weight_kg ?? profileWeight;
+  const goalLabel = GOAL_INFO[plan.goal]?.label || plan.goal;
+  // Mốc tính dự kiến là cân nặng lúc bắt đầu chương trình, không đổi khi người dùng cập nhật cân nặng giữa chừng.
+  const startWeight = plan.program_summary?.start_weight_kg
+    ?? plan.current_checkin?.baseline_weight_kg
+    ?? profileWeight;
   const projection = buildGoalProjection({
     goal: plan.goal,
     durationMonths: program?.duration_months || 3,
     weightKg: startWeight != null ? Number(startWeight) : null,
   });
+  const stats = [
+    { label: 'Mục tiêu', value: goalLabel },
+    { label: 'Calo mỗi ngày', value: `${plan.daily_kcal_target} kcal` },
+    plan.bmi ? { label: 'BMI', value: plan.bmi } : null,
+  ].filter(Boolean);
   return (
     <section className="rounded-md bg-paper-2 p-5 shadow-hairline">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -956,28 +973,16 @@ function ProgramSummary({ plan, profileWeight }) {
           </span>
         )}
       </div>
-      <div className="mt-4 flex items-start gap-3 rounded-md bg-accent-soft px-4 py-3">
-        <Target size={20} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
-        <div className="min-w-0 text-sm text-ink-2">
-          <p className="text-base font-semibold text-ink">
-            Mục tiêu: {goal.label} · Ngân sách năng lượng:{' '}
-            <span className="text-accent-strong">{plan.daily_kcal_target} kcal/ngày</span>
-          </p>
-          <p className="mt-1">
-            Mức này {goal.note}, được tính từ chiều cao, cân nặng, tuổi và mức vận động. Thực đơn 7 ngày bên dưới
-            được xây dựng để bám sát con số này.
-          </p>
-          <div className="mt-2.5 rounded-sm border border-accent/25 bg-paper-2/80 px-3 py-2">
-            <p className="font-semibold text-accent-strong">{projection.headline}</p>
-            <p className="mt-0.5 text-xs text-ink-2">{projection.detail}</p>
+      <div className={`mt-4 grid gap-2 text-center ${stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {stats.map((item) => (
+          <div key={item.label} className="rounded-sm bg-paper-3 px-2 py-2">
+            <span className="block text-xs text-muted">{item.label}</span>
+            <strong className="text-sm text-ink">{item.value}</strong>
           </div>
-        </div>
+        ))}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
-        <span className="rounded-full bg-accent-soft px-3 py-1 font-medium text-accent-strong">{goal.label}</span>
-        <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2">{plan.daily_kcal_target} kcal/ngày</span>
-        {plan.bmi && <span className="rounded-full bg-paper-3 px-3 py-1 text-ink-2">BMI {plan.bmi}</span>}
-      </div>
+      <GoalProjection projection={projection} className="mt-3" />
+      <p className="mt-2 text-xs text-muted">Thực đơn 7 ngày bên dưới bám sát mức calo này.</p>
     </section>
   );
 }
