@@ -18,6 +18,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vision", tags=["vision"])
 
+VISION_FOOD_SOURCE = "AI Gemini Flash"
+MAX_MEAL_KCAL = 10000   # cột meal_logs.calories_kcal là NUMERIC(7,2); một bữa vượt mức này là số liệu sai
+
+
+def _find_or_create_vision_food(db: Session, payload: MealLogIn) -> Food:
+    values = {
+        "calories_kcal": round(payload.calories_kcal, 2), "protein_g": round(payload.protein_g, 2),
+        "carb_g": round(payload.carb_g, 2), "fat_g": round(payload.fat_g, 2),
+    }
+    food = (
+        db.query(Food)
+        .filter(Food.name == payload.food_name, Food.source == VISION_FOOD_SOURCE,  # type: ignore
+                *[getattr(Food, k) == v for k, v in values.items()])
+        .first()
+    )
+    if food is None:
+        food = Food(name=payload.food_name, source=VISION_FOOD_SOURCE, **values)
+        db.add(food)
+        db.flush()  # Lấy food.id
+    return food
+
 
 def _audit_vision(user, nbytes: int, t0: float, ok: bool, error: str | None = None,
                   purpose: str = "meal_scan") -> None:
@@ -152,6 +173,10 @@ def log_meal(
         except ValueError as e:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e))
         sums = portion.totals(final_components)
+        if sums["energy_kcal"] > MAX_MEAL_KCAL:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                f"Tổng năng lượng {sums['energy_kcal']:.0f} kcal vượt mức cho phép của một bữa "
+                                f"({MAX_MEAL_KCAL} kcal). Vui lòng kiểm tra lại khẩu phần.")
         payload = payload.model_copy(update={
             "calories_kcal": sums["energy_kcal"], "protein_g": sums["protein_g"], "carb_g": sums["carb_g"],
             "fat_g": sums["fat_g"], "quantity": 1.0,
@@ -160,17 +185,9 @@ def log_meal(
     try:
         log_date = payload.log_date or date.today()
 
-        # 1. Tạo bản ghi món ăn trong bảng foods
-        food = Food(
-            name=payload.food_name,
-            calories_kcal=payload.calories_kcal,
-            protein_g=payload.protein_g,
-            carb_g=payload.carb_g,
-            fat_g=payload.fat_g,
-            source="AI Gemini Flash",
-        )
-        db.add(food)
-        db.flush()  # Lấy food.id
+        # 1. Món ăn trong bảng foods: dùng lại dòng giống hệt (cùng tên + cùng số liệu) thay vì
+        #    mỗi lần lưu lại tạo một dòng mới làm phình danh mục.
+        food = _find_or_create_vision_food(db, payload)
 
         # 2. Tạo nhật ký bữa ăn trong bảng meal_logs
         total_calories = payload.calories_kcal * payload.quantity
@@ -218,7 +235,8 @@ def log_meal(
     except Exception as e:
         db.rollback()
         logger.error(f"Lỗi lưu bữa ăn: {e}", exc_info=True)
+        # Chi tiết lỗi (câu SQL, tham số) chỉ ghi log, không trả cho client
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Lỗi lưu bữa ăn vào CSDL: {str(e)}"
+            detail="Không lưu được bữa ăn vào nhật ký. Vui lòng thử lại sau."
         )

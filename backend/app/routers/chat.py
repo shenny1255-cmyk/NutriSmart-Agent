@@ -11,6 +11,7 @@ from app.schemas import ChatIn, ChatMessageOut, ChatReplyOut, CitationOut
 from app.services import llm
 from app.services import retrieval
 from app.services import guardrails
+from app.services import topic_guard
 from app.services.nutrition_context import gather_context, render_system_prompt
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -27,6 +28,14 @@ def _chat(messages: list[dict], user: User) -> str:
 def _chat_stream(messages: list[dict], user: User):
     """Chat streaming qua cùng adapter với endpoint thường."""
     return llm.chat_stream(messages, user=user, purpose="chat", ollama_model=settings.OLLAMA_CHAT_MODEL)
+
+
+def _in_scope(db: Session, session: ChatSession, message: str, hits: list) -> bool:
+    """Chặn câu ngoài phạm vi trước khi gọi LLM (services/topic_guard.py)."""
+    in_conversation = db.query(ChatMessage.id).filter(
+        ChatMessage.session_id == session.id, ChatMessage.role == "assistant",  # type: ignore
+    ).first() is not None
+    return topic_guard.is_in_scope(message, has_rag_hits=bool(hits), in_conversation=in_conversation)
 
 
 def _get_or_create_session(db: Session, user: User) -> ChatSession:
@@ -117,6 +126,11 @@ def send_message(
     ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
 
+    if not _in_scope(db, session, payload.message, hits):
+        db.add(ChatMessage(session_id=session.id, role="assistant", content=topic_guard.REFUSAL))
+        db.commit()
+        return ChatReplyOut(reply=topic_guard.REFUSAL, citations=[], warnings=[])
+
     rag_block = retrieval.render_context_block(hits)
     # Chỉ thị dược phẩm chỉ chèn khi câu hỏi về thuốc - nó ra lệnh ghi đè lên RAG nên
     # gắn vô điều kiện sẽ làm trợ lý từ chối trả lời câu hỏi dinh dưỡng.
@@ -181,6 +195,16 @@ def stream_message(
     # 2. Truy hồi RAG & xây dựng System Prompt
     ctx = gather_context(db, user)
     hits = retrieval.search_chunks(db, payload.message, k=TOP_K)
+
+    if not _in_scope(db, session, payload.message, hits):
+        db.add(ChatMessage(session_id=session.id, role="assistant", content=topic_guard.REFUSAL))
+        db.commit()
+
+        def refusal_events():
+            yield f"data: {json.dumps({'token': topic_guard.REFUSAL}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'done': True, 'citations': [], 'warnings': []}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(refusal_events(), media_type="text/event-stream")
+
     guard_profile = guardrails.profile_from_user(user)
     rag_block = retrieval.render_context_block(hits)
     system_prompt = render_system_prompt(ctx) + rag_block

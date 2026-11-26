@@ -565,17 +565,28 @@ class ExerciseOut(BaseModel):
     category: str | None = None
 
 
+def _not_future_vn(value: date | None) -> date | None:
+    """Ngày ghi nhật ký không được vượt quá hôm nay theo giờ Việt Nam."""
+    from datetime import timedelta, timezone
+    if value is not None and value > datetime.now(timezone(timedelta(hours=7))).date():
+        raise ValueError("Ngày ghi nhật ký không được ở trong tương lai")
+    return value
+
+
+MealDate = Annotated[date | None, AfterValidator(_not_future_vn)]
+
+
 class ManualMealIn(BaseModel):
     """Ghi bữa ăn tay: chọn món có sẵn (food_id) hoặc gõ tên món mới."""
     food_id: UUID | None = None
     food_name: FoodName | None = None
     calories_kcal: float | None = Field(default=None, ge=1, le=5000)
-    protein_g: float = Field(default=0.0, ge=0)
-    carb_g: float = Field(default=0.0, ge=0)
-    fat_g: float = Field(default=0.0, ge=0)
+    protein_g: float = Field(default=0.0, ge=0, le=500)
+    carb_g: float = Field(default=0.0, ge=0, le=1000)
+    fat_g: float = Field(default=0.0, ge=0, le=500)
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
     quantity: float = Field(default=1.0, ge=0.5, le=20)
-    log_date: date | None = None
+    log_date: MealDate = None
 
 
 class MealLogOut(BaseModel):
@@ -909,14 +920,16 @@ class MealAnalyzeOut(BaseModel):
 
 
 class MealLogIn(BaseModel):
+    # Cùng giới hạn với ManualMealIn: số liệu phi lý bị chặn ở đây thay vì tràn cột NUMERIC (500)
+    # hoặc lọt vào bảng foods dùng chung (macro âm).
     food_name: FoodName
-    calories_kcal: float = Field(ge=0)
-    protein_g: float = Field(default=0.0)
-    carb_g: float = Field(default=0.0)
-    fat_g: float = Field(default=0.0)
+    calories_kcal: float = Field(ge=0, le=5000)
+    protein_g: float = Field(default=0.0, ge=0, le=500)
+    carb_g: float = Field(default=0.0, ge=0, le=1000)
+    fat_g: float = Field(default=0.0, ge=0, le=500)
     meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = "LUNCH"
-    quantity: float = Field(default=1.0, gt=0)
-    log_date: date | None = None
+    quantity: float = Field(default=1.0, gt=0, le=20)
+    log_date: MealDate = None
     scan_id: UUID | None = None
     components: list[VisionComponentIn] | None = Field(default=None, min_length=1, max_length=15)
 

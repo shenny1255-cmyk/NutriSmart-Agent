@@ -25,7 +25,10 @@ _CONSTRAINTS = (
     "\"ăn uống điều độ\", \"ăn uống cân bằng\", \"tập thể dục đều đặn\". Mỗi lời khuyên phải quy đổi thành "
     "hành động cụ thể: ăn món gì, bao nhiêu, vào lúc nào, tập bài gì trong bao nhiêu phút.\n"
     "4. Quy tắc an toàn luôn được ưu tiên hơn các quy tắc trên: không dùng thực phẩm người dùng bị dị ứng, "
-    "chọn món phù hợp bệnh nền, khuyên đi khám khi có dấu hiệu bất thường."
+    "chọn món phù hợp bệnh nền, khuyên đi khám khi có dấu hiệu bất thường.\n"
+    "5. PHẠM VI: chỉ trả lời về dinh dưỡng, ăn uống, vận động, sức khỏe và cách dùng NutriSmart. Câu hỏi "
+    "ngoài phạm vi (sửa xe, lập trình, thời sự, giải trí...) thì KHÔNG trả lời nội dung đó: chỉ nói ngắn gọn "
+    "trong 1-2 câu rằng câu hỏi nằm ngoài phạm vi hỗ trợ, rồi gợi ý một câu hỏi về dinh dưỡng."
 )
 
 

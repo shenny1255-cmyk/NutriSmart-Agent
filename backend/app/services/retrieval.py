@@ -15,6 +15,7 @@ from functools import lru_cache
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services import accent_restore
 from app.services.ollama_client import get_embedding, OllamaError
 
 log = logging.getLogger("nutrismart.retrieval")
@@ -94,6 +95,16 @@ def search_chunks(db: Session, query: str, k: int = 5) -> list[Hit]:
     """Trả về tối đa k đoạn liên quan nhất tới `query`, đã lọc theo ngưỡng MIN_SCORE."""
     if _has_searchable_chunks(db) is False:
         return []
+
+    # Câu gõ không dấu: khôi phục dấu theo kho tài liệu rồi mới embedding (accent_restore.py)
+    try:
+        query = accent_restore.restore_query(db, query)
+    except Exception as e:  # noqa: BLE001 - lỗi khôi phục dấu không được làm hỏng chat
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        log.warning("[RAG] Không khôi phục được dấu cho câu hỏi (%s) - dùng nguyên văn", e)
 
     try:
         qvec = _query_embedding(query)

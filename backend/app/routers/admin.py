@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import date
 from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import func, text, String
 from sqlalchemy.orm import Session
@@ -173,7 +174,7 @@ def bulk_delete_users(
 
 @router.delete("/users/{user_id}", status_code=204)
 def soft_delete_user(
-    user_id: str,
+    user_id: UUID,
     db: Session = Depends(get_db),
     actor: User = admin_only,
 ):
@@ -185,7 +186,7 @@ def soft_delete_user(
         raise HTTPException(400, "Không thể tự xóa tài khoản của mình")
 
     db.delete(user)
-    write_audit(db, actor.id, "DELETE", "users", user_id, before={
+    write_audit(db, actor.id, "DELETE", "users", str(user_id), before={
         "email": user.email, "full_name": user.full_name, "role": user.role,
     })
     db.commit()

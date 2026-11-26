@@ -78,13 +78,14 @@ def test_ollama_failure_returns_503_but_keeps_user_message(monkeypatch, user_tes
     monkeypatch.setattr(ollama_client, "chat", boom)
     headers = {"Authorization": f"Bearer {_register(user_test)}"}
 
+    # Câu phải đúng chủ đề, nếu không topic_guard trả lời từ chối trước khi tới LLM
     r = client.post("/api/v1/chat/messages",
-                    json={"message": "Tin nhắn khi AI lỗi"}, headers=headers)
+                    json={"message": "Tối nay nên ăn gì khi AI lỗi?"}, headers=headers)
     assert r.status_code == 503
 
     history = client.get("/api/v1/chat/messages", headers=headers).json()
     assert [m["role"] for m in history] == ["user"]
-    assert history[0]["content"] == "Tin nhắn khi AI lỗi"
+    assert history[0]["content"] == "Tối nay nên ăn gì khi AI lỗi?"
 
 
 def test_reply_kem_canh_bao_guardrail(monkeypatch, user_test):

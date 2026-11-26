@@ -79,6 +79,16 @@ def test_finds_relevant_chunk_with_citation_fields(indexed_doc):
     assert mine.source_url == "https://example.test/gout"   # UI cần link nguồn
 
 
+def test_cau_hoi_khong_dau_van_tim_dung_tai_lieu(indexed_doc):
+    """Người dùng gõ không dấu: khôi phục dấu theo kho rồi truy hồi như câu có dấu."""
+    db, doc_id = indexed_doc
+    chunk_ids = {r[0] for r in db.execute(
+        text("SELECT id FROM doc_chunks WHERE document_id = :id"), {"id": str(doc_id)})}
+    hits = search_chunks(db, "nguoi benh gout nen han che thuc pham gi")
+    assert any(h.chunk_id in chunk_ids for h in hits)
+    assert search_chunks(db, "hom nay may gio roi") == []
+
+
 def test_offtopic_question_returns_no_hits(indexed_doc):
     db, _ = indexed_doc
     # Câu lạc đề → không trích dẫn bừa (ngưỡng MIN_SCORE lọc sạch)
