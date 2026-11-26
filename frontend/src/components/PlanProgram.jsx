@@ -134,7 +134,8 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [extendMonths, setExtendMonths] = useState(1);
   const [extending, setExtending] = useState(false);
-  const [baseWeight, setBaseWeight] = useState(null);
+  const [profileWeight, setProfileWeight] = useState(null);
+  const [profileGoal, setProfileGoal] = useState('MAINTAIN');
   const [generatorForm, setGeneratorForm] = useState({
     height_cm: '', weight_kg: '', duration_months: 3,
   });
@@ -213,6 +214,10 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   useEffect(() => {
     fetchPlan();
     fetchHistory();
+    api.me().then((me) => {
+      if (me?.profile?.weight_kg != null) setProfileWeight(Number(me.profile.weight_kg));
+      if (me?.profile?.goal) setProfileGoal(me.profile.goal);
+    }).catch(() => {});
     const runId = ++generationRun.current;
     const jobId = window.localStorage.getItem(PLAN_JOB_KEY);
     if (jobId) waitForPlan(jobId, runId);
@@ -234,7 +239,9 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
       const me = await api.me();
       const height = me.profile?.height_cm ?? '';
       const weight = me.profile?.weight_kg ?? '';
-      setBaseWeight(weight === '' ? null : Number(weight));
+      const goal = me.profile?.goal ?? 'MAINTAIN';
+      setProfileWeight(weight === '' ? null : Number(weight));
+      setProfileGoal(goal);
       setGeneratorForm({ height_cm: height, weight_kg: weight, duration_months: 3 });
       setGeneratorOpen(true);
     } catch (requestError) {
@@ -387,8 +394,12 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
   const weight = Number(generatorForm.weight_kg);
   const heightValid = height > 50 && height < 250;
   const weightValid = weight >= 20 && weight <= 300;
-  const weightGuardValid = !baseWeight || Math.abs(weight - baseWeight) / baseWeight <= 0.10;
-  const generatorValid = heightValid && weightValid && weightGuardValid;
+  const generatorValid = heightValid && weightValid;
+  const modalProjection = buildGoalProjection({
+    goal: profileGoal,
+    durationMonths: Number(generatorForm.duration_months) || 3,
+    weightKg: weightValid ? weight : null,
+  });
   const needsProfile = error?.includes('hoàn thiện hồ sơ') || error?.includes('cập nhật');
 
   if (loading) {
@@ -523,7 +534,7 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
         </section>
       ) : (
         <>
-          <ProgramSummary plan={plan} />
+          <ProgramSummary plan={plan} profileWeight={profileWeight} />
 
           {plan.warnings?.length > 0 && (
             <section aria-label="Cảnh báo an toàn của thực đơn" className="space-y-3 rounded-md bg-paper-2 p-5 shadow-hairline">
@@ -731,22 +742,38 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
               Chương trình hiện tại sẽ được lưu vào lịch sử và thay bằng chương trình mới sau khi AI tạo xong.
             </p>
           )}
-          <label className="block space-y-1">
-            <span className="font-medium text-ink">Chiều cao (cm)</span>
-            <Field type="number" min="51" max="249" step="0.1" value={generatorForm.height_cm}
-              onChange={(event) => setGeneratorForm((form) => ({ ...form, height_cm: event.target.value }))}
-              className="w-full" aria-invalid={!heightValid} />
-            {!heightValid && generatorForm.height_cm !== '' && <span className="text-xs text-danger">Chiều cao phải lớn hơn 50 và nhỏ hơn 250 cm.</span>}
-          </label>
-          <label className="block space-y-1">
-            <span className="font-medium text-ink">Cân nặng hiện tại (kg)</span>
-            <Field type="number" min="20" max="300" step="0.1" value={generatorForm.weight_kg}
-              onChange={(event) => setGeneratorForm((form) => ({ ...form, weight_kg: event.target.value }))}
-              className="w-full" aria-invalid={!weightValid || !weightGuardValid} />
-            {!weightGuardValid && (
-              <span className="text-xs text-danger">Chênh lệch quá 10% so với số đo gần nhất ({baseWeight} kg). Hãy kiểm tra lại hoặc cập nhật hồ sơ.</span>
+          <div className="rounded-md bg-paper-3 p-3.5 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-ink">Chỉ số từ Hồ sơ sức khỏe</span>
+              <Link
+                to="/profile"
+                onClick={() => setGeneratorOpen(false)}
+                className="text-xs font-semibold text-accent-strong hover:underline"
+              >
+                Cập nhật trong Hồ sơ
+              </Link>
+            </div>
+            {generatorValid ? (
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-sm bg-paper-2 p-2">
+                  <span className="block text-xs text-muted">Chiều cao</span>
+                  <strong className="text-ink">{generatorForm.height_cm} cm</strong>
+                </div>
+                <div className="rounded-sm bg-paper-2 p-2">
+                  <span className="block text-xs text-muted">Cân nặng</span>
+                  <strong className="text-ink">{generatorForm.weight_kg} kg</strong>
+                </div>
+                <div className="rounded-sm bg-paper-2 p-2">
+                  <span className="block text-xs text-muted">Mục tiêu</span>
+                  <strong className="text-accent-strong">{GOAL_INFO[profileGoal]?.label || profileGoal}</strong>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-danger">
+                Hồ sơ của bạn chưa có đủ chiều cao hoặc cân nặng hợp lệ. Vui lòng cập nhật trong Hồ sơ trước khi tạo lộ trình.
+              </p>
             )}
-          </label>
+          </div>
           <label className="block space-y-1">
             <span className="font-medium text-ink">Thời lượng chương trình</span>
             <Select value={generatorForm.duration_months}
@@ -758,6 +785,15 @@ export default function PlanProgram({ CheckinPanel, CheckinHistory }) {
             </Select>
             <span className="text-sm font-medium text-ink-2">Mặc định 3 tháng. Mỗi tháng chương trình gồm 28 ngày.</span>
           </label>
+          {modalProjection && (
+            <div className="flex items-start gap-2.5 rounded-md bg-accent-soft px-3.5 py-2.5 text-sm text-ink-2">
+              <Target size={18} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+              <div>
+                <p className="font-semibold text-accent-strong">{modalProjection.headline}</p>
+                <p className="mt-0.5 text-xs">{modalProjection.detail}</p>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
       <Modal
@@ -854,9 +890,57 @@ const GOAL_INFO = {
   MEDICAL: { label: 'Theo chỉ định y tế', note: 'cân bằng với nhu cầu năng lượng của bạn; nên điều chỉnh theo chỉ định của bác sĩ' },
 };
 
-function ProgramSummary({ plan }) {
+function buildGoalProjection({ goal, durationMonths, weightKg }) {
+  const months = Math.max(1, Number(durationMonths) || 3);
+  const weeks = months * 4;
+  const hasWeight = Number.isFinite(weightKg) && weightKg > 0;
+
+  if (goal === 'LOSE_WEIGHT') {
+    const minLoss = Number((weeks * 0.45).toFixed(1));
+    const maxLoss = Number((weeks * 0.5).toFixed(1));
+    const targetText = hasWeight
+      ? `Từ ${weightKg} kg xuống khoảng ${(weightKg - maxLoss).toFixed(1)} – ${(weightKg - minLoss).toFixed(1)} kg (tốc độ ~0.5 kg/tuần, an toàn cho sức khỏe).`
+      : `Tốc độ giảm khoảng 0.45 – 0.5 kg/tuần nếu duy trì thâm hụt ~500 kcal/ngày.`;
+    return {
+      headline: `Dự kiến nếu tuân thủ: Giảm ${minLoss} – ${maxLoss} kg sau ${months} tháng`,
+      detail: targetText,
+    };
+  }
+
+  if (goal === 'GAIN_MUSCLE') {
+    const minGain = Number((weeks * 0.25).toFixed(1));
+    const maxGain = Number((weeks * 0.3).toFixed(1));
+    const targetText = hasWeight
+      ? `Từ ${weightKg} kg lên khoảng ${(weightKg + minGain).toFixed(1)} – ${(weightKg + maxGain).toFixed(1)} kg khi ăn đủ đạm và tập luyện đều đặn.`
+      : `Tốc độ tăng khoảng 0.25 – 0.3 kg/tuần nhờ mức thặng dư ~300 kcal/ngày.`;
+    return {
+      headline: `Dự kiến nếu tuân thủ: Tăng ${minGain} – ${maxGain} kg sau ${months} tháng`,
+      detail: targetText,
+    };
+  }
+
+  if (goal === 'MEDICAL') {
+    return {
+      headline: `Mục tiêu nếu tuân thủ: Kiểm soát dinh dưỡng an toàn trong ${months} tháng`,
+      detail: 'Duy trì mức năng lượng ổn định và loại trừ thực phẩm rủi ro cho bệnh lý nền qua từng đợt Check-in 14 ngày.',
+    };
+  }
+
+  return {
+    headline: `Dự kiến nếu tuân thủ: Duy trì ổn định ${hasWeight ? `${weightKg} kg` : 'cân nặng hiện tại'} trong ${months} tháng`,
+    detail: 'Cân bằng năng lượng nạp và tiêu hao, giúp cải thiện sức bền và duy trì thói quen ăn uống lành mạnh.',
+  };
+}
+
+function ProgramSummary({ plan, profileWeight }) {
   const program = plan.program;
   const goal = GOAL_INFO[plan.goal] || { label: plan.goal, note: 'tính theo thể trạng của bạn' };
+  const startWeight = plan.program_summary?.start_weight_kg ?? profileWeight;
+  const projection = buildGoalProjection({
+    goal: plan.goal,
+    durationMonths: program?.duration_months || 3,
+    weightKg: startWeight != null ? Number(startWeight) : null,
+  });
   return (
     <section className="rounded-md bg-paper-2 p-5 shadow-hairline">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -883,6 +967,10 @@ function ProgramSummary({ plan }) {
             Mức này {goal.note}, được tính từ chiều cao, cân nặng, tuổi và mức vận động. Thực đơn 7 ngày bên dưới
             được xây dựng để bám sát con số này.
           </p>
+          <div className="mt-2.5 rounded-sm border border-accent/25 bg-paper-2/80 px-3 py-2">
+            <p className="font-semibold text-accent-strong">{projection.headline}</p>
+            <p className="mt-0.5 text-xs text-ink-2">{projection.detail}</p>
+          </div>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
