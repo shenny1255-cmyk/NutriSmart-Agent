@@ -33,12 +33,27 @@ def _ensure_auth_schema() -> None:
         CREATE TABLE IF NOT EXISTS pin_send_events (
             id          BIGSERIAL PRIMARY KEY,
             email       VARCHAR(255) NOT NULL,
-            ip_address  VARCHAR(64) NOT NULL,
+            ip          VARCHAR(64) NOT NULL,
             created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """,
-        "CREATE INDEX IF NOT EXISTS ix_pin_send_events_ip_created ON pin_send_events (ip_address, created_at)",
-        "CREATE INDEX IF NOT EXISTS ix_pin_send_events_email_created ON pin_send_events (email, created_at)",
+        # Khắc phục trường hợp bảng lỡ tạo cột ip_address trên DB deploy trước đó
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'pin_send_events' AND column_name = 'ip_address'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'pin_send_events' AND column_name = 'ip'
+            ) THEN
+                ALTER TABLE pin_send_events RENAME COLUMN ip_address TO ip;
+            END IF;
+        END $$;
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_pin_send_events_ip_time ON pin_send_events (ip, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_pin_send_events_email_time ON pin_send_events (email, created_at)",
     )
     try:
         with engine.begin() as conn:
