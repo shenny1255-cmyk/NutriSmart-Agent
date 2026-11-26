@@ -16,7 +16,7 @@ from app.database import SessionLocal, engine
 from app.main import app
 from app.models import User
 from app.schemas import AdminCreateUserIn, RegisterIn
-from app.security import create_verification_token, decode_token
+from app.security import create_verification_token, create_pin_verified_token, decode_token
 from app.services.disposable_emails import is_disposable_email
 
 client = TestClient(app)
@@ -55,6 +55,7 @@ def _khong_gui_mail(monkeypatch):
 
 def _register(user_test, email: str | None = None, **kw):
     email = email or f"sec_{uuid.uuid4().hex[:10]}@example.com"
+    kw.setdefault("pin_token", create_pin_verified_token(email))
     r = client.post("/api/v1/auth/register", json=_payload(email, **kw))
     user_test.append(email.strip().lower())
     return r, email
@@ -279,3 +280,83 @@ def test_tai_khoan_demo_duoc_phep_dang_nhap_da_thiet_bi():
     assert r_me1.status_code == 200
     r_me2 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token2}"})
     assert r_me2.status_code == 200
+
+
+# ---------- Test 7: xác thực mã PIN email khi đăng ký ----------
+
+@needs_db
+def test_dang_ky_khong_co_pin_token_bi_chan_400(user_test):
+    r, _ = _register(user_test, pin_token=None)
+    assert r.status_code == 400
+    assert "mã PIN" in r.json()["detail"]
+
+
+@needs_db
+def test_gui_va_xac_thuc_pin_thanh_cong(monkeypatch, user_test):
+    sent = {}
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: sent.update({"to": to, "pin": pin}))
+    email = f"pin_{uuid.uuid4().hex[:8]}@gmail.com"
+    try:
+        r_send = client.post("/api/v1/auth/send-pin", json={"email": email})
+        assert r_send.status_code == 200, r_send.text
+        assert sent["to"] == email
+        assert len(sent["pin"]) == 6 and sent["pin"].isdigit()
+
+        # Thử sai 1 lần
+        r_wrong = client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": "000000" if sent["pin"] != "000000" else "111111"})
+        assert r_wrong.status_code == 400
+        assert "Còn 4 lần thử" in r_wrong.json()["detail"]
+
+        # Nhập đúng
+        r_ok = client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": sent["pin"]})
+        assert r_ok.status_code == 200
+        pin_token = r_ok.json()["pin_token"]
+
+        # Đăng ký thành công
+        r_reg, _ = _register(user_test, email=email, pin_token=pin_token)
+        assert r_reg.status_code == 201, r_reg.text
+    finally:
+        db = SessionLocal()
+        try:
+            db.execute(text("DELETE FROM email_pins WHERE email = :e"), {"e": email})
+            db.commit()
+        finally:
+            db.close()
+
+
+@needs_db
+def test_gui_lai_pin_trong_60s_bi_chan_429(monkeypatch):
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: None)
+    email = f"cd_{uuid.uuid4().hex[:8]}@gmail.com"
+    try:
+        assert client.post("/api/v1/auth/send-pin", json={"email": email}).status_code == 200
+        r2 = client.post("/api/v1/auth/send-pin", json={"email": email})
+        assert r2.status_code == 429
+    finally:
+        db = SessionLocal()
+        try:
+            db.execute(text("DELETE FROM email_pins WHERE email = :e"), {"e": email})
+            db.commit()
+        finally:
+            db.close()
+
+
+@needs_db
+def test_xac_thuc_pin_sai_qua_5_lan_bi_khoa(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(auth_module, "send_pin_email", lambda to, pin: sent.update({"pin": pin}))
+    email = f"bf_{uuid.uuid4().hex[:8]}@gmail.com"
+    try:
+        assert client.post("/api/v1/auth/send-pin", json={"email": email}).status_code == 200
+        wrong = "000000" if sent["pin"] != "000000" else "111111"
+        for _ in range(5):
+            assert client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": wrong}).status_code == 400
+        r6 = client.post("/api/v1/auth/verify-pin", json={"email": email, "pin": sent["pin"]})
+        assert r6.status_code == 429
+    finally:
+        db = SessionLocal()
+        try:
+            db.execute(text("DELETE FROM email_pins WHERE email = :e"), {"e": email})
+            db.commit()
+        finally:
+            db.close()

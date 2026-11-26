@@ -48,6 +48,8 @@ def _register(user_test) -> str:
             "goal": "LOSE_WEIGHT", "condition_ids": [], "allergen_ids": [],
         },
     }
+    from app.security import create_pin_verified_token
+    payload["pin_token"] = create_pin_verified_token(email)
     r = client.post("/api/v1/auth/register", json=payload)
     assert r.status_code == 201, r.text
     user_test.append(email)
@@ -105,10 +107,12 @@ def test_stream_gui_canh_bao_di_ung_trong_su_kien_done(monkeypatch, user_test):
     monkeypatch.setattr(ollama_client, "chat_stream",
                         lambda messages, **kw: iter(["Bạn thử ", "gỏi cuốn chấm ", "tương đậu phộng nhé."]))
     monkeypatch.setattr(retrieval, "search_chunks", lambda db, q, k=5: [])
+    from app.security import create_pin_verified_token
     email = f"chat_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "Nutri#Smart2026", "full_name": "Người Dùng Thử",
         "country_code": "VN",
+        "pin_token": create_pin_verified_token(email),
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "FEMALE", "birth_date": "1998-01-01",

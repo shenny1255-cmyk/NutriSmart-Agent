@@ -146,6 +146,8 @@ export const api = {
   logMeal: (payload) => request('/vision/log-meal', { method: 'POST', body: payload }),
   foodComposition: (q) => request(`/catalog/food-composition?q=${encodeURIComponent(q)}&limit=8`),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
+  sendRegisterPin: (email) => request('/auth/send-pin', { method: 'POST', body: { email } }),
+  verifyRegisterPin: (email, pin) => request('/auth/verify-pin', { method: 'POST', body: { email, pin } }),
   checkEmail: (email) => request('/auth/check-email', { method: 'POST', body: { email } }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   verifyEmail: (token) => request(`/auth/verify?token=${encodeURIComponent(token)}`),

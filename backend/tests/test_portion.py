@@ -99,10 +99,12 @@ client = TestClient(app)
 
 
 def _user(monkeypatch, user_test):
+    from app.security import create_pin_verified_token
     monkeypatch.setattr(auth_module, "send_verification_email", lambda to, link: None)
     email = f"portion_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "Nutri#Smart2026", "full_name": "Khẩu Phần",
+        "pin_token": create_pin_verified_token(email),
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "MALE", "birth_date": "1995-01-01", "height_cm": 170, "weight_kg": 65,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},

@@ -29,6 +29,7 @@ client = TestClient(app)
 
 
 def _register(monkeypatch, user_test):
+    from app.security import create_pin_verified_token
     captured = {}
     monkeypatch.setattr(
         auth_module, "send_verification_email",
@@ -37,6 +38,7 @@ def _register(monkeypatch, user_test):
     email = f"verify_{uuid.uuid4().hex[:10]}@example.com"
     payload = {
         "email": email, "password": "Nutri#Smart2026", "full_name": "Xác Minh",
+        "pin_token": create_pin_verified_token(email),
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {
             "gender": "MALE", "birth_date": "1996-01-01",

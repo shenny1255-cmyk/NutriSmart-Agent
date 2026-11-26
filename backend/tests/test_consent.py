@@ -32,8 +32,10 @@ client = TestClient(app)
 
 
 def _payload(email: str, consents: dict | None) -> dict:
+    from app.security import create_pin_verified_token
     body = {
         "email": email, "password": "Nutri#Smart2026", "full_name": "Đồng Ý Thử",
+        "pin_token": create_pin_verified_token(email),
         "profile": {"gender": "FEMALE", "birth_date": "1998-01-01", "height_cm": 160, "weight_kg": 55,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},
     }

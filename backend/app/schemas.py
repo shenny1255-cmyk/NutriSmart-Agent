@@ -226,6 +226,21 @@ class RegisterIn(BaseModel):
     profile: ProfileIn
     consents: ConsentsIn
     honeypot: str | None = None  # trường ẩn chống bot: người thật không bao giờ điền
+    pin_token: str | None = None
+
+
+class SendPinIn(BaseModel):
+    email: RegistrationEmail
+
+
+class VerifyPinIn(BaseModel):
+    email: RegistrationEmail
+    pin: str = Field(pattern=r"^\d{6}$")
+
+
+class VerifyPinOut(BaseModel):
+    verified: bool
+    pin_token: str
 
 
 class ConsentOut(BaseModel):

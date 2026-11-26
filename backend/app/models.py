@@ -55,6 +55,15 @@ class User(Base):
         self.profile.full_name = value
 
 
+class EmailPin(Base):
+    __tablename__ = "email_pins"
+    email: str    = Column(String(255), primary_key=True)  # type: ignore
+    pin_hash: str = Column(String(255), nullable=False)  # type: ignore
+    attempts: int = Column(Integer, nullable=False, default=0, server_default="0")  # type: ignore
+    expires_at    = Column(DateTime(timezone=True), nullable=False)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class UserProfile(Base):
     __tablename__ = "user_profile"
     user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
