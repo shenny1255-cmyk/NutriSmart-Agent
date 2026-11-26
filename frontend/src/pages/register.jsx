@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Check, ShieldCheck, Sparkles } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE, calculateAge, getBirthDateValidationError } from '../lib/date.js';
-import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee } from '../lib/validation.js';
+import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee, getRegistrationEmailError } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
 import PasswordStrength from '../components/PasswordStrength.jsx';
 import { generateStrongPassword, isStrongPassword } from '../lib/password.js';
@@ -79,9 +79,10 @@ export default function Register() {
   const touch = (key) => setTouched((current) => ({ ...current, [key]: true }));
   const fullNameValid = isValidFullName(form.full_name);
   const emailValid = isEmail(form.email);
+  const emailPolicyError = emailValid ? getRegistrationEmailError(form.email) : '';
   const passwordValid = isStrongPassword(form.password);
   const confirmValid = form.confirm !== '' && form.confirm === form.password;
-  const emailRejected = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'disposable';
+  const emailRejected = Boolean(emailPolicyError) || emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'disposable';
   const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && !emailRejected;
   const heightNumber = Number(form.height_cm);
   const weightNumber = Number(form.weight_kg);
@@ -111,6 +112,12 @@ export default function Register() {
 
   async function checkEmail() {
     if (!emailValid) return 'invalid';
+    const localPolicyError = getRegistrationEmailError(form.email);
+    if (localPolicyError) {
+      setEmailBlockedMsg(localPolicyError);
+      setEmailStatus('blocked');
+      return 'blocked';
+    }
     const email = form.email.trim().toLowerCase();
     const checkId = ++emailCheckId.current;
     setEmailStatus('checking');
@@ -139,6 +146,7 @@ export default function Register() {
     setTouched({ full_name: true, email: true, password: true, confirm: true });
     if (!fullNameValid) return setErr('Họ và tên chưa hợp lệ.');
     if (!emailValid) return setErr('Email chưa đúng định dạng.');
+    if (emailPolicyError) return setErr(emailPolicyError);
     if (!passwordValid) return setErr('Mật khẩu chưa đủ mạnh. Vui lòng đáp ứng đủ 4 tiêu chí bên dưới ô mật khẩu.');
     if (!confirmValid) return setErr('Mật khẩu xác nhận không khớp.');
     if (emailStatus !== 'available') {
@@ -299,23 +307,29 @@ export default function Register() {
               <TextInput type="email" required name="registration-email" autoComplete="off"
                 value={form.email} onChange={(e) => set('email', e.target.value)}
                 onBlur={() => { touch('email'); if (emailValid) checkEmail(); }}
-                aria-invalid={(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked'}
-                className={`w-full ${(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
+                aria-invalid={(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked'}
+                className={`w-full ${(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
               {touched.email && !emailValid && (
                 <p className="mt-1 text-xs font-medium text-danger">Email chưa đúng định dạng.</p>
               )}
-              {emailValid && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
-              {emailValid && emailStatus === 'available' && (
+              {emailValid && emailPolicyError && (
+                <p className="mt-1 text-xs font-medium text-danger">{emailPolicyError}</p>
+              )}
+              {emailValid && !emailPolicyError && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
+              {emailValid && !emailPolicyError && emailStatus === 'available' && (
                 <p className="mt-1 flex items-center gap-1 text-xs font-medium text-accent-strong"><Check size={12} strokeWidth={3} />Email có thể sử dụng</p>
               )}
-              {emailValid && emailStatus === 'disposable' && (
+              {emailValid && !emailPolicyError && emailStatus === 'disposable' && (
                 <p className="mt-1 text-xs font-medium text-danger">{DISPOSABLE_MSG}</p>
               )}
-              {emailValid && emailStatus === 'taken' && (
+              {emailValid && !emailPolicyError && emailStatus === 'taken' && (
                 <p className="mt-1 text-xs font-medium text-danger">Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.</p>
               )}
-              {emailValid && emailStatus === 'blocked' && (
+              {emailValid && !emailPolicyError && emailStatus === 'blocked' && (
                 <p className="mt-1 text-xs font-medium text-danger">{emailBlockedMsg}</p>
+              )}
+              {!emailPolicyError && emailStatus === 'idle' && (!touched.email || emailValid) && (
+                <p className="mt-1 text-xs text-muted">Ưu tiên Gmail, Outlook, Yahoo, iCloud hoặc email trường học/cơ quan (.edu.vn, .gov.vn).</p>
               )}
             </FieldGroup>
 
