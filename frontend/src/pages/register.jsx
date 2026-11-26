@@ -305,14 +305,18 @@ export default function Register() {
 
             <FieldGroup label="Email" required>
               <TextInput type="email" required name="registration-email" autoComplete="off"
-                value={form.email} onChange={(e) => set('email', e.target.value)}
+                value={form.email}
+                onChange={(e) => {
+                  set('email', e.target.value);
+                  setTouched((t) => ({ ...t, email: false }));
+                }}
                 onBlur={() => { touch('email'); if (emailValid) checkEmail(); }}
                 aria-invalid={(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked'}
                 className={`w-full ${(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
               {touched.email && !emailValid && (
                 <p className="mt-1 text-xs font-medium text-danger">Email chưa đúng định dạng.</p>
               )}
-              {emailValid && emailPolicyError && (
+              {touched.email && emailValid && emailPolicyError && (
                 <p className="mt-1 text-xs font-medium text-danger">{emailPolicyError}</p>
               )}
               {emailValid && !emailPolicyError && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
@@ -328,7 +332,7 @@ export default function Register() {
               {emailValid && !emailPolicyError && emailStatus === 'blocked' && (
                 <p className="mt-1 text-xs font-medium text-danger">{emailBlockedMsg}</p>
               )}
-              {!emailPolicyError && emailStatus === 'idle' && (!touched.email || emailValid) && (
+              {(!touched.email || (!emailPolicyError && emailValid)) && emailStatus === 'idle' && (
                 <p className="mt-1 text-xs text-muted">Ưu tiên Gmail, Outlook, Yahoo, iCloud hoặc email trường học/cơ quan (.edu.vn, .gov.vn).</p>
               )}
             </FieldGroup>
