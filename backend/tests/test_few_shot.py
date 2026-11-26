@@ -6,7 +6,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-import app.routers.auth as auth_module
 import app.routers.vision as vision_module
 from app.database import SessionLocal, engine
 from app.main import app
@@ -76,10 +75,11 @@ def dish(monkeypatch):
 
 
 def _user(monkeypatch, user_test, role="USER"):
-    monkeypatch.setattr(auth_module, "send_verification_email", lambda to, link: None)
+    from app.security import create_pin_verified_token
     email = f"fewshot_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "Nutri#Smart2026", "full_name": "Ca Sửa Thử",
+        "pin_token": create_pin_verified_token(email),
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "MALE", "birth_date": "1995-01-01", "height_cm": 170, "weight_kg": 65,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},

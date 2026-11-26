@@ -27,9 +27,11 @@ def _db_up() -> bool:
 @pytest.mark.skipif(not _db_up(), reason="Postgres chưa chạy")
 def test_bat_tat_qua_api(user_test):
     client = TestClient(app)
+    from app.security import create_pin_verified_token
     email = f"local_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json={
         "email": email, "password": "Nutri#Smart2026", "full_name": "Người Dùng Thử", "country_code": "VN",
+        "pin_token": create_pin_verified_token(email),
         "consents": {"terms": True, "health_data": True, "cloud_ai": True},
         "profile": {"gender": "FEMALE", "birth_date": "1998-01-01", "height_cm": 160, "weight_kg": 55,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},

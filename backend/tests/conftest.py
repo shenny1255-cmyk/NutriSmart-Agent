@@ -16,6 +16,9 @@ from app.config import settings
 @pytest.fixture(autouse=True)
 def _cho_phep_email_test(monkeypatch):
     monkeypatch.setattr(settings, "ALLOWED_EMAIL_DOMAINS", "example.com")
+    # Mọi request trong test đến từ cùng IP "testclient": nới giới hạn để chạy suite nhiều lần không bị 429.
+    # Test riêng về giới hạn IP tự đặt lại mức thấp.
+    monkeypatch.setattr(settings, "PIN_SENDS_PER_IP_PER_HOUR", 100_000)
 
 
 @pytest.fixture

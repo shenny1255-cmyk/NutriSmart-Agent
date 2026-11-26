@@ -11,6 +11,34 @@ export function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
 }
 
+const ALLOWED_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com',
+  'outlook.com', 'outlook.com.vn', 'hotmail.com', 'live.com', 'msn.com',
+  'yahoo.com', 'yahoo.com.vn', 'ymail.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'proton.me', 'protonmail.com', 'zoho.com',
+]);
+const ALLOWED_EMAIL_SUFFIXES = ['.edu.vn', '.gov.vn'];
+
+export function getRegistrationEmailError(value) {
+  const normalized = (value || '').trim().toLowerCase();
+  const atIndex = normalized.lastIndexOf('@');
+  if (atIndex <= 0) return 'Email chưa đúng định dạng.';
+  const local = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+  if (!domain) return 'Email chưa đúng định dạng.';
+
+  const domainAllowed = ALLOWED_EMAIL_DOMAINS.has(domain)
+    || ALLOWED_EMAIL_SUFFIXES.some((suffix) => domain.endsWith(suffix));
+  if (!domainAllowed) {
+    return 'Chỉ chấp nhận email chính thống (Gmail, Outlook, Yahoo, iCloud...) hoặc email trường học/cơ quan (.edu.vn, .gov.vn).';
+  }
+  if (local.includes('+')) {
+    return "Không dùng địa chỉ có dấu '+' (bí danh). Hãy nhập email gốc của bạn.";
+  }
+  return '';
+}
+
 export function bodyMetricsBmi(heightCm, weightKg) {
   const height = Number(heightCm);
   const weight = Number(weightKg);

@@ -61,3 +61,21 @@ def decode_verification_token(token: str) -> str | None:
     if payload.get("purpose") != "verify_email":
         return None
     return payload.get("sub")
+
+
+def create_pin_verified_token(email: str) -> str:
+    """Token ngắn hạn (30 phút) chứng nhận email đã xác thực mã PIN thành công."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    payload = {"sub": str(email).strip().lower(), "purpose": "pin_verified", "exp": expire}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_pin_verified_token(token: str) -> str | None:
+    """Trả về email đã xác thực PIN, hoặc None nếu token sai/hết hạn."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("purpose") != "pin_verified":
+        return None
+    return payload.get("sub")

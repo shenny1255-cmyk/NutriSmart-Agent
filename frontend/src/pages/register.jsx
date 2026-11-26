@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Check, ShieldCheck, Sparkles } from 'lucide-react';
+import { Check, Mail, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { isValidBirthDate, MAX_BIRTH_DATE, MIN_BIRTH_DATE, calculateAge, getBirthDateValidationError } from '../lib/date.js';
-import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee } from '../lib/validation.js';
+import { areBodyMetricsPlausible, bodyMetricsBmi, isValidFullName, calculateTdee, getRegistrationEmailError } from '../lib/validation.js';
 import PasswordInput from '../components/PasswordInput.jsx';
 import PasswordStrength from '../components/PasswordStrength.jsx';
-import { generateStrongPassword, isStrongPassword } from '../lib/password.js';
+import { isStrongPassword } from '../lib/password.js';
 import CatalogMultiSelect from '../components/CatalogMultiSelect.jsx';
 import { Btn, Field as TextInput, Select, Alert } from '../components/ui.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
@@ -44,7 +44,7 @@ const INITIAL_FORM = {
   consent_terms: false, consent_health: false, consent_cloud: false,
 };
 
-const STEP_TITLES = ['Thông tin tài khoản', 'Hồ sơ sức khỏe', 'Quyền riêng tư'];
+const STEP_TITLES = ['Thông tin tài khoản', 'Xác thực Email', 'Hồ sơ sức khỏe', 'Quyền riêng tư'];
 
 const DISPOSABLE_MSG = 'Vui lòng sử dụng địa chỉ email chính thức (không sử dụng email tạm thời/dùng một lần).';
 
@@ -64,7 +64,10 @@ export default function Register() {
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinToken, setPinToken] = useState('');
+  const [pinCooldown, setPinCooldown] = useState(0);
+  const [pinLoading, setPinLoading] = useState(false);
   // Honeypot: ô ẩn với người dùng, bot điền tự động sẽ bị backend chặn
   const [website, setWebsite] = useState('');
 
@@ -73,15 +76,18 @@ export default function Register() {
     if (k === 'email') {
       emailCheckId.current += 1;
       setEmailStatus('idle');
+      setPin('');
+      setPinToken('');
     }
     setErr(null);
   };
   const touch = (key) => setTouched((current) => ({ ...current, [key]: true }));
   const fullNameValid = isValidFullName(form.full_name);
   const emailValid = isEmail(form.email);
+  const emailPolicyError = emailValid ? getRegistrationEmailError(form.email) : '';
   const passwordValid = isStrongPassword(form.password);
   const confirmValid = form.confirm !== '' && form.confirm === form.password;
-  const emailRejected = emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'disposable';
+  const emailRejected = Boolean(emailPolicyError) || emailStatus === 'taken' || emailStatus === 'blocked' || emailStatus === 'disposable';
   const step1Valid = fullNameValid && emailValid && passwordValid && confirmValid && !emailRejected;
   const heightNumber = Number(form.height_cm);
   const weightNumber = Number(form.weight_kg);
@@ -100,9 +106,16 @@ export default function Register() {
         activity_level: Number(form.activity_level) || 3,
       })
     : null;
-  const step2Valid = birthDateValid && metricsValid;
-  const step3Valid = form.consent_terms && form.consent_health;
-  const stepValid = [step1Valid, step2Valid, step3Valid][step - 1];
+  const step2PinValid = /^\d{6}$/.test(pin);
+  const step3Valid = birthDateValid && metricsValid;
+  const step4Valid = form.consent_terms && form.consent_health;
+  const stepValid = [step1Valid, step2PinValid, step3Valid, step4Valid][step - 1];
+
+  useEffect(() => {
+    if (pinCooldown <= 0) return undefined;
+    const timer = setTimeout(() => setPinCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [pinCooldown]);
 
   useEffect(() => {
     api.conditions().then(setConditions).catch(() => { });
@@ -111,6 +124,12 @@ export default function Register() {
 
   async function checkEmail() {
     if (!emailValid) return 'invalid';
+    const localPolicyError = getRegistrationEmailError(form.email);
+    if (localPolicyError) {
+      setEmailBlockedMsg(localPolicyError);
+      setEmailStatus('blocked');
+      return 'blocked';
+    }
     const email = form.email.trim().toLowerCase();
     const checkId = ++emailCheckId.current;
     setEmailStatus('checking');
@@ -134,11 +153,31 @@ export default function Register() {
     }
   }
 
+  async function sendPinCode() {
+    setPinLoading(true);
+    setErr(null);
+    try {
+      await api.sendRegisterPin(form.email.trim().toLowerCase());
+      setPinCooldown(60);
+      return true;
+    } catch (e) {
+      if (e.status === 429 && typeof e.detail === 'string') {
+        setErr(e.detail);
+      } else {
+        setErr(typeof e.detail === 'string' ? e.detail : 'Không thể gửi mã PIN. Vui lòng thử lại.');
+      }
+      return false;
+    } finally {
+      setPinLoading(false);
+    }
+  }
+
   async function nextStep(e) {
     e.preventDefault();
     setTouched({ full_name: true, email: true, password: true, confirm: true });
     if (!fullNameValid) return setErr('Họ và tên chưa hợp lệ.');
     if (!emailValid) return setErr('Email chưa đúng định dạng.');
+    if (emailPolicyError) return setErr(emailPolicyError);
     if (!passwordValid) return setErr('Mật khẩu chưa đủ mạnh. Vui lòng đáp ứng đủ 4 tiêu chí bên dưới ô mật khẩu.');
     if (!confirmValid) return setErr('Mật khẩu xác nhận không khớp.');
     if (emailStatus !== 'available') {
@@ -149,8 +188,32 @@ export default function Register() {
         return;
       }
     }
+    if (pinToken) {
+      setErr(null);
+      setStep(3);
+      return;
+    }
+    const ok = await sendPinCode();
+    if (ok) {
+      setErr(null);
+      setStep(2);
+    }
+  }
+
+  async function verifyPinStep(e) {
+    e.preventDefault();
+    if (!step2PinValid) return setErr('Vui lòng nhập đủ 6 chữ số của mã PIN.');
+    setPinLoading(true);
     setErr(null);
-    setStep(2);
+    try {
+      const res = await api.verifyRegisterPin(form.email.trim().toLowerCase(), pin);
+      setPinToken(res.pin_token);
+      setStep(3);
+    } catch (e) {
+      setErr(typeof e.detail === 'string' ? e.detail : 'Mã PIN không đúng hoặc đã hết hạn.');
+    } finally {
+      setPinLoading(false);
+    }
   }
 
   function profileError() {
@@ -165,15 +228,16 @@ export default function Register() {
     e.preventDefault();
     const msg = profileError();
     setErr(msg);
-    if (!msg) setStep(3);
+    if (!msg) setStep(4);
   }
 
   async function submit(e) {
     e.preventDefault();
     setErr(null);
+    if (!pinToken) { setErr('Vui lòng xác thực email bằng mã PIN.'); setStep(2); return; }
     const msg = profileError();
-    if (msg) { setErr(msg); setStep(2); return; }
-    if (!step3Valid) {
+    if (msg) { setErr(msg); setStep(3); return; }
+    if (!step4Valid) {
       setErr('Bạn cần đồng ý hai mục bắt buộc để tạo tài khoản.');
       return;
     }
@@ -202,6 +266,7 @@ export default function Register() {
         cloud_ai: form.consent_cloud,
       },
       honeypot: website || null,
+      pin_token: pinToken,
     };
 
     try {
@@ -216,6 +281,13 @@ export default function Register() {
       navigate('/');
     } catch (e) {
       if (e.status === 409) setErr('Email này đã được đăng ký. Hãy đăng nhập.');
+      else if (e.status === 400 && typeof e.detail === 'string' && e.detail.includes('mã PIN')) {
+        // Xác thực PIN hết hạn (30 phút): bỏ token cũ, quay về bước 1 để gửi mã mới; hồ sơ đã nhập được giữ nguyên
+        setPinToken('');
+        setPin('');
+        setStep(1);
+        setErr('Phiên xác thực email đã hết hạn. Bấm "Tiếp tục" để nhận mã PIN mới, thông tin đã nhập vẫn được giữ.');
+      }
       else if (e.status === 422) {
         // Lấy thông báo tiếng Việt của validator; lỗi email/mật khẩu thì quay về bước 1 để sửa
         const emailIssue = Array.isArray(e.detail) && e.detail.find((d) => d?.loc?.includes('email'));
@@ -241,7 +313,7 @@ export default function Register() {
   return (
     <AuthLayout>
       <form
-        onSubmit={step === 1 ? nextStep : step === 2 ? toConsent : submit}
+        onSubmit={step === 1 ? nextStep : step === 2 ? verifyPinStep : step === 3 ? toConsent : submit}
         autoComplete="off"
         className="mx-auto w-full max-w-lg rounded-md bg-paper-2 p-6 shadow-card sm:p-8"
       >
@@ -252,7 +324,7 @@ export default function Register() {
               Nutri<span className="text-accent-strong">Smart</span>
             </h1>
             <p className="text-sm text-muted">
-              Bước {step}/3 - {STEP_TITLES[step - 1]}
+              Bước {step}/4 - {STEP_TITLES[step - 1]}
             </p>
           </div>
         </div>
@@ -261,7 +333,7 @@ export default function Register() {
         <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-paper-3">
           <div
             className="h-full origin-left rounded-full bg-accent transition-transform duration-long ease-out"
-            style={{ transform: `scaleX(${step / 3})` }}
+            style={{ transform: `scaleX(${step / 4})` }}
           />
         </div>
 
@@ -297,56 +369,47 @@ export default function Register() {
 
             <FieldGroup label="Email" required>
               <TextInput type="email" required name="registration-email" autoComplete="off"
-                value={form.email} onChange={(e) => set('email', e.target.value)}
+                value={form.email}
+                onChange={(e) => {
+                  set('email', e.target.value);
+                  setTouched((t) => ({ ...t, email: false }));
+                }}
                 onBlur={() => { touch('email'); if (emailValid) checkEmail(); }}
-                aria-invalid={(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked'}
-                className={`w-full ${(touched.email && !emailValid) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
+                aria-invalid={(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked'}
+                className={`w-full ${(touched.email && (!emailValid || Boolean(emailPolicyError))) || emailStatus === 'taken' || emailStatus === 'blocked' ? 'outline outline-2 outline-danger' : ''}`} />
               {touched.email && !emailValid && (
                 <p className="mt-1 text-xs font-medium text-danger">Email chưa đúng định dạng.</p>
               )}
-              {emailValid && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
-              {emailValid && emailStatus === 'available' && (
+              {touched.email && emailValid && emailPolicyError && (
+                <p className="mt-1 text-xs font-medium text-danger">{emailPolicyError}</p>
+              )}
+              {emailValid && !emailPolicyError && emailStatus === 'checking' && <p className="mt-1 text-xs text-muted">Đang kiểm tra email…</p>}
+              {emailValid && !emailPolicyError && emailStatus === 'available' && (
                 <p className="mt-1 flex items-center gap-1 text-xs font-medium text-accent-strong"><Check size={12} strokeWidth={3} />Email có thể sử dụng</p>
               )}
-              {emailValid && emailStatus === 'disposable' && (
+              {emailValid && !emailPolicyError && emailStatus === 'disposable' && (
                 <p className="mt-1 text-xs font-medium text-danger">{DISPOSABLE_MSG}</p>
               )}
-              {emailValid && emailStatus === 'taken' && (
+              {emailValid && !emailPolicyError && emailStatus === 'taken' && (
                 <p className="mt-1 text-xs font-medium text-danger">Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.</p>
               )}
-              {emailValid && emailStatus === 'blocked' && (
+              {emailValid && !emailPolicyError && emailStatus === 'blocked' && (
                 <p className="mt-1 text-xs font-medium text-danger">{emailBlockedMsg}</p>
+              )}
+              {(!touched.email || (!emailPolicyError && emailValid)) && emailStatus === 'idle' && (
+                <p className="mt-1 text-xs text-muted">Ưu tiên Gmail, Outlook, Yahoo, iCloud hoặc email trường học/cơ quan (.edu.vn, .gov.vn).</p>
               )}
             </FieldGroup>
 
             <FieldGroup label="Mật khẩu" required>
               <PasswordInput required name="registration-password" autoComplete="new-password"
                 value={form.password}
-                onChange={(e) => { set('password', e.target.value); setGenerated(false); }}
+                onChange={(e) => set('password', e.target.value)}
                 onBlur={() => touch('password')}
                 visible={showPassword} onVisibleChange={setShowPassword}
                 aria-invalid={touched.password && !passwordValid}
                 className={`${inputCls} ${touched.password && !passwordValid ? 'outline outline-2 outline-danger' : ''}`} />
               <PasswordStrength password={form.password} />
-              <button
-                type="button"
-                onClick={() => {
-                  const pw = generateStrongPassword(12);
-                  setForm((f) => ({ ...f, password: pw, confirm: pw }));
-                  setTouched((t) => ({ ...t, password: true, confirm: true }));
-                  setShowPassword(true);
-                  setGenerated(true);
-                  setErr(null);
-                }}
-                className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-sm text-sm font-semibold text-accent-strong hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus"
-              >
-                <Sparkles size={15} aria-hidden="true" /> Tạo mật khẩu mạnh
-              </button>
-              {generated && (
-                <p className="text-xs text-ink-2">
-                  Đã điền vào cả hai ô. Hãy lưu mật khẩu này vào trình quản lý mật khẩu hoặc ghi lại ở nơi an toàn trước khi tiếp tục.
-                </p>
-              )}
             </FieldGroup>
 
             <FieldGroup label="Xác nhận mật khẩu" required>
@@ -366,6 +429,52 @@ export default function Register() {
         )}
 
         {step === 2 && (
+          <div className="space-y-4">
+            <div className="flex gap-3 rounded-sm bg-accent-soft p-4 text-sm text-ink-2">
+              <Mail size={20} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
+              <div className="space-y-1">
+                <p>
+                  Mã PIN gồm <strong>6 chữ số</strong> đã được gửi tới{' '}
+                  <strong className="text-ink">{form.email.trim().toLowerCase()}</strong>.
+                </p>
+                <p className="text-xs text-muted">
+                  Vui lòng kiểm tra hộp thư đến (hoặc mục Spam/Quảng cáo). Mã có hiệu lực trong 10 phút.
+                </p>
+              </div>
+            </div>
+
+            <FieldGroup label="Mã PIN xác nhận (6 chữ số)" required>
+              <TextInput
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                required
+                placeholder="Nhập 6 chữ số (vd: 123456)"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setErr(null);
+                }}
+                className="w-full text-center font-mono text-lg tracking-[0.4em]"
+              />
+            </FieldGroup>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted">Chưa nhận được mã?</span>
+              <button
+                type="button"
+                disabled={pinCooldown > 0 || pinLoading}
+                onClick={sendPinCode}
+                className="font-semibold text-accent-strong hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+              >
+                {pinCooldown > 0 ? `Gửi lại mã sau ${pinCooldown}s` : 'Gửi lại mã PIN'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FieldGroup label="Giới tính">
@@ -461,7 +570,7 @@ export default function Register() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-4">
             <div className="flex gap-3 rounded-sm bg-accent-soft p-4 text-sm text-ink-2">
               <ShieldCheck size={20} className="mt-0.5 shrink-0 text-accent-strong" aria-hidden="true" />
@@ -494,14 +603,19 @@ export default function Register() {
 
         <div className="mt-6 flex gap-3">
           {step > 1 && (
-            <Btn type="button" variant="ghost" onClick={() => { setErr(null); setStep(step - 1); }}>
+            <Btn type="button" variant="ghost" onClick={() => {
+              setErr(null);
+              setStep(step === 3 && pinToken ? 1 : step - 1);
+            }}>
               Quay lại
             </Btn>
           )}
           <Btn type="submit" variant="primary"
-            disabled={loading || emailStatus === 'checking' || !stepValid} className="flex-1">
+            disabled={loading || pinLoading || emailStatus === 'checking' || !stepValid} className="flex-1">
             {step === 1 && emailStatus === 'checking' ? 'Đang kiểm tra email…'
-              : step < 3 ? 'Tiếp tục'
+              : (step === 1 || step === 2) && pinLoading ? 'Đang xử lý…'
+              : step === 2 ? 'Xác nhận mã PIN'
+              : step < 4 ? 'Tiếp tục'
               : loading ? 'Đang tạo tài khoản…' : 'Đồng ý và tạo tài khoản'}
           </Btn>
         </div>

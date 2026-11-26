@@ -11,7 +11,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-import app.routers.auth as auth_module
 import app.routers.vision as vision_module
 from app.database import SessionLocal, engine
 from app.main import app
@@ -32,8 +31,10 @@ client = TestClient(app)
 
 
 def _payload(email: str, consents: dict | None) -> dict:
+    from app.security import create_pin_verified_token
     body = {
         "email": email, "password": "Nutri#Smart2026", "full_name": "Đồng Ý Thử",
+        "pin_token": create_pin_verified_token(email),
         "profile": {"gender": "FEMALE", "birth_date": "1998-01-01", "height_cm": 160, "weight_kg": 55,
                     "activity_level": 3, "goal": "MAINTAIN", "condition_ids": [], "allergen_ids": []},
     }
@@ -43,7 +44,6 @@ def _payload(email: str, consents: dict | None) -> dict:
 
 
 def _register(monkeypatch, user_test, consents):
-    monkeypatch.setattr(auth_module, "send_verification_email", lambda to, link: None)
     email = f"consent_{uuid.uuid4().hex[:10]}@example.com"
     r = client.post("/api/v1/auth/register", json=_payload(email, consents))
     if r.status_code == 201:

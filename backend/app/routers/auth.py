@@ -1,25 +1,29 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
-from app.models import User, UserProfile, UserMedicalCondition, UserAllergen, BodyMetricHistory
+from app.models import User, UserProfile, UserMedicalCondition, UserAllergen, BodyMetricHistory, EmailPin, PinSendEvent
 from app.schemas import (
     RegisterIn, LoginIn, TokenOut, UserOut, MeOut, ProfileOut, UserProfileUpdateIn,
     EmailAvailabilityIn, EmailAvailabilityOut, ConsentOut,
+    SendPinIn, VerifyPinIn, VerifyPinOut,
     validate_body_metrics,
 )
 from app.security import (
     hash_password, verify_password, create_access_token,
-    create_verification_token, decode_verification_token,
+    decode_verification_token,
+    create_pin_verified_token, decode_pin_verified_token,
 )
 from app.services.calorie import daily_calorie_target
-from app.services.email import build_verify_link, send_verification_email
+from app.services.email import send_pin_email
 from app.services.body_metrics import latest_body_metric, upsert_body_metric
 from app.services.activity_levels import get_activity_level
 from app.services import consent, email_policy
+from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,12 +64,130 @@ def check_email_availability(payload: EmailAvailabilityIn, db: Session = Depends
     return EmailAvailabilityOut(available=True)
 
 
+def _client_ip(request: Request) -> str:
+    """IP người gọi. Chỉ tin X-Forwarded-For khi chạy sau reverse proxy tin cậy (TRUST_PROXY_HEADERS)."""
+    if settings.TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first[:64]
+    return (request.client.host if request.client else "unknown")[:64]
+
+
+def _minutes_until_slot(db: Session, column, value, now: datetime) -> int:
+    """Số phút đến khi lần gửi cũ nhất trong cửa sổ 1 giờ hết hạn."""
+    oldest = db.query(func.min(PinSendEvent.created_at)).filter(
+        column == value, PinSendEvent.created_at > now - timedelta(hours=1),
+    ).scalar()
+    if oldest is None:
+        return 1
+    return max(1, int((oldest + timedelta(hours=1) - now).total_seconds() // 60) + 1)
+
+
+@router.post("/send-pin")
+def send_register_pin(payload: SendPinIn, request: Request, db: Session = Depends(get_db)):
+    email = str(payload.email).strip().lower()
+    ip = _client_ip(request)
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=1)
+
+    # Dọn dữ liệu cũ: nhật ký gửi quá 1 ngày, mã PIN bỏ dở quá 1 giờ (đã qua cả hạn 10 phút lẫn cửa sổ đếm)
+    db.query(PinSendEvent).filter(PinSendEvent.created_at < now - timedelta(days=1)).delete()  # type: ignore
+    db.query(EmailPin).filter(EmailPin.created_at < window_start).delete()  # type: ignore
+
+    # Giới hạn theo IP trước: chặn một máy gửi mã tới hàng loạt địa chỉ khác nhau
+    ip_count = db.query(func.count(PinSendEvent.id)).filter(
+        PinSendEvent.ip == ip, PinSendEvent.created_at > window_start,
+    ).scalar() or 0
+    if ip_count >= settings.PIN_SENDS_PER_IP_PER_HOUR:
+        db.commit()
+        wait = _minutes_until_slot(db, PinSendEvent.ip, ip, now)
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Thiết bị của bạn đã yêu cầu quá nhiều mã PIN. Vui lòng thử lại sau {wait} phút.",
+        )
+
+    if _find_existing_user(db, email):
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được sử dụng")
+
+    record = db.query(EmailPin).filter(EmailPin.email == email).first()  # type: ignore
+    if record and record.created_at:
+        elapsed = (now - record.created_at).total_seconds()
+        if elapsed < 60:
+            wait_sec = int(60 - elapsed) + 1
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                f"Vui lòng đợi {wait_sec} giây trước khi gửi lại mã PIN.",
+            )
+
+    # Giới hạn theo email: mỗi lần gửi lại đặt lại số lần nhập sai, nên phải chặn số lần gửi để không dò được mã
+    email_count = db.query(func.count(PinSendEvent.id)).filter(
+        PinSendEvent.email == email, PinSendEvent.created_at > window_start,
+    ).scalar() or 0
+    if email_count >= settings.PIN_SENDS_PER_EMAIL_PER_HOUR:
+        db.commit()
+        wait = _minutes_until_slot(db, PinSendEvent.email, email, now)
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Bạn đã yêu cầu quá nhiều mã PIN cho email này. Vui lòng thử lại sau {wait} phút.",
+        )
+
+    pin = f"{secrets.randbelow(1000000):06d}"
+    pin_hashed = hash_password(pin)
+    expires_at = now + timedelta(minutes=10)
+
+    if record:
+        record.pin_hash = pin_hashed
+        record.attempts = 0
+        record.expires_at = expires_at
+        record.created_at = now
+    else:
+        db.add(EmailPin(email=email, pin_hash=pin_hashed, attempts=0, expires_at=expires_at, created_at=now))
+    db.add(PinSendEvent(email=email, ip=ip, created_at=now))
+
+    db.commit()
+    send_pin_email(email, pin)
+    return {"status": "sent", "expires_in_seconds": 600}
+
+
+@router.post("/verify-pin", response_model=VerifyPinOut)
+def verify_register_pin(payload: VerifyPinIn, db: Session = Depends(get_db)):
+    email = str(payload.email).strip().lower()
+    record = db.query(EmailPin).filter(EmailPin.email == email).first()  # type: ignore
+    if not record:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Chưa có yêu cầu mã PIN cho email này. Vui lòng gửi lại mã.")
+
+    now = datetime.now(timezone.utc)
+    if record.expires_at < now:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Mã PIN đã hết hạn. Vui lòng gửi lại mã mới.")
+
+    if record.attempts >= 5:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Bạn đã nhập sai quá 5 lần. Vui lòng gửi lại mã PIN mới.")
+
+    if not verify_password(payload.pin, record.pin_hash):
+        record.attempts = EmailPin.attempts + 1  # type: ignore[assignment]
+        db.commit()
+        db.refresh(record)
+        remaining = max(0, 5 - record.attempts)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Mã PIN không đúng. Còn {remaining} lần thử.")
+
+    # Mã PIN chỉ dùng một lần: xác thực xong thì xóa, bằng chứng còn lại là pin_token (sống 30 phút)
+    db.delete(record)
+    db.commit()
+    return VerifyPinOut(verified=True, pin_token=create_pin_verified_token(email))
+
+
 @router.post("/register", response_model=TokenOut, status_code=201)
 def register(payload: RegisterIn, db: Session = Depends(get_db)):
     # Honeypot: ô ẩn trên form, chỉ bot tự điền. Trả lỗi chung để không lộ cơ chế.
     if payload.honeypot:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Yêu cầu không hợp lệ")
-    if _find_existing_user(db, str(payload.email)):
+    email = str(payload.email).strip().lower()
+    verified_email = decode_pin_verified_token(payload.pin_token) if payload.pin_token else None
+    if not verified_email or verified_email != email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email chưa được xác thực bằng mã PIN")
+    if _find_existing_user(db, email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được sử dụng")
 
     p = payload.profile
@@ -125,16 +247,16 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         for ctype, granted in (("TERMS", c.terms), ("HEALTH_DATA", c.health_data), ("CLOUD_AI", c.cloud_ai)):
             consent.record(db, user.id, ctype, granted, source="REGISTER")
 
+        # 5. Xóa mã PIN đã sử dụng
+        db.query(EmailPin).filter(EmailPin.email == email).delete()  # type: ignore
+
         db.commit()
 
     except Exception:
         db.rollback()   # thất bại giữa chừng → không để lại user mồ côi
         raise
 
-    # Gửi email xác minh (lỗi gửi mail đã được nuốt bên trong, không làm hỏng đăng ký)
-    verify_token = create_verification_token(str(user.id))
-    send_verification_email(str(user.email), build_verify_link(verify_token))
-
+    # Email đã được xác thực bằng mã PIN trước khi đăng ký nên không gửi thêm link xác minh.
     return TokenOut(access_token=create_access_token(str(user.id), user.token_version))
 
 
