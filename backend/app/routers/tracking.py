@@ -3,7 +3,7 @@ import logging
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.deps import get_db, get_current_user
@@ -266,7 +266,8 @@ def them_bua_an(db: Session, user: User, payload: ManualMealIn) -> MealLogOut:
     elif payload.food_name:
         ten = payload.food_name.strip()
         # Trùng tên thì dùng lại, tránh phình bảng foods mỗi lần ghi nhật ký
-        food = db.query(Food).filter(Food.name.ilike(ten)).first()  # type: ignore
+        # So khớp chính xác (không phân biệt hoa thường): ilike sẽ coi '%' và '_' trong tên món là ký tự đại diện
+        food = db.query(Food).filter(func.lower(Food.name) == ten.lower()).first()  # type: ignore
         if not food:
             if payload.calories_kcal is None:
                 raise HTTPException(400, "Món mới cần nhập số calo")

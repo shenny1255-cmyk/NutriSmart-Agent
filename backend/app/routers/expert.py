@@ -98,7 +98,7 @@ def pending_documents(db: Session = Depends(get_db), _: User = expert_or_admin):
 
 @router.get("/documents/{doc_id}/preview", response_model=DocPreviewOut)
 def preview_document(
-    doc_id: str,
+    doc_id: UUID,
     db: Session = Depends(get_db),
     _: User = expert_or_admin,
 ):
@@ -127,7 +127,7 @@ def preview_document(
 
 @router.patch("/documents/{doc_id}/review", response_model=DocumentOut)
 def review_document(
-    doc_id: str, payload: DocumentReviewIn,
+    doc_id: UUID, payload: DocumentReviewIn,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     actor: User = expert_or_admin,
@@ -144,7 +144,7 @@ def review_document(
     doc.approved_by = actor.id  # type: ignore
     doc.approved_at = datetime.now(timezone.utc)  # type: ignore
 
-    write_audit(db, actor.id, "APPROVE", "documents", doc_id,
+    write_audit(db, actor.id, "APPROVE", "documents", str(doc_id),
                 before=before, after={"status": payload.status, "category_id": doc.category_id})
     db.commit()
     db.refresh(doc)
@@ -157,7 +157,7 @@ def review_document(
 
 @router.patch("/documents/{doc_id}/category", response_model=DocumentOut)
 def update_document_category(
-    doc_id: str,
+    doc_id: UUID,
     payload: DocumentCategoryUpdateIn,
     db: Session = Depends(get_db),
     actor: User = expert_or_admin,
@@ -170,7 +170,7 @@ def update_document_category(
     before = {"category_id": doc.category_id}
     doc.category_id = payload.category_id
     write_audit(
-        db, actor.id, "UPDATE", "documents", doc_id,
+        db, actor.id, "UPDATE", "documents", str(doc_id),
         before=before, after={"category_id": payload.category_id},
     )
     db.commit()
@@ -239,7 +239,7 @@ def create_crawl_source(
 
 @router.delete("/crawl-sources/{source_id}")
 def delete_crawl_source(
-    source_id: str,
+    source_id: UUID,
     db: Session = Depends(get_db),
     actor: User = expert_or_admin,
 ):
@@ -250,7 +250,7 @@ def delete_crawl_source(
 
     source.is_active = False
     db.commit()
-    write_audit(db, actor.id, "DELETE", "crawl_sources", source_id)
+    write_audit(db, actor.id, "DELETE", "crawl_sources", str(source_id))
     return {"message": "Đã ẩn nguồn cào thành công."}
 
 

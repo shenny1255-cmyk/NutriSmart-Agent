@@ -196,6 +196,15 @@ def _resolve_allergen(name: str) -> _Group | None:
     for group in ALLERGEN_GROUPS.values():
         if n in group.keywords:      # gõ "tôm" → hiểu là cả nhóm giáp xác
             return group
+    # Tên ghép ("tôm hùm đất", "cá ngừ", "sữa bò tươi") → nhóm có từ khóa khớp DÀI nhất,
+    # sau khi bỏ cụm loại trừ ("trứng gà" không phải dị ứng thịt gà).
+    best, best_len = None, 0
+    for group in ALLERGEN_GROUPS.values():
+        kw = _first_match(n, group.aliases + group.keywords, group.negatives)
+        if kw and len(kw) > best_len:
+            best, best_len = group, len(kw)
+    if best is not None:
+        return best
     return _Group(aliases=(n,), keywords=(n,))
 
 

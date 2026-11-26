@@ -155,7 +155,9 @@ def _gemini_chat(messages: list[dict], *, timeout=180.0, max_tokens=None, temper
     raise LLMError(f"Không gọi được Gemini: {last}")
 
 
-def _gemini_stream(messages: list[dict], *, timeout=180.0, max_tokens=None) -> Iterator[str]:
+def _gemini_stream(messages: list[dict], *, timeout=180.0, max_tokens=None,
+                   meta: dict | None = None) -> Iterator[str]:
+    """`meta` (nếu có) nhận tên model thực sự trả lời - model dự phòng có thể khác model đầu danh sách."""
     client = _gemini_client(timeout)
     system, contents = to_gemini_contents(messages)
     last: Exception | None = None
@@ -167,6 +169,8 @@ def _gemini_stream(messages: list[dict], *, timeout=180.0, max_tokens=None) -> I
                     config=_gemini_config(system, max_tokens, None, None,
                                           thinking_off=_supports_thinking_budget(model))):
                 if chunk.text:
+                    if not produced and meta is not None:
+                        meta["model"] = model
                     produced = True
                     yield chunk.text
             if produced:
@@ -256,8 +260,9 @@ def chat_stream(messages: list[dict], *, user=None, purpose: str = "chat",
     safe, report = privacy.anonymize_messages(messages, full_name=_full_name(user))
     t0 = time.perf_counter()
     produced = False
+    meta: dict = {}
     try:
-        for tok in _gemini_stream(safe, timeout=timeout):
+        for tok in _gemini_stream(safe, timeout=timeout, meta=meta):
             produced = True
             yield tok
     except Exception as e:  # noqa: BLE001
@@ -268,8 +273,9 @@ def chat_stream(messages: list[dict], *, user=None, purpose: str = "chat",
             yield from _ollama_stream(messages, model=ollama_model, timeout=timeout)
             return
         raise e if isinstance(e, LLMError) else LLMError(str(e))
+    # Stream của Gemini không trả usage_metadata ổn định theo từng chunk → chỉ ghi model thực tế
     _audit_external_call(**_audit_kwargs(user, purpose, safe, report, t0),
-                         model=_gemini_models()[0], ok=True)
+                         model=meta.get("model"), ok=True)
 
 
 def warmup(*, model: str | None = None, timeout: float = 90.0) -> None:
