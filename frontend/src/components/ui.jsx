@@ -164,7 +164,7 @@ export function Modal({ open, onClose, icon, tone = 'accent', title, children, f
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="animate-modal-in w-full max-w-md space-y-4 rounded-md bg-paper-2 p-6 shadow-card"
+        className="animate-modal-in max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-md bg-paper-2 p-6 shadow-card"
       >
         <div className="flex items-center gap-3">
           {icon && (
